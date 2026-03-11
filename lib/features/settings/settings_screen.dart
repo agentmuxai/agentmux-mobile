@@ -18,7 +18,7 @@ class SettingsScreen extends ConsumerWidget {
         error: (error, _) => Center(child: Text('Error: $error')),
         data: (s) => ListView(
           children: [
-            _SectionHeader('Terminal'),
+            const _SectionHeader('Terminal'),
             ListTile(
               title: const Text('Font Size'),
               subtitle: Text('${s.termFontSize.toInt()}'),
@@ -47,7 +47,7 @@ class SettingsScreen extends ConsumerWidget {
               title: const Text('Scrollback Lines'),
               subtitle: Text('${s.termScrollback}'),
             ),
-            _SectionHeader('AI'),
+            const _SectionHeader('AI'),
             ListTile(
               title: const Text('Model'),
               subtitle: Text(s.aiModel.isNotEmpty ? s.aiModel : 'Default'),
@@ -56,7 +56,7 @@ class SettingsScreen extends ConsumerWidget {
               title: const Text('Preset'),
               subtitle: Text(s.aiPreset.isNotEmpty ? s.aiPreset : 'Default'),
             ),
-            _SectionHeader('Privacy'),
+            const _SectionHeader('Privacy'),
             SwitchListTile(
               title: const Text('Telemetry'),
               subtitle: const Text(
@@ -64,7 +64,7 @@ class SettingsScreen extends ConsumerWidget {
               value: s.telemetryEnabled,
               onChanged: (v) => updateSetting('telemetry:enabled', v),
             ),
-            _SectionHeader('About'),
+            const _SectionHeader('About'),
             const ListTile(
               title: Text('AgentMux Mobile'),
               subtitle: Text('Version 0.1.0'),

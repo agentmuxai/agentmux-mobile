@@ -147,7 +147,6 @@ class _SessionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isTerminal = block.isTerminal;
     final isAgent = block.isAgent;
 
     return Card(
