@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../shared/theme/app_theme.dart';
 import 'injection_provider.dart';
@@ -35,6 +36,10 @@ class _InjectionSheetState extends ConsumerState<InjectionSheet> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Injection sent')),
         );
+      }
+      // Show quota dialog when MuxBus free tier is exhausted.
+      if (next.quotaExceeded && !(prev?.quotaExceeded ?? false)) {
+        _showQuotaDialog(context);
       }
     });
 
@@ -74,7 +79,6 @@ class _InjectionSheetState extends ConsumerState<InjectionSheet> {
             onChanged: notifier.setMessage,
           ),
           const SizedBox(height: 12),
-          // Priority selector
           Row(
             children: [
               const Text('Priority',
@@ -124,6 +128,39 @@ class _InjectionSheetState extends ConsumerState<InjectionSheet> {
                         strokeWidth: 2, color: Colors.white),
                   )
                 : const Text('Send injection'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showQuotaDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text(
+          'MuxBus free tier reached',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: const Text(
+          'You\'ve used your 100 free cloud injects this month.\n\n'
+          'Upgrade to pay-as-you-go (\$0.01/inject) at cloud.agentmux.ai/billing, '
+          'or send messages directly over LAN for free.',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Dismiss'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pop(); // close sheet too
+              context.push('/settings');
+            },
+            child: const Text('View billing'),
           ),
         ],
       ),

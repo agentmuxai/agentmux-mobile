@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_provider.dart';
@@ -10,6 +11,7 @@ class InjectionState {
     this.priority = 'normal',
     this.submitting = false,
     this.error,
+    this.quotaExceeded = false,
     this.sent,
   });
 
@@ -17,6 +19,7 @@ class InjectionState {
   final String priority;
   final bool submitting;
   final String? error;
+  final bool quotaExceeded;
   final Injection? sent;
 
   InjectionState copyWith({
@@ -24,6 +27,7 @@ class InjectionState {
     String? priority,
     bool? submitting,
     String? error,
+    bool? quotaExceeded,
     Injection? sent,
   }) =>
       InjectionState(
@@ -31,6 +35,7 @@ class InjectionState {
         priority: priority ?? this.priority,
         submitting: submitting ?? this.submitting,
         error: error,
+        quotaExceeded: quotaExceeded ?? false,
         sent: sent ?? this.sent,
       );
 }
@@ -46,7 +51,7 @@ class InjectionNotifier extends FamilyNotifier<InjectionState, String> {
     final msg = state.message.trim();
     if (msg.isEmpty) return;
 
-    state = state.copyWith(submitting: true, error: null);
+    state = state.copyWith(submitting: true, error: null, quotaExceeded: false);
 
     try {
       final auth = ref.read(authRepositoryProvider);
@@ -60,6 +65,12 @@ class InjectionNotifier extends FamilyNotifier<InjectionState, String> {
             sourceAgentId: sourceId,
           );
       state = state.copyWith(submitting: false, sent: injection, message: '');
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 402) {
+        state = state.copyWith(submitting: false, quotaExceeded: true);
+      } else {
+        state = state.copyWith(submitting: false, error: e.message);
+      }
     } catch (e) {
       state = state.copyWith(submitting: false, error: e.toString());
     }

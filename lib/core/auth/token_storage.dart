@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 const _kIdToken = 'muxbus_id_token';
@@ -34,9 +36,29 @@ class TokenStorage {
     return DateTime.fromMillisecondsSinceEpoch(int.parse(v));
   }
 
+  // Requires both tokens — prevents crash when stale emulator state has
+  // id_token but no refresh_token.
   Future<bool> hasTokens() async {
-    final t = await readIdToken();
-    return t != null && t.isNotEmpty;
+    final results = await Future.wait([readIdToken(), readRefreshToken()]);
+    return results[0] != null && results[0]!.isNotEmpty &&
+        results[1] != null && results[1]!.isNotEmpty;
+  }
+
+  // Decodes the billing_tier claim embedded by the Cognito pre-token Lambda.
+  // No API call — reads straight from the stored JWT payload.
+  Future<String?> readBillingTier() async {
+    final token = await readIdToken();
+    if (token == null) return null;
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return null;
+      final payload = base64Url.normalize(parts[1]);
+      final decoded = jsonDecode(utf8.decode(base64Url.decode(payload)))
+          as Map<String, dynamic>;
+      return decoded['billing_tier'] as String?;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> clear() async {
