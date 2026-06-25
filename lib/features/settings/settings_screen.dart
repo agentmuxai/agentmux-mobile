@@ -29,16 +29,15 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ],
           ),
-          _Section(
+          const _Section(
             title: 'About',
             children: [
               ListTile(
-                title: const Text('Version',
+                title: Text('Version',
                     style: TextStyle(color: AppColors.textSecondary)),
                 trailing: Text(
                   '$_appVersion+$_buildStamp',
-                  style: const TextStyle(
-                      color: AppColors.textMuted, fontSize: 13),
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 13),
                 ),
               ),
             ],
