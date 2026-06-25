@@ -1,5 +1,5 @@
 name: agentmux_mobile
-description: AgentMux Mobile — Terminal & AI agent companion app
+description: AgentMux Mobile — cloud agent fleet companion
 publish_to: 'none'
 version: 0.1.0+1
 
@@ -10,17 +10,35 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+
+  # State management
   flutter_riverpod: ^2.6.1
   riverpod_annotation: ^2.6.1
-  xterm: ^3.2.6
+
+  # Networking
+  dio: ^5.7.0
   web_socket_channel: ^3.0.1
-  go_router: ^14.8.1
+
+  # Auth — Cognito PKCE via hosted UI
+  flutter_web_auth_2: ^4.0.0
+  crypto: ^3.0.3
+
+  # Secure token storage
   flutter_secure_storage: ^9.2.4
-  # mobile_scanner: ^6.0.5  # TODO: re-enable when QR scanning is implemented
+
+  # Routing
+  go_router: ^14.8.1
+
+  # Serialization
   freezed_annotation: ^2.4.4
   json_annotation: ^4.9.0
+
+  # Mutex for concurrent 401 token refresh
+  mutex: ^3.1.0
+
+  # Utilities
+  intl: ^0.19.0
   cupertino_icons: ^1.0.8
-  collection: ^1.19.0
 
 dev_dependencies:
   flutter_test:

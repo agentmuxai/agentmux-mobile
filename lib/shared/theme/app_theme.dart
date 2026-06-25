@@ -1,67 +1,83 @@
 import 'package:flutter/material.dart';
 
-/// App theme matching the AgentMux desktop dark theme.
-class AppTheme {
-  static const _bgColor = Color(0xFF1B1B1D);
-  static const _surfaceColor = Color(0xFF232325);
-  static const _accentColor = Color(0xFF58C142);
-  static const _textColor = Color(0xFFE0E0E0);
-  static const _secondaryText = Color(0xFF8A8A8E);
-  static const _errorColor = Color(0xFFE55353);
+// AgentMux dark palette — mirrors desktop CSS tokens.
+abstract final class AppColors {
+  static const background = Color(0xFF0F0F0F);
+  static const surface = Color(0xFF1A1A1A);
+  static const surfaceVariant = Color(0xFF242424);
+  static const border = Color(0xFF2E2E2E);
+  static const primary = Color(0xFF3B82F6);   // --accent-color
+  static const success = Color(0xFF22C55E);
+  static const warning = Color(0xFFEAB308);
+  static const error = Color(0xFFEF4444);
+  static const textPrimary = Color(0xFFE5E5E5);
+  static const textSecondary = Color(0xFF9CA3AF);
+  static const textMuted = Color(0xFF4B5563);
+}
 
-  static final dark = ThemeData(
-    brightness: Brightness.dark,
-    scaffoldBackgroundColor: _bgColor,
-    colorScheme: const ColorScheme.dark(
-      primary: _accentColor,
-      secondary: _accentColor,
-      surface: _surfaceColor,
-      error: _errorColor,
-      onPrimary: Colors.black,
-      onSecondary: Colors.black,
-      onSurface: _textColor,
-      onError: Colors.white,
-    ),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: _surfaceColor,
-      foregroundColor: _textColor,
-      elevation: 0,
-    ),
-    cardTheme: CardTheme(
-      color: _surfaceColor,
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: _bgColor,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: _secondaryText.withValues(alpha: 0.3)),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: _secondaryText.withValues(alpha: 0.3)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: _accentColor),
-      ),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: _accentColor,
-        foregroundColor: Colors.black,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-      ),
-    ),
-    textTheme: const TextTheme(
-      headlineMedium: TextStyle(color: _textColor, fontWeight: FontWeight.w600),
-      titleLarge: TextStyle(color: _textColor, fontWeight: FontWeight.w500),
-      bodyLarge: TextStyle(color: _textColor),
-      bodyMedium: TextStyle(color: _secondaryText),
-      labelLarge: TextStyle(color: _textColor),
-    ),
-  );
+abstract final class AppTheme {
+  static ThemeData get dark => ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: AppColors.background,
+        colorScheme: const ColorScheme.dark(
+          surface: AppColors.surface,
+          primary: AppColors.primary,
+          error: AppColors.error,
+        ),
+        cardTheme: CardThemeData(
+          color: AppColors.surface,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: const BorderSide(color: AppColors.border),
+          ),
+        ),
+        dividerColor: AppColors.border,
+        textTheme: const TextTheme(
+          bodyLarge: TextStyle(color: AppColors.textPrimary, fontSize: 14),
+          bodyMedium: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          labelSmall: TextStyle(color: AppColors.textMuted, fontSize: 11),
+          titleMedium: TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: AppColors.surface,
+          elevation: 0,
+          foregroundColor: AppColors.textPrimary,
+          surfaceTintColor: Colors.transparent,
+        ),
+        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+          backgroundColor: AppColors.surface,
+          selectedItemColor: AppColors.primary,
+          unselectedItemColor: AppColors.textMuted,
+          type: BottomNavigationBarType.fixed,
+        ),
+        floatingActionButtonTheme: const FloatingActionButtonThemeData(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: AppColors.surfaceVariant,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: AppColors.border),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: AppColors.border),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: AppColors.primary),
+          ),
+          hintStyle: const TextStyle(color: AppColors.textMuted),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        ),
+        useMaterial3: true,
+      );
 }

@@ -1,98 +1,106 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/providers/settings_provider.dart';
+import '../../core/auth/auth_provider.dart';
+import '../../shared/theme/app_theme.dart';
+
+// Build-time stamp injected by CI or --dart-define.
+const _appVersion = String.fromEnvironment('APP_VERSION', defaultValue: '0.1.0');
+const _buildStamp = String.fromEnvironment('BUILD_STAMP', defaultValue: 'dev');
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final settings = ref.watch(appSettingsProvider);
-    final updateSetting = ref.read(updateSettingProvider);
-
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
-      body: settings.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('Error: $error')),
-        data: (s) => ListView(
-          children: [
-            const _SectionHeader('Terminal'),
-            ListTile(
-              title: const Text('Font Size'),
-              subtitle: Text('${s.termFontSize.toInt()}'),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.remove),
-                    onPressed: () => updateSetting(
-                        'term:fontsize', (s.termFontSize - 1).clamp(8, 32)),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.add),
-                    onPressed: () => updateSetting(
-                        'term:fontsize', (s.termFontSize + 1).clamp(8, 32)),
-                  ),
-                ],
+      body: ListView(
+        children: [
+          const SizedBox(height: 8),
+          _Section(
+            title: 'Account',
+            children: [
+              ListTile(
+                title: const Text('Sign out',
+                    style: TextStyle(color: AppColors.error)),
+                leading: const Icon(Icons.logout, color: AppColors.error),
+                onTap: () => _confirmSignOut(context, ref),
               ),
-            ),
-            SwitchListTile(
-              title: const Text('Copy on Select'),
-              value: s.termCopyOnSelect,
-              onChanged: (v) => updateSetting('term:copyonselect', v),
-            ),
-            ListTile(
-              title: const Text('Scrollback Lines'),
-              subtitle: Text('${s.termScrollback}'),
-            ),
-            const _SectionHeader('AI'),
-            ListTile(
-              title: const Text('Model'),
-              subtitle: Text(s.aiModel.isNotEmpty ? s.aiModel : 'Default'),
-            ),
-            ListTile(
-              title: const Text('Preset'),
-              subtitle: Text(s.aiPreset.isNotEmpty ? s.aiPreset : 'Default'),
-            ),
-            const _SectionHeader('Privacy'),
-            SwitchListTile(
-              title: const Text('Telemetry'),
-              subtitle: const Text(
-                  'Help improve AgentMux by sending anonymous usage data'),
-              value: s.telemetryEnabled,
-              onChanged: (v) => updateSetting('telemetry:enabled', v),
-            ),
-            const _SectionHeader('About'),
-            const ListTile(
-              title: Text('AgentMux Mobile'),
-              subtitle: Text('Version 0.1.0'),
-            ),
-          ],
-        ),
+            ],
+          ),
+          _Section(
+            title: 'About',
+            children: [
+              ListTile(
+                title: const Text('Version',
+                    style: TextStyle(color: AppColors.textSecondary)),
+                trailing: Text(
+                  '$_appVersion+$_buildStamp',
+                  style: const TextStyle(
+                      color: AppColors.textMuted, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmSignOut(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Sign out?',
+            style: TextStyle(color: AppColors.textPrimary)),
+        content: const Text('You will need to sign in again.',
+            style: TextStyle(color: AppColors.textSecondary)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              ref.read(authProvider.notifier).signOut();
+            },
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            child: const Text('Sign out'),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _SectionHeader extends StatelessWidget {
+class _Section extends StatelessWidget {
+  const _Section({required this.title, required this.children});
   final String title;
-  const _SectionHeader(this.title);
+  final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-      child: Text(
-        title.toUpperCase(),
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: Theme.of(context).colorScheme.primary,
-          letterSpacing: 1.2,
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
+              title.toUpperCase(),
+              style: const TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 11,
+                letterSpacing: 0.8,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ...children,
+          const Divider(height: 1),
+          const SizedBox(height: 8),
+        ],
+      );
 }
