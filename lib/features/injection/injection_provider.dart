@@ -35,7 +35,7 @@ class InjectionState {
         priority: priority ?? this.priority,
         submitting: submitting ?? this.submitting,
         error: error,
-        quotaExceeded: quotaExceeded ?? false,
+        quotaExceeded: quotaExceeded ?? this.quotaExceeded,
         sent: sent ?? this.sent,
       );
 }
