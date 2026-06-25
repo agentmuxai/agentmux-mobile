@@ -45,5 +45,12 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- LAN discovery: required for mDNS multicast on iOS 14+ -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>AgentMux needs local network access to discover AgentMux instances on your WiFi.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_agentmux._tcp</string>
+	</array>
 </dict>
 </plist>
