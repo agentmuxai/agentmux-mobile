@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/auth/auth_provider.dart';
+import 'core/discovery/models/lan_instance.dart';
 import 'features/agent_detail/agent_detail_screen.dart';
 import 'features/agent_list/agent_list_screen.dart';
 import 'features/discovery/discovery_screen.dart';
+import 'features/lan_agent/lan_agent_screen.dart';
 import 'features/login/login_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/usage/usage_screen.dart';
@@ -39,6 +41,18 @@ GoRouter _buildRouter(AsyncValue<AuthStatus> authState) {
       GoRoute(
         path: '/discover',
         builder: (_, __) => const DiscoveryScreen(),
+      ),
+
+      // ── LAN agent detail (no auth required) ───────────────────────────
+      GoRoute(
+        path: '/instance/:addr/agent/:name',
+        builder: (_, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return LanAgentScreen(
+            instance: extra['instance'] as LanInstance,
+            agent: extra['agent'] as LanAgent,
+          );
+        },
       ),
 
       // ── Login ─────────────────────────────────────────────────────────
