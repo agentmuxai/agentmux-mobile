@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/discovery/discovery_provider.dart';
 import '../../core/discovery/models/lan_instance.dart';
 import 'instance_card.dart';
+import 'manual_add_sheet.dart';
 
 class DiscoveryScreen extends ConsumerWidget {
   const DiscoveryScreen({super.key});
@@ -20,6 +21,11 @@ class DiscoveryScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => ref.read(discoveryProvider.notifier).refresh(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: 'Connect manually',
+            onPressed: () => showManualAddSheet(context),
           ),
           IconButton(
             icon: const Icon(Icons.cloud_outlined),
@@ -88,6 +94,12 @@ class _EmptyView extends StatelessWidget {
             style: TextStyle(color: Colors.white54, fontSize: 13),
           ),
           const SizedBox(height: 32),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.add),
+            label: const Text('Connect manually'),
+            onPressed: () => showManualAddSheet(context),
+          ),
+          const SizedBox(height: 12),
           FilledButton.icon(
             icon: const Icon(Icons.cloud),
             label: const Text('Sign in to cloud →'),

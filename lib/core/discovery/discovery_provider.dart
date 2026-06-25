@@ -41,10 +41,13 @@ final discoveryProvider =
 class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
   static const _timeout = Duration(seconds: 5);
 
+  // Persists across refresh() calls within a session.
+  final _manualInstances = <LanInstance>[];
+
   @override
   Future<DiscoveryState> build() async {
     state = const AsyncValue.data(DiscoveryScanning());
-    final instances = <LanInstance>[];
+    final instances = <LanInstance>[..._manualInstances];
 
     await ref
         .read(mdnsScannerProvider)
@@ -52,7 +55,11 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
         .timeout(_timeout, onTimeout: (sink) => sink.close())
         .asyncMap(_enrichWithAgents)
         .forEach((instance) {
-      instances.add(instance);
+      // Skip mDNS results that duplicate a manually-added entry.
+      if (!instances.any(
+          (m) => m.address == instance.address && m.port == instance.port)) {
+        instances.add(instance);
+      }
       state = AsyncValue.data(DiscoveryResults(List.from(instances)));
     });
 
@@ -63,6 +70,35 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
   Future<void> refresh() async {
     state = const AsyncValue.data(DiscoveryScanning());
     ref.invalidateSelf();
+  }
+
+  /// Connect to a LAN instance by address/port/authKey without mDNS.
+  /// Fetches version and agents from the instance, then merges into state.
+  Future<void> addManual(String address, int port, String authKey) async {
+    final client = LocalApiClient.fromParts(address, port, authKey);
+    final info = await client.fetchDiscoveryInfo();
+    final instance = LanInstance(
+      hostname: address,
+      version: info.version,
+      address: address,
+      port: port,
+      authKey: authKey,
+      agents: info.agents,
+    );
+
+    // Replace any existing manual entry with the same address:port.
+    _manualInstances.removeWhere(
+        (m) => m.address == address && m.port == port);
+    _manualInstances.insert(0, instance);
+
+    // Patch current state immediately without re-scanning.
+    final current = switch (state.valueOrNull) {
+      DiscoveryResults(:final instances) => List<LanInstance>.from(instances),
+      _ => <LanInstance>[],
+    };
+    current.removeWhere((m) => m.address == address && m.port == port);
+    current.insert(0, instance);
+    state = AsyncValue.data(DiscoveryResults(current));
   }
 
   Future<LanInstance> _enrichWithAgents(LanInstance instance) async {
