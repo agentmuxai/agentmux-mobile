@@ -47,7 +47,14 @@ GoRouter _buildRouter(AsyncValue<AuthStatus> authState) {
       GoRoute(
         path: '/instance/:addr/agent/:name',
         builder: (_, state) {
-          final extra = state.extra as Map<String, dynamic>;
+          final extra = state.extra as Map<String, dynamic>?;
+          if (extra == null ||
+              extra['instance'] is! LanInstance ||
+              extra['agent'] is! LanAgent) {
+            // Reached without GoRouter extras (deep link, page restore) — fall
+            // back to discovery so the user can re-select the instance.
+            return const DiscoveryScreen();
+          }
           return LanAgentScreen(
             instance: extra['instance'] as LanInstance,
             agent: extra['agent'] as LanAgent,

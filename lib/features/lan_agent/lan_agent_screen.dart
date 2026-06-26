@@ -42,12 +42,14 @@ class _LanAgentScreenState extends ConsumerState<LanAgentScreen> {
         targetAgent: widget.agent.name,
         message: message,
       );
+      if (!mounted) return;
       _controller.clear();
       setState(() { _lastResult = 'sent'; });
     } catch (e) {
-      setState(() { _lastResult = 'error: $e'; });
+      if (!mounted) return;
+      setState(() { _lastResult = 'error'; });
     } finally {
-      setState(() { _sending = false; });
+      if (mounted) setState(() { _sending = false; });
     }
   }
 
@@ -93,13 +95,10 @@ class _LanAgentScreenState extends ConsumerState<LanAgentScreen> {
     );
   }
 
-  bool _isRecent(String? lastSeen) {
-    if (lastSeen == null) return false;
-    try {
-      return DateTime.now().difference(DateTime.parse(lastSeen)).inMinutes < 5;
-    } catch (_) {
-      return false;
-    }
+  bool _isRecent(int? lastSeenMs) {
+    if (lastSeenMs == null) return false;
+    final dt = DateTime.fromMillisecondsSinceEpoch(lastSeenMs);
+    return DateTime.now().difference(dt).inMinutes < 5;
   }
 }
 
