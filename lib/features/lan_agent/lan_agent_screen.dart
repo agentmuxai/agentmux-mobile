@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/discovery/local_api_client.dart';
 import '../../core/discovery/models/lan_instance.dart';
 
-class LanAgentScreen extends ConsumerStatefulWidget {
+class LanAgentScreen extends StatefulWidget {
   const LanAgentScreen({
     super.key,
     required this.instance,
@@ -15,10 +14,10 @@ class LanAgentScreen extends ConsumerStatefulWidget {
   final LanAgent agent;
 
   @override
-  ConsumerState<LanAgentScreen> createState() => _LanAgentScreenState();
+  State<LanAgentScreen> createState() => _LanAgentScreenState();
 }
 
-class _LanAgentScreenState extends ConsumerState<LanAgentScreen> {
+class _LanAgentScreenState extends State<LanAgentScreen> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
   bool _sending = false;
@@ -47,7 +46,7 @@ class _LanAgentScreenState extends ConsumerState<LanAgentScreen> {
       setState(() { _lastResult = 'sent'; });
     } catch (e) {
       if (!mounted) return;
-      setState(() { _lastResult = 'error'; });
+      setState(() { _lastResult = 'Send failed — check connection and try again.'; });
     } finally {
       if (mounted) setState(() { _sending = false; });
     }
@@ -140,12 +139,7 @@ class _ComposeBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.fromLTRB(
-        12,
-        8,
-        12,
-        8 + MediaQuery.of(context).viewInsets.bottom,
-      ),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         border: Border(
