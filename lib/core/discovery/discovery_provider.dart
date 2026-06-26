@@ -4,6 +4,11 @@ import 'local_api_client.dart';
 import 'mdns_scanner.dart';
 import 'models/lan_instance.dart';
 
+// Compile-time constants injected by scripts/run-emulator.sh via --dart-define.
+// Empty strings in production / normal flutter run (no defines passed).
+const _kDevAddr = String.fromEnvironment('AGENTMUX_DEV_ADDR');
+const _kDevKey = String.fromEnvironment('AGENTMUX_DEV_KEY');
+
 // ─── state ───────────────────────────────────────────────────────────────────
 
 sealed class DiscoveryState {
@@ -47,6 +52,11 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
   @override
   Future<DiscoveryState> build() async {
     state = const AsyncValue.data(DiscoveryScanning());
+
+    // Dev emulator bootstrap: auto-connect to the host sidecar when launched via
+    // scripts/run-emulator.sh (passes --dart-define=AGENTMUX_DEV_ADDR/KEY).
+    await _maybeAutoConnect();
+
     final instances = <LanInstance>[..._manualInstances];
 
     await ref
@@ -99,6 +109,30 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
     current.removeWhere((m) => m.address == address && m.port == port);
     current.insert(0, instance);
     state = AsyncValue.data(DiscoveryResults(current));
+  }
+
+  // If AGENTMUX_DEV_ADDR/KEY dart-defines are set (emulator dev workflow), fetch
+  // the instance and seed _manualInstances so build() includes it automatically.
+  Future<void> _maybeAutoConnect() async {
+    if (_kDevAddr.isEmpty || _kDevKey.isEmpty) return;
+    final parts = _kDevAddr.split(':');
+    if (parts.length != 2) return;
+    final port = int.tryParse(parts[1]);
+    if (port == null) return;
+    final address = parts[0];
+    if (_manualInstances.any((m) => m.address == address && m.port == port)) return;
+    try {
+      final client = LocalApiClient.fromParts(address, port, _kDevKey);
+      final info = await client.fetchDiscoveryInfo();
+      _manualInstances.insert(0, LanInstance(
+        hostname: address,
+        version: info.version,
+        address: address,
+        port: port,
+        authKey: _kDevKey,
+        agents: info.agents,
+      ));
+    } catch (_) {}
   }
 
   Future<LanInstance> _enrichWithAgents(LanInstance instance) async {
