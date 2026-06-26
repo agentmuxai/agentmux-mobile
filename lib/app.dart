@@ -51,8 +51,6 @@ GoRouter _buildRouter(AsyncValue<AuthStatus> authState) {
           if (extra == null ||
               extra['instance'] is! LanInstance ||
               extra['agent'] is! LanAgent) {
-            // Reached without GoRouter extras (deep link, page restore) — fall
-            // back to discovery so the user can re-select the instance.
             return const DiscoveryScreen();
           }
           return LanAgentScreen(

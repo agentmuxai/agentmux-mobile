@@ -7,6 +7,10 @@ class LocalApiClient {
       : _base = 'http://${instance.address}:${instance.port}',
         _authKey = instance.authKey;
 
+  LocalApiClient.fromParts(String address, int port, String authKey)
+      : _base = 'http://$address:$port',
+        _authKey = authKey;
+
   final String _base;
   final String _authKey;
 
@@ -17,23 +21,29 @@ class LocalApiClient {
     headers: {'X-AuthKey': _authKey},
   ));
 
-  /// Calls GET /agentmux/discovery and returns the populated agent list.
-  /// Falls back to [] on any error (firewall, endpoint not yet shipped).
+  /// Calls GET /agentmux/discovery and returns the agent list from host.addressable.
+  /// Falls back to [] on any error.
   Future<List<LanAgent>> fetchAgents() async {
     try {
-      final res = await _dio.get<Map<String, dynamic>>('/agentmux/discovery');
-      final data = res.data;
-      if (data == null) return [];
-      final host = data['host'] as Map<String, dynamic>?;
-      final instances =
-          (host?['instances'] as List<dynamic>?)?.cast<Map<String, dynamic>>();
-      if (instances == null || instances.isEmpty) return [];
-      final agentsRaw =
-          (instances.first['agents'] as List<dynamic>?)?.cast<Map<String, dynamic>>();
-      return agentsRaw?.map(LanAgent.fromJson).toList() ?? [];
+      final info = await fetchDiscoveryInfo();
+      return info.agents;
     } catch (_) {
       return [];
     }
+  }
+
+  /// Calls GET /agentmux/discovery and returns version + agents. Throws on error.
+  Future<({String version, List<LanAgent> agents})> fetchDiscoveryInfo() async {
+    final res = await _dio.get<Map<String, dynamic>>('/agentmux/discovery');
+    final data = res.data;
+    if (data == null) return (version: 'unknown', agents: const <LanAgent>[]);
+    final host = data['host'] as Map<String, dynamic>? ?? {};
+    final addressable =
+        (host['addressable'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+    return (
+      version: (host['version'] as String?) ?? 'unknown',
+      agents: addressable.map(LanAgent.fromJson).toList(),
+    );
   }
 
   /// POST /agentmux/reactive/inject — send a message to an agent on this instance.
