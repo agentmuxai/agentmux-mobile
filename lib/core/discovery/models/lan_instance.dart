@@ -7,8 +7,8 @@ part 'lan_instance.g.dart';
 @freezed
 class LanAgent with _$LanAgent {
   const factory LanAgent({
-    required String name,
-    @JsonKey(name: 'last_seen') String? lastSeen,
+    @JsonKey(name: 'agent_id') required String name,
+    @JsonKey(name: 'last_seen') int? lastSeen,
     @Default(true) bool addressable,
   }) = _LanAgent;
 

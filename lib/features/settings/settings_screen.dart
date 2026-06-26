@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_provider.dart';
+import '../../core/billing/billing_provider.dart';
 import '../../shared/theme/app_theme.dart';
 
 // Build-time stamp injected by CI or --dart-define.
@@ -13,22 +15,71 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authProvider);
+    final isAuthed = authState.valueOrNull == AuthStatus.authenticated;
+    final tierAsync = ref.watch(billingTierProvider);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
           const SizedBox(height: 8),
-          _Section(
-            title: 'Account',
-            children: [
-              ListTile(
-                title: const Text('Sign out',
-                    style: TextStyle(color: AppColors.error)),
-                leading: const Icon(Icons.logout, color: AppColors.error),
-                onTap: () => _confirmSignOut(context, ref),
-              ),
-            ],
-          ),
+          // MuxBus cloud section — only when signed in.
+          if (isAuthed) ...[
+            _Section(
+              title: 'MuxBus Cloud',
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.cloud_outlined),
+                  title: Text(
+                    tierAsync.maybeWhen(
+                      data: (t) =>
+                          t == 'free' ? 'MuxBus · Free tier' : 'MuxBus · Metered',
+                      orElse: () => 'MuxBus',
+                    ),
+                    style: const TextStyle(color: AppColors.textPrimary),
+                  ),
+                  subtitle: Text(
+                    tierAsync.maybeWhen(
+                      data: (t) => t == 'free'
+                          ? '100 cloud injects / month free'
+                          : 'Pay-as-you-go · \$0.01 per inject',
+                      orElse: () => '',
+                    ),
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.chevron_right,
+                      color: AppColors.textMuted),
+                  onTap: () => context.go('/usage'),
+                ),
+                ListTile(
+                  title: const Text('Sign out',
+                      style: TextStyle(color: AppColors.error)),
+                  leading: const Icon(Icons.logout, color: AppColors.error),
+                  onTap: () => _confirmSignOut(context, ref),
+                ),
+              ],
+            ),
+          ] else ...[
+            _Section(
+              title: 'MuxBus Cloud',
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.cloud_outlined,
+                      color: AppColors.textMuted),
+                  title: const Text('Connect to MuxBus →',
+                      style: TextStyle(color: AppColors.primary)),
+                  subtitle: const Text(
+                    'Remote access to agents anywhere',
+                    style: TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                  onTap: () => context.push('/login'),
+                ),
+              ],
+            ),
+          ],
           const _Section(
             title: 'About',
             children: [
@@ -85,8 +136,7 @@ class _Section extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Text(
               title.toUpperCase(),
               style: const TextStyle(

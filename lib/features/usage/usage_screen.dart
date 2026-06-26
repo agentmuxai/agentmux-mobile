@@ -92,7 +92,7 @@ class _TierBanner extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                isFree ? 'Free tier' : 'Pro',
+                isFree ? 'MuxBus · Free tier' : 'MuxBus · Metered',
                 style: const TextStyle(
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.w600,
@@ -102,7 +102,7 @@ class _TierBanner extends StatelessWidget {
               Text(
                 isFree
                     ? 'Upgrade at cloud.agentmux.ai/billing'
-                    : 'Metered billing active',
+                    : 'Pay-as-you-go · \$0.01 per inject',
                 style: const TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 12,
