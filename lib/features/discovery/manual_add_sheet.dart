@@ -54,11 +54,11 @@ class _ManualAddSheetState extends ConsumerState<ManualAddSheet> {
     try {
       await ref.read(discoveryProvider.notifier).addManual(host, port, authKey);
       if (mounted) Navigator.of(context).pop();
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         setState(() {
           _connecting = false;
-          _error = 'Could not connect: ${e.toString().replaceAll('DioException [', '').split(']').first}';
+          _error = 'Could not connect — check address and auth key.';
         });
       }
     }

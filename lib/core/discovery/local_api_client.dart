@@ -35,7 +35,8 @@ class LocalApiClient {
   /// Calls GET /agentmux/discovery and returns version + agents. Throws on error.
   Future<({String version, List<LanAgent> agents})> fetchDiscoveryInfo() async {
     final res = await _dio.get<Map<String, dynamic>>('/agentmux/discovery');
-    final data = res.data!;
+    final data = res.data;
+    if (data == null) return (version: 'unknown', agents: const <LanAgent>[]);
     final host = data['host'] as Map<String, dynamic>? ?? {};
     final addressable =
         (host['addressable'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];

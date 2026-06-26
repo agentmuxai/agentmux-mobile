@@ -67,7 +67,7 @@ class _AgentRow extends StatelessWidget {
             )
           : null,
       onTap: () => context.push(
-        '/instance/${instance.address}:${instance.port}/agent/${agent.name}',
+        '/instance/${Uri.encodeComponent('${instance.address}:${instance.port}')}/agent/${Uri.encodeComponent(agent.name)}',
         extra: {'instance': instance, 'agent': agent},
       ),
     );

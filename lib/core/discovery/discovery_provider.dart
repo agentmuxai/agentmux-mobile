@@ -73,8 +73,17 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
       state = AsyncValue.data(DiscoveryResults(List.from(instances)));
     });
 
-    if (instances.isEmpty) return const DiscoveryEmpty();
-    return DiscoveryResults(List.from(instances));
+    // Re-merge: addManual() may have been called concurrently during the mDNS
+    // scan, updating _manualInstances but not the local snapshot. Rebuild the
+    // final list so manually-added instances are not dropped on return.
+    final merged = <LanInstance>[..._manualInstances];
+    for (final inst in instances) {
+      if (!merged.any((m) => m.address == inst.address && m.port == inst.port)) {
+        merged.add(inst);
+      }
+    }
+    if (merged.isEmpty) return const DiscoveryEmpty();
+    return DiscoveryResults(merged);
   }
 
   Future<void> refresh() async {

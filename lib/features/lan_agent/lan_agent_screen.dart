@@ -44,7 +44,7 @@ class _LanAgentScreenState extends State<LanAgentScreen> {
       if (!mounted) return;
       _controller.clear();
       setState(() { _lastResult = 'sent'; });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       setState(() { _lastResult = 'Send failed — check connection and try again.'; });
     } finally {
