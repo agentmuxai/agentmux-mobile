@@ -34,7 +34,7 @@ class InjectionState {
         message: message ?? this.message,
         priority: priority ?? this.priority,
         submitting: submitting ?? this.submitting,
-        error: error,
+        error: error, // null when omitted — clears on setMessage/setPriority (intentional UX)
         quotaExceeded: quotaExceeded ?? this.quotaExceeded,
         sent: sent ?? this.sent,
       );
