@@ -107,6 +107,7 @@ class _ManualAddSheetState extends ConsumerState<ManualAddSheet> {
           const SizedBox(height: 12),
           TextField(
             controller: _authKeyCtrl,
+            obscureText: true,
             style: const TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 14,
