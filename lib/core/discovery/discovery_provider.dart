@@ -65,25 +65,18 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
         .timeout(_timeout, onTimeout: (sink) => sink.close())
         .asyncMap(_enrichWithAgents)
         .forEach((instance) {
-      // Skip mDNS results that duplicate a manually-added entry.
       if (!instances.any(
           (m) => m.address == instance.address && m.port == instance.port)) {
         instances.add(instance);
       }
-      state = AsyncValue.data(DiscoveryResults(List.from(instances)));
+      // Merge _manualInstances on every update so entries added via addManual()
+      // during the scan are not overwritten by subsequent mDNS results.
+      state = AsyncValue.data(DiscoveryResults(_mergeWithManual(instances)));
     });
 
-    // Re-merge: addManual() may have been called concurrently during the mDNS
-    // scan, updating _manualInstances but not the local snapshot. Rebuild the
-    // final list so manually-added instances are not dropped on return.
-    final merged = <LanInstance>[..._manualInstances];
-    for (final inst in instances) {
-      if (!merged.any((m) => m.address == inst.address && m.port == inst.port)) {
-        merged.add(inst);
-      }
-    }
-    if (merged.isEmpty) return const DiscoveryEmpty();
-    return DiscoveryResults(merged);
+    final result = _mergeWithManual(instances);
+    if (result.isEmpty) return const DiscoveryEmpty();
+    return DiscoveryResults(result);
   }
 
   Future<void> refresh() async {
@@ -142,6 +135,16 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
         agents: info.agents,
       ));
     } catch (_) {}
+  }
+
+  List<LanInstance> _mergeWithManual(List<LanInstance> scanned) {
+    final merged = <LanInstance>[..._manualInstances];
+    for (final inst in scanned) {
+      if (!merged.any((m) => m.address == inst.address && m.port == inst.port)) {
+        merged.add(inst);
+      }
+    }
+    return merged;
   }
 
   Future<LanInstance> _enrichWithAgents(LanInstance instance) async {
