@@ -69,7 +69,7 @@ class InjectionNotifier extends FamilyNotifier<InjectionState, String> {
       if (e.response?.statusCode == 402) {
         state = state.copyWith(submitting: false, quotaExceeded: true);
       } else {
-        state = state.copyWith(submitting: false, error: e.message);
+        state = state.copyWith(submitting: false, error: e.message ?? e.toString());
       }
     } catch (e) {
       state = state.copyWith(submitting: false, error: e.toString());

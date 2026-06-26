@@ -62,7 +62,7 @@ class _AgentRow extends StatelessWidget {
       title: Text(agent.name),
       subtitle: lastSeen != null
           ? Text(
-              lastSeen,
+              _formatLastSeen(lastSeen),
               style: const TextStyle(fontSize: 11, color: Colors.white38),
             )
           : null,
@@ -73,12 +73,16 @@ class _AgentRow extends StatelessWidget {
     );
   }
 
-  bool _isRecent(String lastSeen) {
-    try {
-      final dt = DateTime.parse(lastSeen);
-      return DateTime.now().difference(dt).inMinutes < 5;
-    } catch (_) {
-      return false;
-    }
+  bool _isRecent(int lastSeenMs) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(lastSeenMs);
+    return DateTime.now().difference(dt).inMinutes < 5;
+  }
+
+  String _formatLastSeen(int lastSeenMs) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(lastSeenMs);
+    final diff = DateTime.now().difference(dt);
+    if (diff.inSeconds < 60) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    return '${diff.inHours}h ago';
   }
 }
