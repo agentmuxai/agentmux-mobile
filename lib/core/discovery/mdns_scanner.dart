@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:multicast_dns/multicast_dns.dart';
 
+import 'android_multicast_lock.dart';
 import 'models/lan_instance.dart';
 
 const _serviceType = '_agentmux._tcp.local';
@@ -9,6 +10,7 @@ const _serviceType = '_agentmux._tcp.local';
 class MdnsScanner {
   Stream<LanInstance> scan() async* {
     final client = MDnsClient();
+    await AndroidMulticastLock.acquire();
     try {
       await client.start();
 
@@ -21,6 +23,7 @@ class MdnsScanner {
       // mDNS unavailable (no WiFi, permission denied) — emit nothing
     } finally {
       client.stop();
+      await AndroidMulticastLock.release();
     }
   }
 
