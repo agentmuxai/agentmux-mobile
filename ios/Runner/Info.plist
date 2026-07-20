@@ -52,5 +52,8 @@
 	<array>
 		<string>_agentmux._tcp</string>
 	</array>
+	<!-- QR code fallback pairing: mobile_scanner needs camera access -->
+	<key>NSCameraUsageDescription</key>
+	<string>AgentMux needs camera access to scan a QR code for pairing with your desktop.</string>
 </dict>
 </plist>
