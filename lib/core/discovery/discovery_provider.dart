@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'local_api_client.dart';
 import 'mdns_scanner.dart';
 import 'models/lan_instance.dart';
+import 'udp_broadcast_prober.dart';
 
 // Compile-time constants injected by scripts/run-emulator.sh via --dart-define.
 // Empty strings in production / normal flutter run (no defines passed).
@@ -37,6 +38,9 @@ class DiscoveryError extends DiscoveryState {
 
 final mdnsScannerProvider = Provider<MdnsScanner>((_) => MdnsScanner());
 
+final udpBroadcastProberProvider =
+    Provider<UdpBroadcastProber>((_) => UdpBroadcastProber());
+
 final discoveryProvider =
     AsyncNotifierProvider<DiscoveryNotifier, DiscoveryState>(
         DiscoveryNotifier.new);
@@ -45,6 +49,10 @@ final discoveryProvider =
 
 class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
   static const _timeout = Duration(seconds: 5);
+  // Layer-2 fallback (UDP broadcast probe). Only run when mDNS came back
+  // empty, so this never stacks on top of the common case where mDNS just
+  // works — kept short since it's a last resort, not the primary path.
+  static const _udpProbeTimeout = Duration(seconds: 2);
 
   // Persists across refresh() calls within a session.
   final _manualInstances = <LanInstance>[];
@@ -75,8 +83,29 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
     });
 
     final result = _mergeWithManual(instances);
-    if (result.isEmpty) return const DiscoveryEmpty();
-    return DiscoveryResults(result);
+    if (result.isNotEmpty) return DiscoveryResults(result);
+
+    // mDNS found nothing — corporate/guest WiFi often filters multicast, so
+    // fall back to a UDP broadcast probe with its own short internal
+    // timeout before giving up.
+    final udpInstances = <LanInstance>[];
+    await ref
+        .read(udpBroadcastProberProvider)
+        .probe()
+        .timeout(_udpProbeTimeout, onTimeout: (sink) => sink.close())
+        .asyncMap(_enrichWithAgents)
+        .forEach((instance) {
+      if (!udpInstances.any(
+          (m) => m.address == instance.address && m.port == instance.port)) {
+        udpInstances.add(instance);
+      }
+      state =
+          AsyncValue.data(DiscoveryResults(_mergeWithManual(udpInstances)));
+    });
+
+    final fallbackResult = _mergeWithManual(udpInstances);
+    if (fallbackResult.isEmpty) return const DiscoveryEmpty();
+    return DiscoveryResults(fallbackResult);
   }
 
   Future<void> refresh() async {
