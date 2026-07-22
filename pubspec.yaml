@@ -1,7 +1,7 @@
 name: agentmux_mobile
 description: AgentMux Mobile — cloud agent fleet companion
 publish_to: 'none'
-version: 0.2.0+6
+version: 0.2.0+7
 
 environment:
   sdk: ^3.7.0
@@ -38,6 +38,9 @@ dependencies:
 
   # LAN discovery via mDNS
   multicast_dns: ^0.3.2+3
+
+  # QR code fallback for LAN pairing
+  mobile_scanner: ^6.0.5
 
   # Utilities
   intl: ^0.19.0

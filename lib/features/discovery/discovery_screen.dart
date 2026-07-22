@@ -6,6 +6,7 @@ import '../../core/discovery/discovery_provider.dart';
 import '../../core/discovery/models/lan_instance.dart';
 import 'instance_card.dart';
 import 'manual_add_sheet.dart';
+import 'qr_scan_screen.dart';
 
 class DiscoveryScreen extends ConsumerWidget {
   const DiscoveryScreen({super.key});
@@ -21,6 +22,11 @@ class DiscoveryScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => ref.read(discoveryProvider.notifier).refresh(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner),
+            tooltip: 'Scan QR code',
+            onPressed: () => showQrScanScreen(context),
           ),
           IconButton(
             icon: const Icon(Icons.add),
@@ -94,6 +100,12 @@ class _EmptyView extends StatelessWidget {
             style: TextStyle(color: Colors.white54, fontSize: 13),
           ),
           const SizedBox(height: 32),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.qr_code_scanner),
+            label: const Text('Scan QR code'),
+            onPressed: () => showQrScanScreen(context),
+          ),
+          const SizedBox(height: 12),
           OutlinedButton.icon(
             icon: const Icon(Icons.add),
             label: const Text('Connect manually'),
