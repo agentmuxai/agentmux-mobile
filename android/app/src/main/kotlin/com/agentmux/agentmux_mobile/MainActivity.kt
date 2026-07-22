@@ -13,7 +13,22 @@ import io.flutter.plugin.common.MethodChannel
 // See agentmux-mobile#2.
 class MainActivity : FlutterActivity() {
     private val channelName = "com.agentmux.agentmux_mobile/multicast_lock"
-    private var multicastLock: WifiManager.MulticastLock? = null
+
+    // A single, persistent, reference-counted lock. Two overlapping
+    // MdnsScanner.scan() calls (e.g. a manual refresh fired while a prior
+    // scan is still within its timeout window) must each get their own
+    // acquire()/release() pair against the SAME lock object — that's what
+    // setReferenceCounted(true) is for. Recreating the lock per call (or
+    // short-circuiting acquire() when already held, as an earlier version
+    // of this file did) breaks that: the first scan's release() would drop
+    // the lock out from under a still-running second scan.
+    private val multicastLock: WifiManager.MulticastLock by lazy {
+        val wifiManager =
+            applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        wifiManager.createMulticastLock("agentmux-mdns-discovery").apply {
+            setReferenceCounted(true)
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -21,11 +36,15 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "acquire" -> {
-                        acquireLock()
+                        multicastLock.acquire()
                         result.success(null)
                     }
                     "release" -> {
-                        releaseLock()
+                        // Guards against an unbalanced release() (no prior
+                        // acquire()) throwing "WifiLock under-locked" —
+                        // matched acquire/release pairs from the Dart side
+                        // are still what keeps the ref count correct.
+                        if (multicastLock.isHeld) multicastLock.release()
                         result.success(null)
                     }
                     else -> result.notImplemented()
@@ -33,23 +52,10 @@ class MainActivity : FlutterActivity() {
             }
     }
 
-    private fun acquireLock() {
-        if (multicastLock?.isHeld == true) return
-        val wifiManager =
-            applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-        val lock = wifiManager.createMulticastLock("agentmux-mdns-discovery")
-        lock.setReferenceCounted(true)
-        lock.acquire()
-        multicastLock = lock
-    }
-
-    private fun releaseLock() {
-        multicastLock?.let { if (it.isHeld) it.release() }
-        multicastLock = null
-    }
-
     override fun onDestroy() {
-        releaseLock()
+        while (multicastLock.isHeld) {
+            multicastLock.release()
+        }
         super.onDestroy()
     }
 }
