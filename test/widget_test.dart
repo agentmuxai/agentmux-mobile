@@ -9,5 +9,10 @@ void main() {
       const ProviderScope(child: AgentMuxApp()),
     );
     expect(find.text('AgentMux'), findsOneWidget);
+
+    // DiscoveryNotifier.build() schedules a 5s Stream.timeout() Timer for the
+    // mDNS scan; advance the fake clock past it so the Timer fires and clears
+    // before teardown, or the test binding's pending-timer invariant fails.
+    await tester.pump(const Duration(seconds: 6));
   });
 }
