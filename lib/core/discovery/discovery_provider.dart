@@ -91,7 +91,7 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
     final udpInstances = <LanInstance>[];
     await ref
         .read(udpBroadcastProberProvider)
-        .probe()
+        .probe(timeout: _udpProbeTimeout)
         .timeout(_udpProbeTimeout, onTimeout: (sink) => sink.close())
         .asyncMap(_enrichWithAgents)
         .forEach((instance) {
