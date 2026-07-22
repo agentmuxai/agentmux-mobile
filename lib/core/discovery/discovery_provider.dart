@@ -92,8 +92,14 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
     await ref
         .read(udpBroadcastProberProvider)
         .probe(timeout: _udpProbeTimeout)
-        .timeout(_udpProbeTimeout, onTimeout: (sink) => sink.close())
         .asyncMap(_enrichWithAgents)
+        // Applied after asyncMap, not just around the raw probe stream: a
+        // slow/unreachable host's fetchAgents() call (5s connect + 10s
+        // receive timeout in local_api_client.dart) would otherwise keep
+        // this "short UDP fallback" blocked for up to ~15s per instance.
+        // This doesn't cancel that in-flight call, but it does stop
+        // forEach() below from waiting on it past _udpProbeTimeout.
+        .timeout(_udpProbeTimeout, onTimeout: (sink) => sink.close())
         .forEach((instance) {
       if (!udpInstances.any(
           (m) => m.address == instance.address && m.port == instance.port)) {
