@@ -6,6 +6,7 @@ import 'core/auth/auth_provider.dart';
 import 'core/discovery/models/lan_instance.dart';
 import 'features/agent_detail/agent_detail_screen.dart';
 import 'features/agent_list/agent_list_screen.dart';
+import 'features/debug/debug_log_screen.dart';
 import 'features/discovery/discovery_screen.dart';
 import 'features/lan_agent/lan_agent_screen.dart';
 import 'features/login/login_screen.dart';
@@ -41,6 +42,12 @@ GoRouter _buildRouter(AsyncValue<AuthStatus> authState) {
       GoRoute(
         path: '/discover',
         builder: (_, __) => const DiscoveryScreen(),
+      ),
+
+      // ── Debug log (no auth required) ────────────────────────────────────
+      GoRoute(
+        path: '/debug-log',
+        builder: (_, __) => const DebugLogScreen(),
       ),
 
       // ── LAN agent detail (no auth required) ───────────────────────────

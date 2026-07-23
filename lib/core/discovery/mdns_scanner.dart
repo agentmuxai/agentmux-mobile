@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:developer' as developer;
 
 import 'package:multicast_dns/multicast_dns.dart';
 
+import '../logging/app_logger.dart';
 import 'android_multicast_lock.dart';
 import 'models/lan_instance.dart';
 
@@ -37,7 +37,7 @@ class MdnsScanner {
       // still completes normally (bind succeeds without SO_REUSEPORT)
       // despite it. Safe to ignore; documented here so it isn't
       // re-investigated as a mystery next time someone sees it in logcat.
-      developer.log(
+      AppLogger.log(
         'mDNS scan failed, discovery falls back to manual/QR/UDP broadcast',
         name: 'MdnsScanner',
         error: e,

@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import '../logging/app_logger.dart';
 import 'models/lan_instance.dart';
 
 /// LAN-discovery Layer 2 fallback: a UDP broadcast probe/response, used when
@@ -51,7 +51,7 @@ class UdpBroadcastProber {
         // Socket-level error mid-listen — same graceful-fallback contract
         // as MdnsScanner.scan(), but logged rather than silently swallowed
         // (see that method's catch block for why this matters).
-        developer.log(
+        AppLogger.log(
           'UDP broadcast probe socket error',
           name: 'UdpBroadcastProber',
           error: e,
@@ -74,7 +74,7 @@ class UdpBroadcastProber {
       // Broadcast unavailable (no network, socket bind failure, etc.) —
       // emit nothing, same as MdnsScanner.scan() on failure, but logged
       // rather than silently swallowed so a real regression is diagnosable.
-      developer.log(
+      AppLogger.log(
         'UDP broadcast probe failed, discovery falls back to remaining layers',
         name: 'UdpBroadcastProber',
         error: e,
