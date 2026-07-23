@@ -8,7 +8,7 @@ import '../auth/auth_repository.dart';
 
 const _wsBase = String.fromEnvironment(
   'MUXBUS_WS_BASE',
-  defaultValue: 'wss://muxbus.agentmux.ai',
+  defaultValue: 'wss://muxbus-ws.agentmux.ai',
 );
 
 enum MuxbusEventType { injectAvailable, unknown }
