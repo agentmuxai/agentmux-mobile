@@ -40,16 +40,26 @@ fvm flutter run \
 
 ### Android — custom scheme
 
-In `android/app/src/main/AndroidManifest.xml`, add inside `<activity>`:
+`flutter_web_auth_2` requires its own `com.linusu.flutter_web_auth_2.CallbackActivity`
+declared in `android/app/src/main/AndroidManifest.xml` — the intent-filter must
+NOT be added to `.MainActivity`; the plugin's own runtime listens on this
+separate activity for the redirect:
 
 ```xml
-<intent-filter>
-  <action android:name="android.intent.action.VIEW" />
-  <category android:name="android.intent.category.DEFAULT" />
-  <category android:name="android.intent.category.BROWSABLE" />
-  <data android:scheme="agentmuxmobile" android:host="auth" />
-</intent-filter>
+<activity
+  android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
+  android:exported="true"
+  android:taskAffinity="">
+  <intent-filter android:label="flutter_web_auth_2">
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    <data android:scheme="agentmuxmobile" />
+  </intent-filter>
+</activity>
 ```
+
+See the [package's Android setup docs](https://pub.dev/packages/flutter_web_auth_2) for the full requirements (e.g. `android:exported="true"` is mandatory for SDK 31+).
 
 ### iOS — custom scheme
 

@@ -31,15 +31,23 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Cognito PKCE OAuth callback (flutter_web_auth_2) -- must match
-                 _redirectUri/_callbackScheme in lib/core/auth/auth_repository.dart
-                 and the app client's allowed callback URL. See README.md's
-                 "Platform setup" section. -->
-            <intent-filter>
+        </activity>
+        <!-- Cognito PKCE OAuth callback (flutter_web_auth_2) -- flutter_web_auth_2
+             requires this exact activity name (com.linusu.flutter_web_auth_2.CallbackActivity),
+             NOT an intent-filter on MainActivity; the plugin's own runtime listens
+             on this activity for the redirect. Scheme must match _callbackScheme
+             in lib/core/auth/auth_repository.dart and the app client's allowed
+             callback URL. See README.md's "Platform setup" section and
+             https://pub.dev/packages/flutter_web_auth_2 (Android setup). -->
+        <activity
+            android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
+            android:exported="true"
+            android:taskAffinity="">
+            <intent-filter android:label="flutter_web_auth_2">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="agentmuxmobile" android:host="auth" />
+                <data android:scheme="agentmuxmobile" />
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
