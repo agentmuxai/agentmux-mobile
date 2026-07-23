@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:multicast_dns/multicast_dns.dart';
 
@@ -19,8 +20,29 @@ class MdnsScanner {
         final instance = await _resolveService(client, ptr.domainName);
         if (instance != null) yield instance;
       }
-    } catch (_) {
-      // mDNS unavailable (no WiFi, permission denied) — emit nothing
+    } catch (e, stackTrace) {
+      // mDNS unavailable (no WiFi, permission denied, or a platform-level
+      // socket setup failure) — the scan stream just emits nothing rather
+      // than surfacing an error to the UI (manual entry / QR / UDP
+      // broadcast are the designed fallbacks — see discovery_provider.dart),
+      // but log it so a real regression isn't silently invisible.
+      //
+      // Note: on x86_64 Android emulators, `MDnsClient.start()` (which
+      // hardcodes `reusePort: true` — see the `multicast_dns` package
+      // source) triggers a native "Dart Socket ERROR: ... `reusePort` not
+      // supported on this platform" line in logcat. That's the Dart
+      // runtime's native socket layer logging a best-effort setsockopt
+      // failure directly, not a thrown Dart exception — it never reaches
+      // this catch block, and manual emulator testing confirmed the scan
+      // still completes normally (bind succeeds without SO_REUSEPORT)
+      // despite it. Safe to ignore; documented here so it isn't
+      // re-investigated as a mystery next time someone sees it in logcat.
+      developer.log(
+        'mDNS scan failed, discovery falls back to manual/QR/UDP broadcast',
+        name: 'MdnsScanner',
+        error: e,
+        stackTrace: stackTrace,
+      );
     } finally {
       client.stop();
       await AndroidMulticastLock.release();

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -46,8 +47,16 @@ class UdpBroadcastProber {
         if (datagram == null) return;
         final instance = parseResponse(datagram);
         if (instance != null) controller.add(instance);
-      }, onError: (_) {
-        // Socket-level error — ignore, mirrors mDNS scanner's broad catch.
+      }, onError: (Object e, StackTrace stackTrace) {
+        // Socket-level error mid-listen — same graceful-fallback contract
+        // as MdnsScanner.scan(), but logged rather than silently swallowed
+        // (see that method's catch block for why this matters).
+        developer.log(
+          'UDP broadcast probe socket error',
+          name: 'UdpBroadcastProber',
+          error: e,
+          stackTrace: stackTrace,
+        );
       });
 
       timer = Timer(timeout, () {
@@ -61,9 +70,16 @@ class UdpBroadcastProber {
       };
 
       yield* controller.stream;
-    } catch (_) {
+    } catch (e, stackTrace) {
       // Broadcast unavailable (no network, socket bind failure, etc.) —
-      // emit nothing, same as MdnsScanner.scan() on failure.
+      // emit nothing, same as MdnsScanner.scan() on failure, but logged
+      // rather than silently swallowed so a real regression is diagnosable.
+      developer.log(
+        'UDP broadcast probe failed, discovery falls back to remaining layers',
+        name: 'UdpBroadcastProber',
+        error: e,
+        stackTrace: stackTrace,
+      );
     } finally {
       timer?.cancel();
       await subscription?.cancel();
