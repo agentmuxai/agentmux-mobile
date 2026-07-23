@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'local_api_client.dart';
@@ -169,7 +171,18 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
         authKey: _kDevKey,
         agents: info.agents,
       ));
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      // Dev-only bootstrap path (scripts/run-emulator.sh) — silently doing
+      // nothing here previously made "dev host unreachable" indistinguishable
+      // from "dev-define wasn't passed", which cost real time diagnosing an
+      // emulator/host connectivity issue with no signal to go on.
+      developer.log(
+        'Dev auto-connect to $address:$port failed',
+        name: 'DiscoveryNotifier',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    }
   }
 
   List<LanInstance> _mergeWithManual(List<LanInstance> scanned) {
