@@ -1,7 +1,7 @@
 # AgentMux Mobile
 
 Mobile companion for the [AgentMux](https://github.com/agentmuxai/agentmux) fleet.
-Built with Flutter. Connects to [agentmux-cloud](https://github.com/agentmuxai/agentmux-cloud) (muxbus) — not the local desktop backend.
+Built with Flutter. Connects via [agentmux-cloud](https://github.com/agentmuxai/agentmux-cloud) (muxbus) when off the local network, or directly to the desktop backend over LAN (mDNS discovery, UDP-broadcast fallback, QR-code pairing).
 
 **Private repo — AgentMux Corp.**
 
@@ -11,6 +11,7 @@ Built with Flutter. Connects to [agentmux-cloud](https://github.com/agentmuxai/a
 - **Message feed** — read per-agent message history in real time
 - **Inject** — send a prompt to any running agent
 - **Usage & billing** — monthly quota bars (messages, drone runs, emails) + tier
+- **LAN mode** — discover and pair with a desktop backend directly on the local network (mDNS, UDP-broadcast fallback, QR-code pairing), bypassing muxbus entirely
 
 It is read-first. Agent configuration, workspace, and tool execution stay on the desktop app.
 
@@ -32,7 +33,7 @@ fvm flutter run \
   --dart-define=MUXBUS_COGNITO_DOMAIN=<your-cognito-domain> \
   --dart-define=MUXBUS_CLIENT_ID=<public-app-client-id> \
   --dart-define=MUXBUS_API_BASE=https://muxbus.agentmux.ai \
-  --dart-define=MUXBUS_WS_BASE=wss://muxbus.agentmux.ai
+  --dart-define=MUXBUS_WS_BASE=wss://muxbus-ws.agentmux.ai
 ```
 
 ## Platform setup
@@ -93,6 +94,14 @@ lib/
 │   │   ├── muxbus_client.dart     # Dio REST client + 401 refresh interceptor
 │   │   ├── muxbus_socket.dart     # WebSocket /ws, foreground lifecycle
 │   │   └── api_provider.dart      # Riverpod providers for client + socket
+│   ├── discovery/
+│   │   ├── mdns_scanner.dart          # mDNS discovery of desktop backends on LAN
+│   │   ├── udp_broadcast_prober.dart  # UDP-broadcast fallback discovery
+│   │   ├── local_api_client.dart      # Direct REST client to desktop backend
+│   │   ├── android_multicast_lock.dart
+│   │   └── discovery_provider.dart
+│   ├── billing/
+│   │   └── billing_provider.dart
 │   └── models/
 │       ├── agent.dart             # Agent (freezed)
 │       ├── message.dart           # Message (freezed)
@@ -104,6 +113,8 @@ lib/
 │   ├── agent_detail/              # Per-agent message feed + provider
 │   ├── injection/                 # Injection bottom sheet + provider
 │   ├── usage/                     # Usage & billing screen + provider
+│   ├── discovery/                 # LAN discovery, QR pairing, manual-add screens
+│   ├── lan_agent/                 # Agent view served over the direct LAN connection
 │   └── settings/                  # Sign-out + version info
 └── shared/
     ├── theme/app_theme.dart       # AgentMux dark palette
@@ -116,7 +127,7 @@ lib/
 
 - **State**: Riverpod 2 `AsyncNotifier` / `Notifier` — no code generation required to run, though `@riverpod` annotations are available for future use.
 - **Auth**: Cognito hosted UI via PKCE (`flutter_web_auth_2`). Tokens stored in platform keychain (`flutter_secure_storage`). Concurrent 401s handled with a `Completer`-based "one future" mutex in the Dio interceptor.
-- **Real-time**: WebSocket `/ws` connects on foreground, disconnects on pause. On `inject_available` broadcast, providers refresh the agent list and active message feed.
+- **Real-time**: WebSocket to `wss://muxbus-ws.agentmux.ai` connects on foreground, disconnects on pause. On `inject_available` broadcast, providers refresh the agent list and active message feed.
 - **x-agent-id**: `GET /api/agents`, `/usage/current`, `/billing/tier` require no agent ID header. `GET /api/messages` passes the viewed agent's ID. `POST /reactive/inject` passes `mobile:<cognito_sub>` as the source identifier.
 
 ## Requirements

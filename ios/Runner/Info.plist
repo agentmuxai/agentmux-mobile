@@ -55,5 +55,18 @@
 	<!-- QR code fallback pairing: mobile_scanner needs camera access -->
 	<key>NSCameraUsageDescription</key>
 	<string>AgentMux needs camera access to scan a QR code for pairing with your desktop.</string>
+	<!-- Cognito PKCE OAuth callback (flutter_web_auth_2) -- must match
+	     _redirectUri/_callbackScheme in lib/core/auth/auth_repository.dart
+	     and the app client's allowed callback URL. See README.md's
+	     "Platform setup" section. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>agentmuxmobile</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
