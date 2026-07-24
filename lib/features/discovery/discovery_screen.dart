@@ -38,6 +38,11 @@ class DiscoveryScreen extends ConsumerWidget {
             tooltip: 'Cloud login',
             onPressed: () => context.push('/login'),
           ),
+          IconButton(
+            icon: const Icon(Icons.bug_report_outlined),
+            tooltip: 'Debug log',
+            onPressed: () => context.push('/debug-log'),
+          ),
         ],
       ),
       body: state.when(

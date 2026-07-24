@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../logging/app_logger.dart';
 import 'models/lan_instance.dart';
 
 class LocalApiClient {
@@ -27,7 +28,18 @@ class LocalApiClient {
     try {
       final info = await fetchDiscoveryInfo();
       return info.agents;
-    } catch (_) {
+    } catch (e, stackTrace) {
+      // Falls back to [] so one unreachable instance doesn't blank the whole
+      // discovery list, but logged rather than silently swallowed — this
+      // exact call is what enriches mDNS/UDP results with agent lists, and a
+      // silent failure here previously made a real connectivity problem
+      // indistinguishable from "instance genuinely has no agents".
+      AppLogger.log(
+        'fetchAgents failed for $_base, agent list left empty',
+        name: 'LocalApiClient',
+        error: e,
+        stackTrace: stackTrace,
+      );
       return [];
     }
   }

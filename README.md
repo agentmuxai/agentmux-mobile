@@ -112,6 +112,8 @@ lib/
 │   │   └── discovery_provider.dart
 │   ├── billing/
 │   │   └── billing_provider.dart
+│   ├── logging/
+│   │   └── app_logger.dart        # dart:developer.log wrapper + in-memory ring buffer
 │   └── models/
 │       ├── agent.dart             # Agent (freezed)
 │       ├── message.dart           # Message (freezed)
@@ -125,6 +127,7 @@ lib/
 │   ├── usage/                     # Usage & billing screen + provider
 │   ├── discovery/                 # LAN discovery, QR pairing, manual-add screens
 │   ├── lan_agent/                 # Agent view served over the direct LAN connection
+│   ├── debug/                     # In-app debug log viewer (AppLogger ring buffer)
 │   └── settings/                  # Sign-out + version info
 └── shared/
     ├── theme/app_theme.dart       # AgentMux dark palette
