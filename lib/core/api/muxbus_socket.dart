@@ -6,6 +6,7 @@ import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../auth/auth_repository.dart';
+import '../logging/app_logger.dart';
 
 const _wsBase = String.fromEnvironment(
   'MUXBUS_WS_BASE',
@@ -79,15 +80,29 @@ class MuxbusSocket with WidgetsBindingObserver {
       _channel!.stream.listen(
         _onMessage,
         onDone: _onDisconnect,
-        onError: (_) => _onDisconnect(),
+        onError: (Object e, StackTrace stackTrace) {
+          AppLogger.log(
+            'Muxbus socket stream error',
+            name: 'MuxbusSocket',
+            error: e,
+            stackTrace: stackTrace,
+          );
+          _onDisconnect();
+        },
         cancelOnError: true,
       );
 
       _pingTimer = Timer.periodic(const Duration(seconds: 30), (_) {
         _channel?.sink.add(json.encode({'type': 'ping'}));
       });
-    } catch (_) {
+    } catch (e, stackTrace) {
       // Auth failure or network error — retry on next foreground.
+      AppLogger.log(
+        'Muxbus socket connect failed, will retry on next foreground',
+        name: 'MuxbusSocket',
+        error: e,
+        stackTrace: stackTrace,
+      );
     }
   }
 
@@ -115,6 +130,13 @@ class MuxbusSocket with WidgetsBindingObserver {
       if (type == 'inject_available') {
         _controller.add(const MuxbusEvent(MuxbusEventType.injectAvailable));
       }
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      AppLogger.log(
+        'Muxbus socket message parse failed',
+        name: 'MuxbusSocket',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    }
   }
 }
