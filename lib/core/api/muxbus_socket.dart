@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
+import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../auth/auth_repository.dart';
@@ -56,8 +57,24 @@ class MuxbusSocket with WidgetsBindingObserver {
     if (_disposed || _channel != null) return;
     try {
       final token = await _auth.getValidIdToken();
-      final uri = Uri.parse('$_wsBase/ws');
-      _channel = WebSocketChannel.connect(uri, protocols: ['Bearer $token']);
+      // No path suffix -- the ApiMapping for muxbus-ws.agentmux.ai has no
+      // apiMappingKey, so the client connects at the domain root (matches
+      // the desktop client, fixed for the same reason in agentmux#1955; see
+      // muxbus-websocket.ts's own comment on this). A stray "/ws" here
+      // silently failed every handshake (DOC-001, 2026-07-29 documentation
+      // analyst).
+      final uri = Uri.parse(_wsBase);
+      // The token must go in the Authorization header -- ws-connect.ts's
+      // $connect handler reads event.headers["authorization"], not the
+      // Sec-WebSocket-Protocol header WebSocketChannel.connect's `protocols`
+      // param would have set. IOWebSocketChannel (dart:io-backed, fine here
+      // since this app has no web target) is what actually supports custom
+      // handshake headers; the cross-platform WebSocketChannel.connect
+      // factory does not.
+      _channel = IOWebSocketChannel.connect(
+        uri,
+        headers: {'Authorization': 'Bearer $token'},
+      );
 
       _channel!.stream.listen(
         _onMessage,
