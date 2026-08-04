@@ -73,7 +73,10 @@ class MuxbusClient {
       },
       options: Options(headers: {'x-agent-id': sourceAgentId}),
     );
-    return Injection.fromJson(res.data!['injection'] as Map<String, dynamic>);
+    // The response is a flat object with no "injection" key (see
+    // Injection.fromInjectResponse's doc comment) — passing `message` back
+    // in since the server doesn't echo it.
+    return Injection.fromInjectResponse(res.data!, message: message);
   }
 
   // ── Usage & billing ───────────────────────────────────────────────────────
