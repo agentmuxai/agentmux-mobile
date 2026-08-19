@@ -70,10 +70,18 @@ flutter run -d emulator-5554 \
   `The string "--" is not permitted within comments`, that's the bug class — search the manifest
   for a stray `--` inside a `<!-- ... -->` block. (Already fixed as of this writing — this note is
   here so it's recognized instantly if a similar copy-pasted comment reintroduces it.)
-- mDNS discovery does NOT work reliably on the Android emulator (see
-  [issue #2](https://github.com/agentmuxai/agentmux-mobile/issues/2)'s reliability table) — use
-  the UDP-broadcast fallback, QR-code pairing, or manual IP entry to test LAN connectivity from
-  the emulator; a real device is needed to exercise mDNS itself.
+- mDNS discovery does NOT work on the Android emulator's default networking (see
+  [issue #2](https://github.com/agentmuxai/agentmux-mobile/issues/2)'s reliability table) — a real
+  device is needed to exercise mDNS itself.
+- **The Discovery screen CAN still find your desktop's real AgentMux instance from the emulator**,
+  without mDNS: run `dart run scripts/discovery_relay.dart` on this machine (leave it running
+  alongside the emulator), then use the app's normal Discovery screen — no manual IP entry, no
+  dev-bootstrap dart-defines needed. Researched and ruled out general LAN bridging for the
+  emulator on Windows first (`-net-tap` and Genymotion's bridged mode are both documented as
+  unreliable-to-broken on Windows specifically) — this relay is a purpose-built workaround for
+  this app's own discovery protocol instead. See
+  `docs/specs/DISCOVERY_DIAGNOSTICS_TELEMETRY.md`'s follow-up section for the full design, and
+  that script's own doc comment for how it works.
 
 ## Quick start
 

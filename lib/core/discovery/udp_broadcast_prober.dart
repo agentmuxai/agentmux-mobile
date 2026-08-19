@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import '../logging/app_logger.dart';
+import 'discovery_telemetry.dart';
 import 'models/lan_instance.dart';
 
 /// LAN-discovery Layer 2 fallback: a UDP broadcast probe/response, used when
@@ -21,15 +22,40 @@ const _probeMessage = '{"type":"agentmux_discover","v":1}';
 const _defaultProbeWindow = Duration(seconds: 2);
 const _responseType = 'agentmux_discover_response';
 
+// scripts/discovery_relay.dart's listening port, reached via QEMU/SLIRP's
+// well-known host-loopback gateway alias (10.0.2.2 -> the host's own
+// 127.0.0.1) — the same mechanism scripts/run-emulator.sh already relies on
+// for its own HTTP connection. Only meaningful when actually running on the
+// emulator (gated by [tryEmulatorRelay], set from the network snapshot's
+// looksLikeEmulatorNat — see network_environment.dart); a real device has
+// no 10.0.2.2 gateway, so this send is inert there regardless.
+const _emulatorRelayHost = '10.0.2.2';
+const _emulatorRelayPort = 47892;
+
 class UdpBroadcastProber {
   /// Broadcasts a discovery probe and yields a [LanInstance] for every valid
   /// response received within [timeout]. The socket is always closed when
   /// the stream ends — whether [timeout] elapses internally or the caller
   /// cancels the stream (e.g. via its own `.timeout()`).
-  Stream<LanInstance> probe({Duration timeout = _defaultProbeWindow}) async* {
+  ///
+  /// [tryEmulatorRelay] additionally unicasts the same probe to
+  /// `scripts/discovery_relay.dart` on the host (if it happens to be
+  /// running) — see that script's doc comment for the full design. Any
+  /// relayed response arrives back through this same socket/listener, in
+  /// the same wire format as a normal broadcast response, so it needs no
+  /// separate handling below.
+  Stream<LanInstance> probe({
+    Duration timeout = _defaultProbeWindow,
+    bool tryEmulatorRelay = false,
+  }) async* {
     RawDatagramSocket? socket;
     StreamSubscription<RawSocketEvent>? subscription;
     Timer? timer;
+    final stopwatch = Stopwatch()..start();
+    var probeSent = false;
+    var datagramsReceived = 0;
+    var validResponses = 0;
+    String? errorDetail;
     try {
       socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
       socket.broadcastEnabled = true;
@@ -38,6 +64,14 @@ class UdpBroadcastProber {
         InternetAddress('255.255.255.255'),
         probePort,
       );
+      if (tryEmulatorRelay) {
+        socket.send(
+          utf8.encode(_probeMessage),
+          InternetAddress(_emulatorRelayHost),
+          _emulatorRelayPort,
+        );
+      }
+      probeSent = true;
 
       final controller = StreamController<LanInstance>();
 
@@ -45,12 +79,20 @@ class UdpBroadcastProber {
         if (event != RawSocketEvent.read) return;
         final datagram = socket?.receive();
         if (datagram == null) return;
+        datagramsReceived++;
         final instance = parseResponse(datagram);
-        if (instance != null) controller.add(instance);
+        if (instance != null) {
+          validResponses++;
+          controller.add(instance);
+        }
       }, onError: (Object e, StackTrace stackTrace) {
         // Socket-level error mid-listen — same graceful-fallback contract
         // as MdnsScanner.scan(), but logged rather than silently swallowed
-        // (see that method's catch block for why this matters).
+        // (see that method's catch block for why this matters). Also record
+        // into errorDetail so the finally block's outcome derivation reports
+        // 'error' instead of 'empty'/'results' — a socket error mid-listen
+        // doesn't throw past this listener, so the outer catch never sees it.
+        errorDetail = e.toString();
         AppLogger.log(
           'UDP broadcast probe socket error',
           name: 'UdpBroadcastProber',
@@ -69,11 +111,21 @@ class UdpBroadcastProber {
         subscription?.cancel();
       };
 
+      // NOT "record the outcome after yield* completes" — this point is
+      // only reached if `controller.stream` ends on its own accord (its
+      // internal `timer` firing). In practice the caller's own `.timeout()`
+      // wrapper (discovery_provider.dart) races the same duration and can
+      // end this probe via external cancellation instead, which unwinds
+      // straight past this line to `finally` (same bug class as
+      // MdnsScanner.scan() — reagent P1 on PR #17, fixed there and
+      // proactively applied here too). `outcome` is derived in `finally`
+      // from `validResponses`/`errorDetail` directly instead.
       yield* controller.stream;
     } catch (e, stackTrace) {
       // Broadcast unavailable (no network, socket bind failure, etc.) —
       // emit nothing, same as MdnsScanner.scan() on failure, but logged
       // rather than silently swallowed so a real regression is diagnosable.
+      errorDetail = e.toString();
       AppLogger.log(
         'UDP broadcast probe failed, discovery falls back to remaining layers',
         name: 'UdpBroadcastProber',
@@ -84,6 +136,30 @@ class UdpBroadcastProber {
       timer?.cancel();
       await subscription?.cancel();
       socket?.close();
+
+      // Unconditional summary, aggregated (not per-datagram — the shared,
+      // unauthenticated probe port can legitimately receive unrelated
+      // broadcast noise from other devices/apps; logging every single one
+      // would flood the ring buffer with signal that isn't about this app).
+      // See docs/specs/DISCOVERY_DIAGNOSTICS_TELEMETRY.md.
+      final outcome = errorDetail != null
+          ? 'error'
+          : (validResponses > 0 ? 'results' : 'empty');
+      final malformed = datagramsReceived - validResponses;
+      final detail = outcome == 'error'
+          ? 'failed: $errorDetail'
+          : '${probeSent ? 'probe sent' : 'probe NOT sent'}, '
+              '$datagramsReceived datagram(s) received ($validResponses valid'
+              '${malformed > 0 ? ', $malformed malformed/unrelated' : ''}) '
+              'in ${stopwatch.elapsedMilliseconds}ms';
+      AppLogger.log('UDP broadcast probe complete: $detail',
+          name: 'UdpBroadcastProber');
+      DiscoveryTelemetry.lastUdpSummary = ScanSummary(
+        layer: 'udp_broadcast',
+        outcome: outcome,
+        detail: detail,
+        at: DateTime.now(),
+      );
     }
   }
 

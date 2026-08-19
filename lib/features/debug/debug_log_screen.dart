@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/discovery/discovery_telemetry.dart';
 import '../../core/logging/app_logger.dart';
 import '../../shared/theme/app_theme.dart';
 
@@ -44,22 +45,99 @@ class _DebugLogScreenState extends State<DebugLogScreen> {
           ),
         ],
       ),
-      body: _entries.isEmpty
-          ? const Center(
-              child: Text(
-                'No log entries yet.\nDiscovery/connection issues will show up here.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            )
-          : ListView.separated(
-              padding: const EdgeInsets.all(12),
-              itemCount: _entries.length,
-              separatorBuilder: (_, __) => const Divider(height: 16),
-              itemBuilder: (_, i) => _LogTile(entry: _entries[i]),
-            ),
+      body: Column(
+        children: [
+          // Deliberately NOT const: DiscoveryTelemetry's fields are mutable
+          // statics read outside Flutter's reactive system, so a canonicalized
+          // const instance would be fast-pathed by Element.updateChild on
+          // every rebuild (including the explicit Refresh button) and freeze
+          // on whatever it captured at first mount — reagent P1 on PR #17.
+          _SummaryHeader(),
+          Expanded(
+            child: _entries.isEmpty
+                ? const Center(
+                    child: Text(
+                      // Was "Discovery/connection issues will show up here" —
+                      // no longer accurate to imply that unconditionally: a
+                      // clean discovery scan that finds nothing IS now logged
+                      // (see the summary above), but plenty of other empty-log
+                      // states are still perfectly normal (app just opened,
+                      // nothing attempted yet). See
+                      // docs/specs/DISCOVERY_DIAGNOSTICS_TELEMETRY.md.
+                      'No log entries yet.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: _entries.length,
+                    separatorBuilder: (_, __) => const Divider(height: 16),
+                    itemBuilder: (_, i) => _LogTile(entry: _entries[i]),
+                  ),
+          ),
+        ],
+      ),
     );
   }
+}
+
+/// Pinned summary of the most recent structured discovery telemetry —
+/// network snapshot + last mDNS/UDP-broadcast scan outcome — so the big
+/// picture doesn't require scrolling through free-text log lines to
+/// reconstruct. Reads `DiscoveryTelemetry` directly (not `AppLogger`) since
+/// this is the structured data those log lines are derived from. See
+/// docs/specs/DISCOVERY_DIAGNOSTICS_TELEMETRY.md.
+class _SummaryHeader extends StatelessWidget {
+  // Deliberately NOT a const constructor — see the call site's comment.
+  // `build()` reads mutable statics that change between rebuilds; a const
+  // constructor would let a future `const _SummaryHeader()` use site
+  // silently reintroduce the exact staleness bug this fixed.
+  // ignore: prefer_const_constructors_in_immutables
+  _SummaryHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final snapshot = DiscoveryTelemetry.lastNetworkSnapshot;
+    final mdns = DiscoveryTelemetry.lastMdnsSummary;
+    final udp = DiscoveryTelemetry.lastUdpSummary;
+    if (snapshot == null && mdns == null && udp == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      color: AppColors.surfaceVariant,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 4,
+        children: [
+          const Text(
+            'LAST DISCOVERY SCAN',
+            style: TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
+            ),
+          ),
+          if (snapshot != null)
+            Text('Network: ${snapshot.format()}', style: _summaryStyle),
+          if (snapshot?.hint != null)
+            Text('⚠ ${snapshot!.hint}',
+                style: _summaryStyle.copyWith(color: Colors.amber)),
+          if (mdns != null) Text('mDNS: ${mdns.detail}', style: _summaryStyle),
+          if (udp != null) Text('UDP broadcast: ${udp.detail}', style: _summaryStyle),
+        ],
+      ),
+    );
+  }
+
+  static const _summaryStyle = TextStyle(
+    color: AppColors.textPrimary,
+    fontSize: 12,
+  );
 }
 
 class _LogTile extends StatelessWidget {
