@@ -32,7 +32,7 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <!-- Cognito PKCE OAuth callback (flutter_web_auth_2) -- flutter_web_auth_2
+        <!-- Cognito PKCE OAuth callback (flutter_web_auth_2) — flutter_web_auth_2
              requires this exact activity name (com.linusu.flutter_web_auth_2.CallbackActivity),
              NOT an intent-filter on MainActivity; the plugin's own runtime listens
              on this activity for the redirect. Scheme must match _callbackScheme

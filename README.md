@@ -15,6 +15,66 @@ Built with Flutter. Connects via [agentmux-cloud](https://github.com/agentmuxai/
 
 It is read-first. Agent configuration, workspace, and tool execution stay on the desktop app.
 
+## Local Android sandbox (Windows dev machine)
+
+**Read this before "Quick start" below if `flutter`/`dart` aren't already on PATH, or if you
+need a real device to run against.** This app must run on a real OS — "it should be its own
+system, not a browser" — so `flutter run -d chrome` is NOT an acceptable substitute for
+verifying a change; use the Android emulator below.
+
+A ready-to-use AVD already exists on this machine — **`AgentMux_Pixel9`** (Pixel 9, Android 15 /
+API 35, x86_64, `google_apis` image, ~3.6 GB, at `C:\Users\<user>\.android\avd\AgentMux_Pixel9.avd`).
+The Android SDK, licenses, and Java (bundled with Android Studio) are already fully configured —
+`ANDROID_HOME`/`ANDROID_SDK_ROOT` are already set as user env vars. You do NOT need to create a
+new AVD or accept licenses again.
+
+```bash
+# 1. Get Flutter on PATH (not pre-installed as of 2026-08-18). Match the exact
+#    version pinned in .fvmrc — currently 3.38.9 — don't just grab "latest stable".
+#    (fvm — dart pub global activate fvm — also works if you prefer version-switching,
+#    but a direct SDK install is simpler and was what was actually verified working.)
+curl -L -o flutter_sdk.zip \
+  "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_$(cat .fvmrc | grep -o '[0-9.]*')-stable.zip"
+# Extract to a clean, short path (avoid spaces/admin-only dirs) — C:\src\flutter is a safe default.
+unzip -q flutter_sdk.zip -d /c/src
+export PATH="/c/src/flutter/bin:/c/Users/<user>/AppData/Local/Android/Sdk/platform-tools:$PATH"
+
+# 2. Launch the emulator — long-running GUI process, run it detached/backgrounded.
+"C:\Users\<user>\AppData\Local\Android\Sdk\emulator\emulator.exe" -avd AgentMux_Pixel9 &
+
+# 3. Wait for a FULL boot (not just adb-visible — sys.boot_completed is the real signal).
+#    `adb devices` can show a stale/offline ghost entry alongside the real one; always
+#    target the real emulator explicitly with -s (usually emulator-5554, confirm via
+#    `adb devices -l` — the one with status "device", not "offline").
+while [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" != "1" ]; do sleep 3; done
+
+# 4. Standard Flutter workflow, targeting the emulator explicitly:
+flutter pub get
+dart run build_runner build --delete-conflicting-outputs
+flutter run -d emulator-5554 \
+  --dart-define=MUXBUS_COGNITO_DOMAIN=<your-cognito-domain> \
+  --dart-define=MUXBUS_CLIENT_ID=<public-app-client-id> \
+  --dart-define=MUXBUS_API_BASE=https://muxbus.agentmux.ai \
+  --dart-define=MUXBUS_WS_BASE=wss://muxbus-ws.agentmux.ai
+```
+
+**Gotchas hit while verifying this end-to-end (2026-08-18):**
+- **`adb` device-side paths from Git Bash get mangled** (e.g. `/sdcard/foo.png` silently rewrites
+  to `C:/Program Files/Git/sdcard/foo.png`). Prefix the command with `MSYS2_ARG_CONV_EXCL="*"`
+  when passing on-device absolute paths to `adb pull`/`adb push`/`adb shell`.
+- **A real, previously-undiscovered Android build failure was caught this way**: `AndroidManifest.xml`
+  had a literal `--` inside an XML comment (invalid per the XML spec — comments can't contain
+  `--` anywhere except the closing `-->`), which failed `ManifestMerger2` on 100% of Android
+  builds. This had never been caught because nothing had actually built for Android before. If
+  you see `ManifestMerger2$MergeFailureException: Error parsing AndroidManifest.xml` /
+  `The string "--" is not permitted within comments`, that's the bug class — search the manifest
+  for a stray `--` inside a `<!-- ... -->` block. (Already fixed as of this writing — this note is
+  here so it's recognized instantly if a similar copy-pasted comment reintroduces it.)
+- mDNS discovery does NOT work reliably on the Android emulator (see
+  [issue #2](https://github.com/agentmuxai/agentmux-mobile/issues/2)'s reliability table) — use
+  the UDP-broadcast fallback, QR-code pairing, or manual IP entry to test LAN connectivity from
+  the emulator; a real device is needed to exercise mDNS itself.
+
 ## Quick start
 
 ```bash
