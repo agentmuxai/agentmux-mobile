@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import '../logging/app_logger.dart';
+import 'discovery_telemetry.dart';
 import 'models/lan_instance.dart';
 
 /// LAN-discovery Layer 2 fallback: a UDP broadcast probe/response, used when
@@ -30,6 +31,12 @@ class UdpBroadcastProber {
     RawDatagramSocket? socket;
     StreamSubscription<RawSocketEvent>? subscription;
     Timer? timer;
+    final stopwatch = Stopwatch()..start();
+    var probeSent = false;
+    var datagramsReceived = 0;
+    var validResponses = 0;
+    var outcome = 'empty';
+    String? errorDetail;
     try {
       socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
       socket.broadcastEnabled = true;
@@ -38,6 +45,7 @@ class UdpBroadcastProber {
         InternetAddress('255.255.255.255'),
         probePort,
       );
+      probeSent = true;
 
       final controller = StreamController<LanInstance>();
 
@@ -45,8 +53,12 @@ class UdpBroadcastProber {
         if (event != RawSocketEvent.read) return;
         final datagram = socket?.receive();
         if (datagram == null) return;
+        datagramsReceived++;
         final instance = parseResponse(datagram);
-        if (instance != null) controller.add(instance);
+        if (instance != null) {
+          validResponses++;
+          controller.add(instance);
+        }
       }, onError: (Object e, StackTrace stackTrace) {
         // Socket-level error mid-listen — same graceful-fallback contract
         // as MdnsScanner.scan(), but logged rather than silently swallowed
@@ -70,10 +82,13 @@ class UdpBroadcastProber {
       };
 
       yield* controller.stream;
+      outcome = validResponses > 0 ? 'results' : 'empty';
     } catch (e, stackTrace) {
       // Broadcast unavailable (no network, socket bind failure, etc.) —
       // emit nothing, same as MdnsScanner.scan() on failure, but logged
       // rather than silently swallowed so a real regression is diagnosable.
+      outcome = 'error';
+      errorDetail = e.toString();
       AppLogger.log(
         'UDP broadcast probe failed, discovery falls back to remaining layers',
         name: 'UdpBroadcastProber',
@@ -84,6 +99,27 @@ class UdpBroadcastProber {
       timer?.cancel();
       await subscription?.cancel();
       socket?.close();
+
+      // Unconditional summary, aggregated (not per-datagram — the shared,
+      // unauthenticated probe port can legitimately receive unrelated
+      // broadcast noise from other devices/apps; logging every single one
+      // would flood the ring buffer with signal that isn't about this app).
+      // See docs/specs/DISCOVERY_DIAGNOSTICS_TELEMETRY.md.
+      final malformed = datagramsReceived - validResponses;
+      final detail = outcome == 'error'
+          ? 'failed: $errorDetail'
+          : '${probeSent ? 'probe sent' : 'probe NOT sent'}, '
+              '$datagramsReceived datagram(s) received ($validResponses valid'
+              '${malformed > 0 ? ', $malformed malformed/unrelated' : ''}) '
+              'in ${stopwatch.elapsedMilliseconds}ms';
+      AppLogger.log('UDP broadcast probe complete: $detail',
+          name: 'UdpBroadcastProber');
+      DiscoveryTelemetry.lastUdpSummary = ScanSummary(
+        layer: 'udp_broadcast',
+        outcome: outcome,
+        detail: detail,
+        at: DateTime.now(),
+      );
     }
   }
 

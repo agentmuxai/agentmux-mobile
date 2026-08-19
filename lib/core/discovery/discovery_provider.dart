@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../logging/app_logger.dart';
+import 'discovery_telemetry.dart';
 import 'local_api_client.dart';
 import 'mdns_scanner.dart';
 import 'models/lan_instance.dart';
+import 'network_environment.dart';
 import 'udp_broadcast_prober.dart';
 
 // Compile-time constants injected by scripts/run-emulator.sh via --dart-define.
@@ -61,6 +63,19 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
   @override
   Future<DiscoveryState> build() async {
     state = const AsyncValue.data(DiscoveryScanning());
+
+    // One network-environment snapshot per scan session — the single piece
+    // of information that would have made "why isn't anything showing up"
+    // diagnosable in-app instead of requiring a manual `adb shell ip addr`
+    // detour (confirmed live 2026-08-18 on the emulator's isolated 10.0.2.x
+    // NAT). See docs/specs/DISCOVERY_DIAGNOSTICS_TELEMETRY.md.
+    final snapshot = await captureNetworkSnapshot();
+    DiscoveryTelemetry.lastNetworkSnapshot = snapshot;
+    AppLogger.log('Network snapshot: ${snapshot.format()}',
+        name: 'DiscoveryNotifier');
+    if (snapshot.hint != null) {
+      AppLogger.log('Network hint: ${snapshot.hint}', name: 'DiscoveryNotifier');
+    }
 
     // Dev emulator bootstrap: auto-connect to the host sidecar when launched via
     // scripts/run-emulator.sh (passes --dart-define=AGENTMUX_DEV_ADDR/KEY).

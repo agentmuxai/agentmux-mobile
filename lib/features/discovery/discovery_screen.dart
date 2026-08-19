@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/discovery/discovery_provider.dart';
+import '../../core/discovery/discovery_telemetry.dart';
 import '../../core/discovery/models/lan_instance.dart';
 import 'instance_card.dart';
 import 'manual_add_sheet.dart';
@@ -87,6 +88,16 @@ class _EmptyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Non-blocking hint from the network snapshot captured at scan start —
+    // e.g. "this looks like the Android emulator's isolated NAT networking,
+    // not a bug." Answers "why isn't anything showing up" in-app instead of
+    // requiring the debug log / external network inspection. Null (no
+    // banner) when the snapshot didn't match a known-unfriendly pattern —
+    // that does NOT mean discovery will succeed, only that this specific
+    // check didn't find anything obviously wrong. See
+    // docs/specs/DISCOVERY_DIAGNOSTICS_TELEMETRY.md.
+    final hint = DiscoveryTelemetry.lastNetworkSnapshot?.hint;
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -104,6 +115,23 @@ class _EmptyView extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.white54, fontSize: 13),
           ),
+          if (hint != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+              ),
+              child: Text(
+                hint,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.amber, fontSize: 12),
+              ),
+            ),
+          ],
           const SizedBox(height: 32),
           OutlinedButton.icon(
             icon: const Icon(Icons.qr_code_scanner),
