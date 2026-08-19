@@ -71,9 +71,9 @@ flutter run -d emulator-5554 \
   for a stray `--` inside a `<!-- ... -->` block. (Already fixed as of this writing — this note is
   here so it's recognized instantly if a similar copy-pasted comment reintroduces it.)
 - mDNS discovery does NOT work reliably on the Android emulator (see
-  `docs/mdns-discovery-spec.md` / issue #2's reliability table) — use the UDP-broadcast fallback,
-  QR-code pairing, or manual IP entry to test LAN connectivity from the emulator; a real device is
-  needed to exercise mDNS itself.
+  [issue #2](https://github.com/agentmuxai/agentmux-mobile/issues/2)'s reliability table) — use
+  the UDP-broadcast fallback, QR-code pairing, or manual IP entry to test LAN connectivity from
+  the emulator; a real device is needed to exercise mDNS itself.
 
 ## Quick start
 

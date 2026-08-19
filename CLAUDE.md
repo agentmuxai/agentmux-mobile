@@ -34,8 +34,9 @@ the desktop app.
   Dart/Flutter app (`pubspec.yaml`), which isn't a supported ecosystem yet. See
   `docs/specs/SECURITY_SCANNING_COVERAGE_GAP.md`.
 - **mDNS discovery is unreliable on the Android emulator** specifically (works on real devices).
-  See the README sandbox section's gotchas, and `docs/mdns-discovery-spec.md` / issue #2's
-  reliability tables for the full per-platform/per-network breakdown.
+  See the README sandbox section's gotchas, and
+  [issue #2](https://github.com/agentmuxai/agentmux-mobile/issues/2)'s reliability tables for the
+  full per-platform/per-network breakdown.
 
 ## Jekt (agent-to-agent message) security rules
 
