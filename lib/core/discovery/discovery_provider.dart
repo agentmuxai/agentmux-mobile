@@ -70,6 +70,11 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
     // detour (confirmed live 2026-08-18 on the emulator's isolated 10.0.2.x
     // NAT). See docs/specs/DISCOVERY_DIAGNOSTICS_TELEMETRY.md.
     final snapshot = await captureNetworkSnapshot();
+    // Reset first: lastMdnsSummary/lastUdpSummary must not carry over from a
+    // prior scan session — e.g. if mDNS succeeds this time and the UDP
+    // fallback below never runs, a stale UDP outcome from an earlier session
+    // would otherwise still show in DebugLogScreen's summary header.
+    DiscoveryTelemetry.reset();
     DiscoveryTelemetry.lastNetworkSnapshot = snapshot;
     AppLogger.log('Network snapshot: ${snapshot.format()}',
         name: 'DiscoveryNotifier');

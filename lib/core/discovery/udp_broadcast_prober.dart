@@ -88,7 +88,11 @@ class UdpBroadcastProber {
       }, onError: (Object e, StackTrace stackTrace) {
         // Socket-level error mid-listen — same graceful-fallback contract
         // as MdnsScanner.scan(), but logged rather than silently swallowed
-        // (see that method's catch block for why this matters).
+        // (see that method's catch block for why this matters). Also record
+        // into errorDetail so the finally block's outcome derivation reports
+        // 'error' instead of 'empty'/'results' — a socket error mid-listen
+        // doesn't throw past this listener, so the outer catch never sees it.
+        errorDetail = e.toString();
         AppLogger.log(
           'UDP broadcast probe socket error',
           name: 'UdpBroadcastProber',
