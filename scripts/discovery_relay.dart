@@ -40,10 +40,16 @@ const _realDiscoveryPort = 47891;
 const _broadcastCollectionWindow = Duration(milliseconds: 1500);
 
 Future<void> main() async {
-  final relaySocket =
-      await RawDatagramSocket.bind(InternetAddress.anyIPv4, _emulatorFacingPort);
+  // Loopback-only, deliberately: the emulator's 10.0.2.2 gateway alias NATs
+  // straight to 127.0.0.1 on the host (see the module doc comment above), so
+  // binding to anyIPv4 instead would accept probes from any device on the
+  // real LAN too — turning this into an open, unauthenticated UDP reflector
+  // (broadcast + relay-to-sender) that's abusable for amplification, since
+  // nothing here checks the requester's identity.
+  final relaySocket = await RawDatagramSocket.bind(
+      InternetAddress.loopbackIPv4, _emulatorFacingPort);
   stdout.writeln(
-      'discovery_relay: listening on 0.0.0.0:$_emulatorFacingPort '
+      'discovery_relay: listening on 127.0.0.1:$_emulatorFacingPort '
       '(emulator reaches this via 10.0.2.2:$_emulatorFacingPort)');
   stdout.writeln(
       'discovery_relay: will broadcast probes to 255.255.255.255:$_realDiscoveryPort '
