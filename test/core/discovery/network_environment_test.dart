@@ -61,6 +61,34 @@ void main() {
     });
   });
 
+  group('isEmulatorNatAddress', () {
+    test('true for the QEMU/SLIRP range', () {
+      expect(isEmulatorNatAddress([_v4('10.0.2.15')]), isTrue);
+      expect(isEmulatorNatAddress([_v4('10.0.2.16')]), isTrue);
+    });
+
+    test('false for a normal 10.x LAN outside the /24 emulator range', () {
+      // Same false-positive concern as classifyNetworkHint — this is the
+      // narrower signal discovery_relay-gating relies on, so it must not
+      // fire scripts/discovery_relay.dart traffic for a real 10.x network.
+      expect(isEmulatorNatAddress([_v4('10.1.2.3')]), isFalse);
+    });
+
+    test('false for CGNAT (distinct signal from classifyNetworkHint\'s general hint)', () {
+      // CGNAT gets a hint too, but has no 10.0.2.2 gateway — must not be
+      // conflated with the emulator-specific case.
+      expect(isEmulatorNatAddress([_v4('100.70.1.1')]), isFalse);
+    });
+
+    test('true if only one of several addresses matches', () {
+      expect(isEmulatorNatAddress([_v4('192.168.1.42'), _v4('10.0.2.15')]), isTrue);
+    });
+
+    test('false for an empty address list', () {
+      expect(isEmulatorNatAddress([]), isFalse);
+    });
+  });
+
   group('captureNetworkSnapshot', () {
     test('never throws, even in a sandboxed test environment', () async {
       // No real assertions on the actual interface list (test environment

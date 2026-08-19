@@ -33,10 +33,14 @@ the desktop app.
   Researcher (`a5af/shared-infrastructure`) only supports `npm audit`/`pip-audit`; this is a
   Dart/Flutter app (`pubspec.yaml`), which isn't a supported ecosystem yet. See
   `docs/specs/SECURITY_SCANNING_COVERAGE_GAP.md`.
-- **mDNS discovery is unreliable on the Android emulator** specifically (works on real devices).
-  See the README sandbox section's gotchas, and
-  [issue #2](https://github.com/agentmuxai/agentmux-mobile/issues/2)'s reliability tables for the
-  full per-platform/per-network breakdown.
+- **mDNS itself is unreliable on the Android emulator** specifically (works on real devices) —
+  its default networking (QEMU/SLIRP, `10.0.2.0/24`) is an isolated NAT that can't receive real
+  multicast. See [issue #2](https://github.com/agentmuxai/agentmux-mobile/issues/2)'s reliability
+  tables for the full per-platform/per-network breakdown. **This no longer means Discovery is
+  unusable in the emulator**: run `dart run scripts/discovery_relay.dart` on the host machine and
+  the Discovery screen finds real LAN instances via UDP-broadcast relay instead — see the README
+  sandbox section's gotchas and `docs/specs/DISCOVERY_DIAGNOSTICS_TELEMETRY.md`'s follow-up
+  section for the full design.
 
 ## Jekt (agent-to-agent message) security rules
 

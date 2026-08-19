@@ -22,12 +22,32 @@ const _probeMessage = '{"type":"agentmux_discover","v":1}';
 const _defaultProbeWindow = Duration(seconds: 2);
 const _responseType = 'agentmux_discover_response';
 
+// scripts/discovery_relay.dart's listening port, reached via QEMU/SLIRP's
+// well-known host-loopback gateway alias (10.0.2.2 -> the host's own
+// 127.0.0.1) — the same mechanism scripts/run-emulator.sh already relies on
+// for its own HTTP connection. Only meaningful when actually running on the
+// emulator (gated by [tryEmulatorRelay], set from the network snapshot's
+// looksLikeEmulatorNat — see network_environment.dart); a real device has
+// no 10.0.2.2 gateway, so this send is inert there regardless.
+const _emulatorRelayHost = '10.0.2.2';
+const _emulatorRelayPort = 47892;
+
 class UdpBroadcastProber {
   /// Broadcasts a discovery probe and yields a [LanInstance] for every valid
   /// response received within [timeout]. The socket is always closed when
   /// the stream ends — whether [timeout] elapses internally or the caller
   /// cancels the stream (e.g. via its own `.timeout()`).
-  Stream<LanInstance> probe({Duration timeout = _defaultProbeWindow}) async* {
+  ///
+  /// [tryEmulatorRelay] additionally unicasts the same probe to
+  /// `scripts/discovery_relay.dart` on the host (if it happens to be
+  /// running) — see that script's doc comment for the full design. Any
+  /// relayed response arrives back through this same socket/listener, in
+  /// the same wire format as a normal broadcast response, so it needs no
+  /// separate handling below.
+  Stream<LanInstance> probe({
+    Duration timeout = _defaultProbeWindow,
+    bool tryEmulatorRelay = false,
+  }) async* {
     RawDatagramSocket? socket;
     StreamSubscription<RawSocketEvent>? subscription;
     Timer? timer;
@@ -44,6 +64,13 @@ class UdpBroadcastProber {
         InternetAddress('255.255.255.255'),
         probePort,
       );
+      if (tryEmulatorRelay) {
+        socket.send(
+          utf8.encode(_probeMessage),
+          InternetAddress(_emulatorRelayHost),
+          _emulatorRelayPort,
+        );
+      }
       probeSent = true;
 
       final controller = StreamController<LanInstance>();

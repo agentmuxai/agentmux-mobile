@@ -1,7 +1,9 @@
 # Discovery diagnostics — telemetry for zero-result scans
 
-**Implemented 2026-08-19.** Verified live on `AgentMux_Pixel9`: the summary header, network
-snapshot, hint banner, and both scan-completion summaries all render correctly with real data
+**Implemented 2026-08-19**, including the follow-up (`scripts/discovery_relay.dart`) below.
+Verified live on `AgentMux_Pixel9`: the summary header, network snapshot, hint banner, and both
+scan-completion summaries all render correctly with real data, and — with the relay running — the
+Discovery screen genuinely finds the real local AgentMux instance from inside the emulator
 (confirmed via `uiautomator dump`, not just unit tests) — see the PR for the exact captured
 `content-desc` output.
 
@@ -51,16 +53,52 @@ gave zero signal about why.** Confirmed by reading the actual scanner code:
 
 ## What this spec is NOT
 
-**Not a fix for discovery not working in the emulator.** That's a real, structural networking
-limitation — the Android emulator's default SLIRP networking has no reliable Windows-side
-bridged-networking alternative as of 2026 — already documented in README.md's sandbox section and
-issue #2. Nothing here makes mDNS/UDP-broadcast reach the emulator's virtual NAT; that would need
-a different emulator network mode (out of scope, separate investigation if ever pursued) or
-testing on a real device.
+**Originally not a fix for discovery not working in the emulator** — see the follow-up section
+below for why that changed. As originally scoped, this was entirely about making "why isn't
+anything showing up" diagnosable from the in-app debug log, without needing to attach a debugger
+or manually run OS networking commands — a real device, an unfamiliar office network, a VPN, or
+any other environment where discovery legitimately can't reach a real LAN is still exactly that:
+diagnosable, not fixable by this app. The emulator turned out to be different — see below.
 
-This spec is entirely about making the **next** occurrence of "why isn't anything showing up" —
-on a real device, an unfamiliar office network, a VPN, wherever — diagnosable from the in-app
-debug log alone, without needing to attach a debugger or manually run OS networking commands.
+## Follow-up: `scripts/discovery_relay.dart` — the emulator case actually got fixed
+
+Researched two standard approaches to bridging the Android emulator onto the real LAN on Windows
+(the `-net-tap` flag, and Genymotion's VirtualBox-based bridged networking) — both are
+independently documented as unreliable-to-broken specifically on Windows (not Linux), even before
+accounting for the real risk of reconfiguring the host's only active network adapter to attempt
+either. Given up as a dead end for **general** LAN bridging.
+
+But the actual need — discovering *this machine's own* AgentMux instance from the emulator during
+development — doesn't require general bridging. `agentmux-srv`'s UDP discovery responder
+(`agentmux-srv/src/backend/lan_discovery.rs`) binds `0.0.0.0:47891` and explicitly trusts
+loopback-sourced probes (`is_lan_source()` allows `v4.is_loopback()`), replying via plain unicast
+to whichever address a probe came from. Combined with the fact that SLIRP's well-known
+`10.0.2.2` host-loopback gateway alias already reliably NATs emulator→host traffic (confirmed
+working — it's the exact mechanism `scripts/run-emulator.sh` already relied on for its own HTTP
+connection), that's enough to build a purpose-built relay instead of fighting OS-level networking:
+
+`scripts/discovery_relay.dart` listens on `0.0.0.0:47892` (reachable from the emulator via
+`10.0.2.2:47892`, no emulator flags or host network config needed). On receiving the app's
+probe, it performs a **real** broadcast on the host's actual network interface, collects real
+responses (from this machine's own instance, or any other on the real LAN), and relays each one
+back to the emulator over the same channel the request arrived on. `UdpBroadcastProber` sends an
+extra copy of its probe to this relay specifically when `NetworkSnapshot.looksLikeEmulatorNat` is
+true (a new, narrower signal than the general [hint](#3-network-environment-snapshot-captured-once-per-discovery-session) —
+CGNAT/link-local get a hint too but have no `10.0.2.2` gateway to relay through). A relayed
+response needs zero new parsing: it arrives as an ordinary `agentmux_discover_response` datagram
+through the *same* socket/listener `UdpBroadcastProber` already has open.
+
+**Verified live end-to-end on `AgentMux_Pixel9`** (2026-08-19): with the relay running, the
+Discovery screen found the real local AgentMux instance (`claudius v0.55.15`, address
+`10.0.2.2:<port>` — genuinely connectable from inside the emulator) with zero manual entry, zero
+dev-bootstrap dart-defines. Confirmed via `uiautomator dump`, and via the Debug Log summary header
+correctly showing `UDP broadcast: probe sent, 1 datagram(s) received (1 valid)`.
+
+Scope of this fix: it discovers AgentMux instances the relay's own real-LAN broadcast can reach —
+in practice, this machine's own instance (the common dev case) and anything else answering on the
+same real network. It does **not** make the emulator a general LAN citizen for anything other than
+this one app's discovery protocol — that's deliberate; a full bridge was the option already ruled
+out as unreliable on Windows.
 
 ## Design
 
@@ -139,8 +177,10 @@ investigation started from — for the next person, without needing to re-derive
 
 ## Scope (out) — and why
 
-- **No attempt to make discovery actually work in the emulator.** Structural networking
-  limitation, not a telemetry gap — see "What this spec is NOT" above.
+- **No attempt at *general* LAN bridging for the emulator** (`-net-tap`, Genymotion, or any
+  OS-level networking fix) — both standard approaches are documented as unreliable-to-broken on
+  Windows specifically. `scripts/discovery_relay.dart` (see the follow-up section above) fixes
+  the actual need — this app's own discovery protocol — without needing general bridging at all.
 - **No remote/server-side telemetry shipping.** Same call `DEBUG_LOGGING_SCOPE.md` already made
   for the logging system this builds on — "out of scope until there's an actual need to see logs
   the app never had a screen open for." Not revisiting that here.

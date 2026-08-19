@@ -107,7 +107,11 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
     final udpInstances = <LanInstance>[];
     await ref
         .read(udpBroadcastProberProvider)
-        .probe(timeout: _udpProbeTimeout)
+        // tryEmulatorRelay: only meaningful (and only sent) when the network
+        // snapshot looks like the emulator's QEMU/SLIRP NAT — see
+        // scripts/discovery_relay.dart's doc comment. Inert everywhere else,
+        // including a real device, which has no 10.0.2.2 gateway at all.
+        .probe(timeout: _udpProbeTimeout, tryEmulatorRelay: snapshot.looksLikeEmulatorNat)
         .asyncMap(_enrichWithAgents)
         // Applied after asyncMap, not just around the raw probe stream: a
         // slow/unreachable host's fetchAgents() call (5s connect + 10s

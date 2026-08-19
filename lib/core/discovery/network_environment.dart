@@ -7,7 +7,11 @@ import 'dart:io';
 /// own investigation of "why isn't anything showing up" immediate instead of
 /// requiring a manual `adb shell ip addr` detour outside the app entirely.
 class NetworkSnapshot {
-  const NetworkSnapshot({required this.interfaces, required this.hint});
+  const NetworkSnapshot({
+    required this.interfaces,
+    required this.hint,
+    this.looksLikeEmulatorNat = false,
+  });
 
   /// e.g. `["wlan0=10.0.2.16", "eth0=10.0.2.15"]` — no CIDR suffix, just
   /// `interfaceName=address` (matches `captureNetworkSnapshot()`'s actual
@@ -23,6 +27,13 @@ class NetworkSnapshot {
   /// will succeed, only that this specific known-bad-pattern list didn't
   /// recognize anything wrong.
   final String? hint;
+
+  /// True specifically for the QEMU/SLIRP `10.0.2.0/24` pattern — distinct
+  /// from [hint] (which also fires for CGNAT/link-local/no-connectivity,
+  /// none of which have a `10.0.2.2` host-loopback gateway). Drives whether
+  /// `UdpBroadcastProber` also tries the `scripts/discovery_relay.dart`
+  /// workaround — see that script's module doc comment for the full design.
+  final bool looksLikeEmulatorNat;
 
   String format() =>
       interfaces.isEmpty ? 'no active network interface' : interfaces.join(', ');
@@ -45,6 +56,7 @@ Future<NetworkSnapshot> captureNetworkSnapshot() async {
     return NetworkSnapshot(
       interfaces: formatted,
       hint: classifyNetworkHint(addresses),
+      looksLikeEmulatorNat: isEmulatorNatAddress(addresses),
     );
   } catch (e) {
     return NetworkSnapshot(
@@ -54,21 +66,40 @@ Future<NetworkSnapshot> captureNetworkSnapshot() async {
   }
 }
 
+// QEMU/SLIRP — the Android emulator's default virtual NAT networking.
+// Confirmed live 2026-08-18 on AgentMux_Pixel9 (eth0/wlan0 both here).
+// Named separately from the map below (rather than inlined) so
+// captureNetworkSnapshot()'s looksLikeEmulatorNat check uses the exact same
+// literal as the hint text, instead of two copies that could drift apart.
+const _emulatorNatCidr = '10.0.2.0/24';
+
 // Known subnets/environments that discovery structurally cannot reach a real
 // LAN from — see the spec for how each was identified. Kept as an explicit,
 // reviewable list rather than a general "does this look weird" heuristic.
 const _knownUnfriendlyCidrs = <String, String>{
-  // QEMU/SLIRP — the Android emulator's default virtual NAT networking.
-  // Confirmed live 2026-08-18 on AgentMux_Pixel9 (eth0/wlan0 both here).
-  '10.0.2.0/24': 'this is expected on the Android emulator\'s default '
-      'networking, not a bug. LAN discovery can\'t reach a real network from '
-      'here; use manual IP entry with your desktop\'s real LAN address, or '
+  _emulatorNatCidr: 'this is expected on the Android emulator\'s default '
+      'networking, not a bug — LAN discovery can\'t reach a real network '
+      'from here directly. Run `dart run scripts/discovery_relay.dart` on '
+      'this machine to work around it (see that script\'s doc comment), or '
+      'use manual IP entry with your desktop\'s real LAN address, or '
       '(development only) scripts/run-emulator.sh.',
   // Carrier-grade NAT — common on mobile data, some hotel/campus WiFi.
   '100.64.0.0/10': 'this looks like carrier-grade NAT (CGNAT), common on '
       'mobile data — LAN discovery needs both devices on the same real '
       'local network.',
 };
+
+/// True if any IPv4 address in [addresses] falls within the Android
+/// emulator's default QEMU/SLIRP NAT range (`10.0.2.0/24`) — the specific,
+/// narrow signal `UdpBroadcastProber` uses to decide whether to also try
+/// `scripts/discovery_relay.dart` (which relies on that NAT's well-known
+/// `10.0.2.2` host-loopback gateway existing). Extracted as its own
+/// function, separate from [classifyNetworkHint], so it's directly
+/// unit-testable without needing to parse it back out of a hint string.
+bool isEmulatorNatAddress(List<InternetAddress> addresses) {
+  return addresses.any((a) =>
+      a.type == InternetAddressType.IPv4 && _inCidr(a.address, _emulatorNatCidr));
+}
 
 /// Returns a plain-language hint if [addresses] only contains IPv4 addresses
 /// matching a known-unfriendly pattern (or no addresses at all), else null.
