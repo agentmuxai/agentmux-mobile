@@ -9,8 +9,12 @@ import 'dart:io';
 class NetworkSnapshot {
   const NetworkSnapshot({required this.interfaces, required this.hint});
 
-  /// e.g. `["wlan0=10.0.2.16/24", "eth0=10.0.2.15/24"]`. Empty if no
-  /// non-loopback interface with an address was found.
+  /// e.g. `["wlan0=10.0.2.16", "eth0=10.0.2.15"]` — no CIDR suffix, just
+  /// `interfaceName=address` (matches `captureNetworkSnapshot()`'s actual
+  /// formatting below; reagent P2 on PR #17 caught an earlier version of
+  /// this comment implying a `/24` suffix that was never actually
+  /// produced). Empty if no non-loopback interface with an address was
+  /// found.
   final List<String> interfaces;
 
   /// Plain-language explanation when [interfaces] matches a known pattern

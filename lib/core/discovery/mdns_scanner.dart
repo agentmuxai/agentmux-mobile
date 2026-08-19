@@ -32,7 +32,6 @@ class MdnsScanner {
     var ptrCount = 0;
     var resolvedCount = 0;
     final discardTally = <String, int>{};
-    var outcome = 'empty';
     String? errorDetail;
     try {
       await client.start();
@@ -49,7 +48,17 @@ class MdnsScanner {
               ifAbsent: () => 1);
         }
       }
-      outcome = resolvedCount > 0 ? 'results' : 'empty';
+      // NOT "await for completed, so record the outcome here" — this point
+      // is only reached if the mDNS lookup stream ends on its own. In real
+      // usage it never does: the caller's `.timeout()` wrapper
+      // (discovery_provider.dart) always ends this scan via external
+      // cancellation, which unwinds straight past this line to `finally`
+      // (reagent P1 on PR #17 — an earlier version set `outcome` here and
+      // it silently never ran, leaving `outcome` stuck at its initial
+      // 'empty' default even when instances WERE resolved). `outcome` is
+      // instead derived in `finally`, from `resolvedCount`/`errorDetail`
+      // directly — values that ARE updated correctly regardless of how the
+      // generator exits.
     } catch (e, stackTrace) {
       // mDNS unavailable (no WiFi, permission denied, or a platform-level
       // socket setup failure) — the scan stream just emits nothing rather
@@ -67,7 +76,6 @@ class MdnsScanner {
       // still completes normally (bind succeeds without SO_REUSEPORT)
       // despite it. Safe to ignore; documented here so it isn't
       // re-investigated as a mystery next time someone sees it in logcat.
-      outcome = 'error';
       errorDetail = e.toString();
       AppLogger.log(
         'mDNS scan failed, discovery falls back to manual/QR/UDP broadcast',
@@ -81,7 +89,12 @@ class MdnsScanner {
 
       // Unconditional summary — this is the fix for the actual gap: a scan
       // that completes cleanly with zero results previously logged nothing
-      // at all, indistinguishable in the debug log from "never ran."
+      // at all, indistinguishable in the debug log from "never ran." Derived
+      // here (not earlier in `try`) so it's correct regardless of whether
+      // this generator exits via natural completion, external cancellation,
+      // or an exception — see the comment above the `await for` loop.
+      final outcome =
+          errorDetail != null ? 'error' : (resolvedCount > 0 ? 'results' : 'empty');
       final discardText = discardTally.isEmpty
           ? ''
           : ' (${discardTally.entries.map((e) => '${e.value} ${e.key}').join(', ')})';

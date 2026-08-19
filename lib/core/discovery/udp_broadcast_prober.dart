@@ -35,7 +35,6 @@ class UdpBroadcastProber {
     var probeSent = false;
     var datagramsReceived = 0;
     var validResponses = 0;
-    var outcome = 'empty';
     String? errorDetail;
     try {
       socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
@@ -81,13 +80,20 @@ class UdpBroadcastProber {
         subscription?.cancel();
       };
 
+      // NOT "record the outcome after yield* completes" — this point is
+      // only reached if `controller.stream` ends on its own accord (its
+      // internal `timer` firing). In practice the caller's own `.timeout()`
+      // wrapper (discovery_provider.dart) races the same duration and can
+      // end this probe via external cancellation instead, which unwinds
+      // straight past this line to `finally` (same bug class as
+      // MdnsScanner.scan() — reagent P1 on PR #17, fixed there and
+      // proactively applied here too). `outcome` is derived in `finally`
+      // from `validResponses`/`errorDetail` directly instead.
       yield* controller.stream;
-      outcome = validResponses > 0 ? 'results' : 'empty';
     } catch (e, stackTrace) {
       // Broadcast unavailable (no network, socket bind failure, etc.) —
       // emit nothing, same as MdnsScanner.scan() on failure, but logged
       // rather than silently swallowed so a real regression is diagnosable.
-      outcome = 'error';
       errorDetail = e.toString();
       AppLogger.log(
         'UDP broadcast probe failed, discovery falls back to remaining layers',
@@ -105,6 +111,9 @@ class UdpBroadcastProber {
       // broadcast noise from other devices/apps; logging every single one
       // would flood the ring buffer with signal that isn't about this app).
       // See docs/specs/DISCOVERY_DIAGNOSTICS_TELEMETRY.md.
+      final outcome = errorDetail != null
+          ? 'error'
+          : (validResponses > 0 ? 'results' : 'empty');
       final malformed = datagramsReceived - validResponses;
       final detail = outcome == 'error'
           ? 'failed: $errorDetail'

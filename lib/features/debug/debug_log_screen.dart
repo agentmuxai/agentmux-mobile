@@ -47,7 +47,12 @@ class _DebugLogScreenState extends State<DebugLogScreen> {
       ),
       body: Column(
         children: [
-          const _SummaryHeader(),
+          // Deliberately NOT const: DiscoveryTelemetry's fields are mutable
+          // statics read outside Flutter's reactive system, so a canonicalized
+          // const instance would be fast-pathed by Element.updateChild on
+          // every rebuild (including the explicit Refresh button) and freeze
+          // on whatever it captured at first mount — reagent P1 on PR #17.
+          _SummaryHeader(),
           Expanded(
             child: _entries.isEmpty
                 ? const Center(
@@ -84,7 +89,12 @@ class _DebugLogScreenState extends State<DebugLogScreen> {
 /// this is the structured data those log lines are derived from. See
 /// docs/specs/DISCOVERY_DIAGNOSTICS_TELEMETRY.md.
 class _SummaryHeader extends StatelessWidget {
-  const _SummaryHeader();
+  // Deliberately NOT a const constructor — see the call site's comment.
+  // `build()` reads mutable statics that change between rebuilds; a const
+  // constructor would let a future `const _SummaryHeader()` use site
+  // silently reintroduce the exact staleness bug this fixed.
+  // ignore: prefer_const_constructors_in_immutables
+  _SummaryHeader();
 
   @override
   Widget build(BuildContext context) {
