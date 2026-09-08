@@ -117,6 +117,20 @@ jobs:
           mkdir -p "$PROFILE_DIR"
           echo "$IOS_PROVISIONING_PROFILE" | base64 --decode > "$PROFILE_DIR/agentmux-mobile.mobileprovision"
 
+          # ExportOptions.plist's `provisioningProfiles` dict maps bundle ID
+          # -> the profile's own registered NAME (or UUID) -- e.g. "AgentMux
+          # Mobile App Store" -- NOT the filename it happens to be saved as
+          # on disk. These are unrelated strings; Xcode resolves this key by
+          # reading the Name embedded in the profile's own plist, not by
+          # matching a filename in the Provisioning Profiles directory.
+          # (Confirmed against Apple's documented ExportOptions.plist schema:
+          # "Values are the provisioning profile name or UUID to use.")
+          # Extracting it here means this can never drift from whatever the
+          # profile is actually named when it's (re)created in the Apple
+          # Developer portal.
+          PROFILE_NAME="$(security cms -D -i "$PROFILE_DIR/agentmux-mobile.mobileprovision" | plutil -extract Name raw -)"
+          echo "PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+
       - name: Generate ExportOptions.plist
         run: |
           cat > ios/ExportOptions.plist <<EOF
@@ -133,7 +147,7 @@ jobs:
             <key>provisioningProfiles</key>
             <dict>
               <key>com.agentmux.agentmuxMobile</key>
-              <string>agentmux-mobile.mobileprovision</string>
+              <string>${PROFILE_NAME}</string>
             </dict>
           </dict>
           </plist>
@@ -166,7 +180,14 @@ jobs:
           APPSTORE_CONNECT_API_KEY_ID: ${{ secrets.APPSTORE_CONNECT_API_KEY_ID }}
           APPSTORE_CONNECT_ISSUER_ID: ${{ secrets.APPSTORE_CONNECT_ISSUER_ID }}
         run: |
-          gem install fastlane -N -v '~> 2.238'
+          # `~> 2.238` (two-part) is a much looser constraint than it looks —
+          # RubyGems' pessimistic operator locks only the segment ABOVE the
+          # last one given, so this actually allows anything from 2.238.0 up
+          # to (not including) 3.0.0, not just the 2.238.x patch family.
+          # Confirmed directly: `Gem::Requirement.new("~> 2.238")` is
+          # satisfied by 2.239.0, 2.300.0, etc. `~> 2.238.0` (three-part)
+          # is the constraint that actually pins to 2.238.x only.
+          gem install fastlane -N -v '~> 2.238.0'
           export APPSTORE_CONNECT_API_KEY_PATH="$HOME/private_keys/AuthKey_${APPSTORE_CONNECT_API_KEY_ID}.p8"
           IPA_PATH="$(ls "$GITHUB_WORKSPACE"/build/ios/ipa/*.ipa)"
           cd ios
