@@ -1,0 +1,84 @@
+name: release-android
+
+# Builds a signed Android App Bundle and uploads it to Google Play.
+#
+# Required repo secrets (Settings → Secrets → Actions) — NONE of these exist
+# yet as of writing; they need to be created (keystore + Play Console service
+# account) and added here, following the same pattern as build-macos.yml's
+# Apple secrets:
+#   ANDROID_KEYSTORE                 Base64-encoded release .jks/.keystore
+#   ANDROID_KEYSTORE_PASSWORD        Keystore password
+#   ANDROID_KEY_ALIAS                Key alias within the keystore
+#   ANDROID_KEY_PASSWORD             Key password (often same as keystore password)
+#   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON Play Console API service-account JSON (raw, not base64)
+#
+# See docs/specs/RELEASE_SIGNING_SETUP.md for how to generate the keystore
+# and create the Play Console service account.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "agentmux-mobile ref to build (tag / branch / SHA)"
+        required: true
+        default: main
+      track:
+        description: "Play Console track to upload to"
+        required: true
+        default: internal
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+
+jobs:
+  build-and-upload:
+    name: Build signed AAB & upload to Play
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.9'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code (freezed / json_serializable)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Decode release keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > android/app/release.keystore
+
+      - name: Write key.properties
+        run: |
+          cat > android/key.properties <<EOF
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          storeFile=app/release.keystore
+          EOF
+
+      - name: Build release AAB
+        run: flutter build appbundle --release
+
+      - name: Upload to Google Play
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.agentmux.agentmux_mobile
+          releaseFiles: build/app/outputs/bundle/release/app-release.aab
+          track: ${{ inputs.track }}
+          status: completed
+
+      - name: Clean up signing material
+        if: always()
+        run: rm -f android/app/release.keystore android/key.properties
