@@ -114,6 +114,72 @@ void main() {
         isNull,
       );
     });
+
+    test(
+        'trusts relay_source_address when the datagram arrives from the '
+        'relay\'s own loopback bind (10.0.2.2:47892)', () {
+      final instance = UdpBroadcastProber.parseResponse(Datagram(
+        Uint8List.fromList(utf8.encode(jsonEncode({
+          'type': 'agentmux_discover_response',
+          'v': 1,
+          'hostname': 'gamerlove',
+          'version': '0.55.37',
+          'port': 60371,
+          'auth_key': 'k',
+          'relay_source_address': '192.168.1.105',
+        }))),
+        InternetAddress('10.0.2.2'),
+        47892,
+      ));
+
+      expect(instance, isNotNull);
+      // Without this, every relayed instance would collapse onto the
+      // relay's own loopback address instead of the real responder's.
+      expect(instance!.address, '192.168.1.105');
+      expect(instance.port, 60371);
+    });
+
+    test(
+        'ignores relay_source_address from 10.0.2.2 on a port other than '
+        'the relay\'s — only that exact address/port pair is unforgeable',
+        () {
+      final instance = UdpBroadcastProber.parseResponse(Datagram(
+        Uint8List.fromList(utf8.encode(jsonEncode({
+          'type': 'agentmux_discover_response',
+          'v': 1,
+          'hostname': 'h',
+          'version': '1',
+          'port': 1,
+          'auth_key': 'k',
+          'relay_source_address': '192.168.1.105',
+        }))),
+        InternetAddress('10.0.2.2'),
+        9999,
+      ));
+
+      expect(instance, isNotNull);
+      expect(instance!.address, '10.0.2.2');
+    });
+
+    test(
+        'falls back to the datagram source if relay_source_address is '
+        'missing from a relay-channel response', () {
+      final instance = UdpBroadcastProber.parseResponse(Datagram(
+        Uint8List.fromList(utf8.encode(jsonEncode({
+          'type': 'agentmux_discover_response',
+          'v': 1,
+          'hostname': 'h',
+          'version': '1',
+          'port': 1,
+          'auth_key': 'k',
+        }))),
+        InternetAddress('10.0.2.2'),
+        47892,
+      ));
+
+      expect(instance, isNotNull);
+      expect(instance!.address, '10.0.2.2');
+    });
   });
 
   group('UdpBroadcastProber.probe', () {

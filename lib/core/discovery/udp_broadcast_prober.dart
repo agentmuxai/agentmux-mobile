@@ -167,10 +167,14 @@ class UdpBroadcastProber {
   /// it isn't a valid `agentmux_discover_response` (malformed JSON, wrong
   /// type/version, unrelated UDP noise on the port, missing fields).
   ///
-  /// `address` is always taken from the datagram's source IP — never from
-  /// the JSON body — since the socket-level source address is ground truth
+  /// `address` is taken from the datagram's source IP — never from the JSON
+  /// body — since the socket-level source address is ground truth
   /// (consistent with how MdnsScanner resolves the A record rather than
-  /// trusting a TXT field).
+  /// trusting a TXT field), with one narrow exception: a response relayed by
+  /// scripts/discovery_relay.dart (identified by arriving from that relay's
+  /// own loopback bind, which nothing else can forge) carries the real
+  /// responder's address in `relay_source_address` instead, since relaying
+  /// itself replaces the socket-level source with the relay's own.
   @visibleForTesting
   static LanInstance? parseResponse(Datagram datagram) {
     try {
@@ -192,10 +196,29 @@ class UdpBroadcastProber {
         return null;
       }
 
+      // A response relayed by scripts/discovery_relay.dart always arrives
+      // from that relay's own loopback bind (10.0.2.2:47892, via the
+      // emulator's SLIRP gateway alias) — no real LAN device can forge a
+      // packet appearing to originate there, since that address/port is only
+      // reachable from inside this emulator's own network stack. The relay
+      // embeds the real responder's address in `relay_source_address`
+      // specifically because the datagram's own source would otherwise
+      // collapse every relayed instance onto the relay's loopback address,
+      // making distinct real LAN hosts indistinguishable and unreachable.
+      // Outside that exact address/port pair, the datagram source remains
+      // the sole ground truth, unchanged from before.
+      var address = datagram.address.address;
+      if (address == _emulatorRelayHost && datagram.port == _emulatorRelayPort) {
+        final relaySource = decoded['relay_source_address'];
+        if (relaySource is String && relaySource.isNotEmpty) {
+          address = relaySource;
+        }
+      }
+
       return LanInstance(
         hostname: hostname,
         version: version,
-        address: datagram.address.address,
+        address: address,
         port: port,
         authKey: authKey,
         instanceId: instanceId is String ? instanceId : null,

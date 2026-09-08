@@ -22,8 +22,13 @@
 // real responses from real AgentMux instances (this machine's own, or any
 // other on the LAN), and relays each one back to the emulator over the
 // same NAT'd channel the request arrived on — the app's *existing*
-// UdpBroadcastProber listener picks them up with zero additional parsing
-// code, since the wire format is identical to a normal broadcast response.
+// UdpBroadcastProber listener picks them up with no additional wire format
+// to learn, other than one extra `relay_source_address` field this relay
+// injects into each forwarded response: the relayed packet's own source, as
+// the emulator sees it, is always this relay's loopback bind rather than the
+// real responder's address, so without that field every instance on the
+// real LAN would be indistinguishable and unreachable from the emulator's
+// side. See UdpBroadcastProber.parseResponse() for the other half.
 //
 // Run this alongside the emulator during development:
 //   dart run scripts/discovery_relay.dart
@@ -33,6 +38,7 @@
 // UdpBroadcastProber's relay gating).
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 const _emulatorFacingPort = 47892;
@@ -84,10 +90,26 @@ Future<void> main() async {
         final response = broadcastSocket?.receive();
         if (response == null) return;
         responseCount++;
-        // Relay verbatim — the app's UdpBroadcastProber.parseResponse()
-        // parses this exact wire format already, whether it arrived via a
-        // real broadcast or (as here) a relayed unicast forward.
-        relaySocket.send(response.data, emulatorSrc, emulatorPort);
+        // Inject the real responder's LAN address before relaying — the
+        // relayed packet's own source (as the emulator sees it) is always
+        // this relay's loopback bind (10.0.2.2:47892 via SLIRP), never the
+        // responder's real IP, so without this every relayed instance would
+        // collapse onto the same unreachable address and the app could never
+        // actually connect to a genuinely different LAN host. See
+        // UdpBroadcastProber.parseResponse()'s handling of
+        // `relay_source_address` for the other half of this.
+        var payload = response.data;
+        try {
+          final decoded = jsonDecode(utf8.decode(response.data));
+          if (decoded is Map<String, dynamic>) {
+            decoded['relay_source_address'] = response.address.address;
+            payload = utf8.encode(jsonEncode(decoded));
+          }
+        } catch (_) {
+          // Malformed/non-JSON — relay verbatim; parseResponse() rejects it
+          // the same way it always has.
+        }
+        relaySocket.send(payload, emulatorSrc, emulatorPort);
         stdout.writeln('discovery_relay:   relayed a response from '
             '${response.address}:${response.port} back to the emulator');
       });

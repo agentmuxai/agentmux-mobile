@@ -86,7 +86,15 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
     // scripts/run-emulator.sh (passes --dart-define=AGENTMUX_DEV_ADDR/KEY).
     await _maybeAutoConnect();
 
-    final instances = <LanInstance>[..._manualInstances];
+    // Tracked separately from _manualInstances: whether to fall through to the
+    // UDP broadcast probe below must depend on whether mDNS itself found
+    // anything, not on whether the merged (manual + mDNS) list is non-empty.
+    // _mergeWithManual() always includes _manualInstances, so checking the
+    // merged list here would make the UDP fallback silently never run
+    // whenever dev auto-connect (or addManual()) had already seeded an
+    // instance — which is exactly the case where a user most wants to see
+    // what else is on the real LAN, not just the one already-known host.
+    final mdnsInstances = <LanInstance>[];
 
     await ref
         .read(mdnsScannerProvider)
@@ -94,21 +102,22 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
         .timeout(_timeout, onTimeout: (sink) => sink.close())
         .asyncMap(_enrichWithAgents)
         .forEach((instance) {
-      if (!instances.any(
+      if (!mdnsInstances.any(
           (m) => m.address == instance.address && m.port == instance.port)) {
-        instances.add(instance);
+        mdnsInstances.add(instance);
       }
-      // Merge _manualInstances on every update so entries added via addManual()
-      // during the scan are not overwritten by subsequent mDNS results.
-      state = AsyncValue.data(DiscoveryResults(_mergeWithManual(instances)));
+      state = AsyncValue.data(DiscoveryResults(_mergeWithManual(mdnsInstances)));
     });
 
-    final result = _mergeWithManual(instances);
-    if (result.isNotEmpty) return DiscoveryResults(result);
+    if (mdnsInstances.isNotEmpty) {
+      return DiscoveryResults(_mergeWithManual(mdnsInstances));
+    }
 
     // mDNS found nothing — corporate/guest WiFi often filters multicast, so
     // fall back to a UDP broadcast probe with its own short internal
-    // timeout before giving up.
+    // timeout before giving up. Runs regardless of manual/dev auto-connect
+    // entries, since those describe one already-known instance and say
+    // nothing about what else is reachable on the LAN.
     final udpInstances = <LanInstance>[];
     await ref
         .read(udpBroadcastProberProvider)
