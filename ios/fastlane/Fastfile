@@ -1,0 +1,49 @@
+default_platform(:ios)
+
+# Used only by release-ios.yml's optional "submit for review" step — the
+# always-run TestFlight upload uses plain `xcrun altool` and never touches
+# this file. This lane runs AFTER that upload, and does not upload the
+# binary again (skip_binary_upload: true) — it only attaches the
+# already-uploaded build to a new App Store version and submits it.
+#
+# NOT dry-run tested against a real App Store Connect account (no Apple
+# credentials available in the environment this was written in) — verify
+# behavior carefully on the first real run before trusting it for a release
+# that matters. In particular: `skip_metadata: true` is deliberate, to avoid
+# `deliver` trying to sync a `fastlane/metadata` folder that doesn't exist in
+# this repo, but `release_notes` is passed as a direct parameter specifically
+# because it's expected to apply independently of `skip_metadata` — confirm
+# that's still true for whatever fastlane version actually runs, since this
+# interaction has shifted across fastlane versions before.
+platform :ios do
+  desc "Attach an already-uploaded TestFlight build to a new App Store version and submit for review"
+  lane :submit_for_review do |options|
+    api_key = app_store_connect_api_key(
+      key_id: ENV["APPSTORE_CONNECT_API_KEY_ID"],
+      issuer_id: ENV["APPSTORE_CONNECT_ISSUER_ID"],
+      key_filepath: ENV["APPSTORE_CONNECT_API_KEY_PATH"]
+    )
+
+    upload_to_app_store(
+      api_key: api_key,
+      ipa: options[:ipa],
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      skip_metadata: true,
+      submit_for_review: true,
+      # Requires a manual "Release" click in App Store Connect after Apple
+      # approves, rather than going live worldwide the instant it's
+      # approved — safer default for something triggered from CI.
+      automatic_release: false,
+      force: true,
+      release_notes: { "en-US" => options[:release_notes] },
+      # Apple requires an answer to this on submission. Defaulting to false
+      # on the assumption this app doesn't use IDFA/ad tracking — confirm
+      # that's accurate before relying on this, same caveat as
+      # ITSAppUsesNonExemptEncryption in Info.plist.
+      submission_information: {
+        add_id_info_uses_idfa: false
+      }
+    )
+  end
+end

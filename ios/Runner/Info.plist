@@ -45,6 +45,16 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Export compliance declaration, required before App Store Connect will
+	     let a build be submitted for review — without it, submission blocks
+	     on an interactive question in App Store Connect that CI can't answer.
+	     Set to `false` on the assumption this app only uses standard TLS
+	     (HTTPS/WSS) via the OS-provided network stack, with no custom/
+	     proprietary encryption of its own — the common "exempt" case. This is
+	     a legal compliance declaration: confirm it's accurate for this app
+	     before the first real App Store submission, don't take it as decided. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<!-- LAN discovery: required for mDNS multicast on iOS 14+ -->
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>AgentMux needs local network access to discover AgentMux instances on your WiFi.</string>

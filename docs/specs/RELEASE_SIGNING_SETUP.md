@@ -49,8 +49,15 @@ distribution) and are not interchangeable.
    done, then **create an App Store provisioning profile** for it using the
    certificate from step 1. Download the `.mobileprovision`.
 3. **Create an App Store Connect API key** (App Store Connect → Users and
-   Access → Keys → "+"), role "App Manager" or "Developer" is sufficient for
-   uploads. Download the `.p8` **once** — Apple does not let you download it
+   Access → Integrations tab → App Store Connect API, "Team Keys"). Creating
+   a key at all requires the account itself to have Account Holder or Admin
+   privileges — if you don't see the Integrations tab, ask whoever owns the
+   Apple Developer account to grant you Admin, or to generate the key
+   directly. **The key's own access role must be "App Manager", not
+   "Developer"** — Developer-role keys can only upload builds/use
+   TestFlight; this repo's `release-ios.yml` has an optional step that
+   creates App Store versions and submits for review, which needs App
+   Manager. Download the `.p8` **once** — Apple does not let you download it
    again. Note the Key ID and Issuer ID shown on that page.
 4. **Add GitHub repo secrets**:
    - `IOS_DISTRIBUTION_CERTIFICATE` — `base64 -w0 Certificates.p12`
@@ -71,10 +78,20 @@ distribution) and are not interchangeable.
 - `release-android.yml` — manual `workflow_dispatch`, choose a Play Console
   track (internal/alpha/beta/production). Start with `internal` to verify
   the pipeline before touching a public track.
-- `release-ios.yml` — manual `workflow_dispatch`, uploads to TestFlight.
-  There is currently no separate "internal vs. production" choice here —
-  App Store submission itself is a manual step in App Store Connect after
-  the TestFlight build lands, same as it always was.
+- `release-ios.yml` — manual `workflow_dispatch`, always uploads to
+  TestFlight. Has an optional `submit-for-review` checkbox + `release-notes`
+  text input: leave it unchecked for a normal TestFlight-only run (App Store
+  submission stays a manual step in App Store Connect, as it always was),
+  or check it to also create an App Store version, attach the build, and
+  submit for review automatically (via `ios/fastlane/Fastfile`'s
+  `submit_for_review` lane). **This path has not been dry-run tested
+  against a real App Store Connect account** — no Apple credentials were
+  available while writing it. Two assumptions are baked in and should be
+  confirmed before relying on it for a release that matters: `Info.plist`'s
+  `ITSAppUsesNonExemptEncryption` is set to `false` (standard TLS only, no
+  custom encryption), and the Fastfile's `submission_information` assumes
+  no IDFA/ad-tracking usage. Both are legal/compliance declarations, not
+  technical defaults — verify they're accurate for this app.
 - Both workflows delete the decoded signing material at the end of the job
   (`if: always()`), but note GitHub Actions runners are ephemeral and
   destroyed after the job regardless — this is defense in depth, not the
