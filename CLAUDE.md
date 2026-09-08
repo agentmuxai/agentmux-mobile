@@ -19,6 +19,22 @@ Quick reference (see README for the full commands + why each step exists):
 2. Launch the emulator, wait for `sys.boot_completed=1` (not just adb-visible).
 3. `flutter pub get` → `dart run build_runner build --delete-conflicting-outputs` → `flutter run -d emulator-5554 --dart-define=...`.
 
+Or just run `scripts/dev-full.sh`, which does all of the above plus the
+discovery relay in one command.
+
+**Never launch the emulator or `flutter run` by appending a shell `&`.** Use the
+Bash tool's own `run_in_background: true` (with no `&`). This is harness-level
+behavior, not repo-specific: a command backgrounded with `&` returns
+immediately, so the tracked process is the launcher shell that exits in
+milliseconds, and the real long-running process is killed out from under you
+when the tool call returns. It fails *silently* — the emulator simply vanishes
+from `tasklist` with nothing in its log, and `adb devices` keeps showing a
+stale `offline` ghost entry, which reads like an emulator bug rather than a
+process-lifetime one. The full explanation lives in the `agentmux` repo's
+`CLAUDE.md` ("Launching `task dev` from an agent / MCP Shell") — cross-
+referenced here because an agent working only in this repo has no reason to
+read that file, and this cost real debugging time on 2026-09-08.
+
 ## Architecture
 
 Flutter mobile companion for the AgentMux desktop fleet. Connects via
