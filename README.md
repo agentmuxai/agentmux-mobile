@@ -82,6 +82,11 @@ flutter run -d emulator-5554 \
   this app's own discovery protocol instead. See
   `docs/specs/DISCOVERY_DIAGNOSTICS_TELEMETRY.md`'s follow-up section for the full design, and
   that script's own doc comment for how it works.
+- **`scripts/dev-full.sh` combines the emulator boot, the discovery relay, and
+  `run-emulator.sh` into one command** — every discovery path (sidecar
+  auto-connect, LAN relay, QR, manual, cloud) is live on every launch instead
+  of requiring the steps above separately each time:
+  `scripts/dev-full.sh [extra flutter run args]`.
 
 ## Quick start
 
