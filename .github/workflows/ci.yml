@@ -30,3 +30,24 @@ jobs:
 
       - name: Test
         run: flutter test
+
+      # Catches malformed XML in the platform manifests — specifically a
+      # literal "--" inside a comment, which is invalid per the XML spec and
+      # has now shipped twice in this repo undetected: once in
+      # AndroidManifest.xml (broke 100% of Android builds) and once in
+      # ios/Runner/Info.plist. Neither `flutter analyze` nor `flutter test`
+      # parses these files, so nothing caught either one.
+      - name: Validate platform manifests are well-formed XML
+        run: |
+          python3 - <<'PY'
+          import glob, sys, xml.dom.minidom
+          failed = False
+          for pattern in ("android/app/src/**/AndroidManifest.xml", "ios/**/*.plist", "macos/**/*.plist"):
+              for path in glob.glob(pattern, recursive=True):
+                  try:
+                      xml.dom.minidom.parse(path)
+                  except Exception as exc:
+                      print(f"::error file={path}::malformed XML: {exc}")
+                      failed = True
+          sys.exit(1 if failed else 0)
+          PY
