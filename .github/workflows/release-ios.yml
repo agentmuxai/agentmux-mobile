@@ -146,12 +146,21 @@ jobs:
             <string>manual</string>
             <key>provisioningProfiles</key>
             <dict>
-              <key>com.agentmux.agentmuxMobile</key>
-              <string>${PROFILE_NAME}</string>
             </dict>
           </dict>
           </plist>
           EOF
+
+          # PROFILE_NAME is written via PlistBuddy, not interpolated into the
+          # heredoc above, because it's an arbitrary Developer-portal string
+          # that can contain XML-significant characters (&, <, >). Raw
+          # interpolation would emit invalid XML for a name like "AgentMux &
+          # Co Distribution" and break the export -- confirmed reproducible:
+          # `plutil -lint` rejects the naively-interpolated form with
+          # "Encountered unknown ampersand-escape sequence", while
+          # PlistBuddy's own writer escapes it correctly (round-trips back to
+          # the exact original string). (ReAgent P1, PR #19.)
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:com.agentmux.agentmuxMobile string ${PROFILE_NAME}" ios/ExportOptions.plist
 
       - name: Build release IPA
         run: |
