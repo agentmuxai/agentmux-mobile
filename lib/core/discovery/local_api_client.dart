@@ -82,15 +82,24 @@ class LocalApiClient {
     }
   }
 
-  /// Calls GET /agentmux/discovery and returns version + agents. Throws on error.
-  Future<({String version, List<LanAgent> agents})> fetchDiscoveryInfo() async {
+  /// Calls GET /agentmux/discovery and returns hostname + version + agents.
+  /// Throws on error.
+  ///
+  /// `hostname` is empty for a server predating `agentmux` PR #3094 (which
+  /// added the field) — callers should fall back to something else (e.g. the
+  /// address) rather than display an empty string.
+  Future<({String hostname, String version, List<LanAgent> agents})>
+      fetchDiscoveryInfo() async {
     final res = await _dio.get<Map<String, dynamic>>('/agentmux/discovery');
     final data = res.data;
-    if (data == null) return (version: 'unknown', agents: const <LanAgent>[]);
+    if (data == null) {
+      return (hostname: '', version: 'unknown', agents: const <LanAgent>[]);
+    }
     final host = data['host'] as Map<String, dynamic>? ?? {};
     final addressable =
         (host['addressable'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
     return (
+      hostname: (host['hostname'] as String?) ?? '',
       version: (host['version'] as String?) ?? 'unknown',
       agents: addressable.map(LanAgent.fromJson).toList(),
     );
