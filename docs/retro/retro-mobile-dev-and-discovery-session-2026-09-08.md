@@ -37,12 +37,28 @@ never lands on `AppState` or in this response.
 **Impact:** medium — small change (~15 lines), directly fixes the mobile app
 showing a raw `10.0.2.2` instead of `claudius`.
 
-### A3. Duplicate/partial LAN peer entries for the same host
+### A3. "Duplicate" LAN peer entries for the same host — INVESTIGATED, likely not a bug
 `DiscoverAgents` returned two entries for `192.168.1.68` — one with
-`hostname: "gamerlove"` (port 63324) and one with `hostname: ""` (port 60371).
-The blank one is the known blank-TXT-first-resolution case, but the practical
-result is a peer list with confusing duplicates of the same machine.
-**Owner:** `agentmux-srv` (`lan_discovery.rs`). **Impact:** low-medium.
+`hostname: "gamerlove"` (port 63324) and one with `hostname: ""` (port
+60371). Originally logged here as a duplicate-entry bug; that diagnosis was
+too hasty and is corrected.
+
+`mdns_instance_label(hostname, port)` (`agentmux-srv/src/backend/lan_discovery.rs`)
+keys the mDNS service instance name on **both** hostname and port, and a
+`fullname`-collision check confirms cross-instance collisions are structurally
+impossible by construction (see that function's own commit history — a prior
+naming scheme's collision bug is what motivated the current one). Two
+different ports therefore mean two genuinely distinct **registered**
+AgentMux processes, not two representations of one instance — this app
+explicitly supports running multiple instances in parallel (`CLAUDE.md`,
+"Multiple Instances Run in Parallel"), so a dev machine running two channels
+at once is an expected, ordinary state, not a discovery defect.
+
+What's real and still open: a freshly-resolved peer's hostname can show
+blank until a TXT-bearing `ServiceResolved` event arrives (the known
+blank-TXT-first-resolution timing gap) — cosmetic and self-correcting as
+more mDNS events fire, not worth a dedicated fix on its own.
+**Owner:** none — re-closed after investigation. **Impact:** none identified.
 
 ### A4. Dev auto-connect gets a 401 on rescan — ROOT-CAUSED, not a code bug
 With `AGENTMUX_DEV_ADDR`/`AGENTMUX_DEV_KEY` set, the initial connect succeeds
