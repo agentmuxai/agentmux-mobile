@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../logging/app_logger.dart';
 import 'models/lan_instance.dart';
@@ -22,6 +23,21 @@ class LocalApiClient {
     headers: {'X-AuthKey': _authKey},
   ));
 
+  /// The log line for a failed [fetchAgents], split out so the 401 special
+  /// case is testable without standing up a Dio mock.
+  @visibleForTesting
+  static String fetchAgentsFailureMessage(Object error, String base) {
+    final isUnauthorized =
+        error is DioException && error.response?.statusCode == 401;
+    if (!isUnauthorized) {
+      return 'fetchAgents failed for $base, agent list left empty';
+    }
+    return 'fetchAgents got 401 for $base — the auth key is almost certainly '
+        'stale (the desktop mints a new one per launch; AGENTMUX_DEV_KEY is '
+        'baked in at build time). Rebuild the app against the running '
+        'instance. Agent list left empty.';
+  }
+
   /// Calls GET /agentmux/discovery and returns the agent list from host.addressable.
   /// Falls back to [] on any error.
   Future<List<LanAgent>> fetchAgents() async {
@@ -34,8 +50,18 @@ class LocalApiClient {
       // exact call is what enriches mDNS/UDP results with agent lists, and a
       // silent failure here previously made a real connectivity problem
       // indistinguishable from "instance genuinely has no agents".
+      //
+      // A 401 gets its own message because it has one overwhelmingly likely
+      // cause that the generic text sends you hunting in the wrong place:
+      // the desktop mints a FRESH auth_key on every launch
+      // (agentmux-launcher's srv_spawner.rs — "Generate a fresh auth_key per
+      // run"), while AGENTMUX_DEV_KEY is baked into this app at BUILD time by
+      // scripts/run-emulator.sh. So any AgentMux restart — including an
+      // auto-update — invalidates the built-in key, and the instance silently
+      // renders as "No agents reported" rather than "your key is stale".
+      // The fix is to rebuild the app, not to debug connectivity.
       AppLogger.log(
-        'fetchAgents failed for $_base, agent list left empty',
+        fetchAgentsFailureMessage(e, _base),
         name: 'LocalApiClient',
         error: e,
         stackTrace: stackTrace,

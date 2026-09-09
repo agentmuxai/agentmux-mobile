@@ -44,14 +44,26 @@ The blank one is the known blank-TXT-first-resolution case, but the practical
 result is a peer list with confusing duplicates of the same machine.
 **Owner:** `agentmux-srv` (`lan_discovery.rs`). **Impact:** low-medium.
 
-### A4. Dev auto-connect gets a 401 on rescan
+### A4. Dev auto-connect gets a 401 on rescan — ROOT-CAUSED, not a code bug
 With `AGENTMUX_DEV_ADDR`/`AGENTMUX_DEV_KEY` set, the initial connect succeeds
 and the agent list populates, but a later scan logged
 `fetchAgents failed for http://10.0.2.2:59859 ... status code of 401`.
-Not chased down — the auth key is injected once at build time, so something is
-either rotating or being rejected on re-request.
-**Owner:** unclear (`agentmux-srv` auth, or mobile's client). **Impact:**
-medium — it silently empties an otherwise-working instance's agent list.
+
+**Cause:** `agentmux-launcher`'s `srv_spawner.rs` mints a **fresh `auth_key`
+per run** ("Generate a fresh auth_key per run", UUID v4), while
+`AGENTMUX_DEV_KEY` is baked into the Flutter app at **build** time by
+`run-emulator.sh`. Any AgentMux restart — including a silent auto-update —
+invalidates the built-in key. Confirmed by the session's own evidence: the
+desktop went 0.55.37 → 0.55.39 mid-session, i.e. it restarted underneath the
+already-built app.
+
+So there's nothing to "fix" in the auth path — it's inherent to baking a
+per-run credential in at build time. What *was* wrong is that it failed
+**silently**: `fetchAgents` swallows the error and returns `[]`, so the card
+renders "No agents reported", which reads as "this instance has no agents"
+rather than "your key is stale". Addressed by giving the 401 its own log
+message naming the cause and the remedy (rebuild), plus a note in `CLAUDE.md`
+where someone actually hits it. **Owner:** resolved (mobile diagnostics).
 
 ---
 
