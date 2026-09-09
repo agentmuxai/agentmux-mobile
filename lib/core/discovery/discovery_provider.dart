@@ -104,8 +104,7 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
         .timeout(_timeout, onTimeout: (sink) => sink.close())
         .asyncMap(_enrichWithAgents)
         .forEach((instance) {
-      if (!mdnsInstances.any(
-          (m) => m.address == instance.address && m.port == instance.port)) {
+      if (!mdnsInstances.any((m) => isSameInstance(m, instance))) {
         mdnsInstances.add(instance);
       }
       state = AsyncValue.data(DiscoveryResults(_mergeWithManual(mdnsInstances)));
@@ -137,8 +136,7 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
         // forEach() below from waiting on it past _udpProbeTimeout.
         .timeout(_udpProbeTimeout, onTimeout: (sink) => sink.close())
         .forEach((instance) {
-      if (!udpInstances.any(
-          (m) => m.address == instance.address && m.port == instance.port)) {
+      if (!udpInstances.any((m) => isSameInstance(m, instance))) {
         udpInstances.add(instance);
       }
       state =
@@ -161,7 +159,7 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
     final client = LocalApiClient.fromParts(address, port, authKey);
     final info = await client.fetchDiscoveryInfo();
     final instance = LanInstance(
-      hostname: address,
+      hostname: info.hostname.isNotEmpty ? info.hostname : address,
       version: info.version,
       address: address,
       port: port,
@@ -169,9 +167,12 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
       agents: info.agents,
     );
 
-    // Replace any existing manual entry with the same address:port.
-    _manualInstances.removeWhere(
-        (m) => m.address == address && m.port == port);
+    // Replace any existing entry for the same physical instance — by
+    // hostname when available (retro B1: the same machine reached two
+    // different ways, e.g. this manual entry and a since-superseded
+    // mDNS/UDP one, previously showed as two cards since dedup only ever
+    // compared address+port), falling back to address:port otherwise.
+    _manualInstances.removeWhere((m) => isSameInstance(m, instance));
     _manualInstances.insert(0, instance);
 
     // Patch current state immediately without re-scanning.
@@ -179,7 +180,7 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
       DiscoveryResults(:final instances) => List<LanInstance>.from(instances),
       _ => <LanInstance>[],
     };
-    current.removeWhere((m) => m.address == address && m.port == port);
+    current.removeWhere((m) => isSameInstance(m, instance));
     current.insert(0, instance);
     state = AsyncValue.data(DiscoveryResults(current));
   }
@@ -198,7 +199,7 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
       final client = LocalApiClient.fromParts(address, port, _kDevKey);
       final info = await client.fetchDiscoveryInfo();
       _manualInstances.insert(0, LanInstance(
-        hostname: address,
+        hostname: info.hostname.isNotEmpty ? info.hostname : address,
         version: info.version,
         address: address,
         port: port,
@@ -254,11 +255,33 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
   List<LanInstance> _mergeWithManual(List<LanInstance> scanned) {
     final merged = <LanInstance>[..._manualInstances];
     for (final inst in scanned) {
-      if (!merged.any((m) => m.address == inst.address && m.port == inst.port)) {
+      if (!merged.any((m) => isSameInstance(m, inst))) {
         merged.add(inst);
       }
     }
     return merged;
+  }
+
+  /// Whether [a] and [b] describe the same physical AgentMux instance,
+  /// even when reached two different ways (retro B1). The clearest real
+  /// case: dev auto-connect reaches this machine's own sidecar over
+  /// loopback (`10.0.2.2:<port>`) while UDP-broadcast discovery reaches the
+  /// exact same process over its real LAN address — different address:port
+  /// pairs, same instance, previously rendered as two duplicate cards.
+  ///
+  /// Hostname is a reasonable identity signal here (not a cryptographic
+  /// one — see `docs/specs/REMOTE_TERMINALS_AND_CONVERSATION_HISTORY.md` for
+  /// why identity/auth over LAN needs more rigor than this for anything
+  /// higher-stakes than deduplicating a display list): two entries this app
+  /// discovers are overwhelmingly likely to be the same box if they report
+  /// the same non-empty hostname. Falls back to the original address:port
+  /// comparison when either side has no hostname (older server, or a
+  /// manual/dev entry added before its `fetchDiscoveryInfo()` call
+  /// resolved), so behavior is unchanged in that case.
+  @visibleForTesting
+  static bool isSameInstance(LanInstance a, LanInstance b) {
+    if (a.hostname.isNotEmpty && a.hostname == b.hostname) return true;
+    return a.address == b.address && a.port == b.port;
   }
 
   Future<LanInstance> _enrichWithAgents(LanInstance instance) async {

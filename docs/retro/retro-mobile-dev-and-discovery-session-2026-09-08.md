@@ -69,13 +69,20 @@ where someone actually hits it. **Owner:** resolved (mobile diagnostics).
 
 ## B. Mobile app / dev loop (`agentmux-mobile`)
 
-### B1. Two cards for the same machine
-The same physical host appears twice on the Discovery screen — once as
+### B1. Two cards for the same machine — RESOLVED
+The same physical host appeared twice on the Discovery screen — once as
 `10.0.2.2` (dev auto-connect, loopback) and once as `claudius` (real UDP
-broadcast, LAN address), because dedup is keyed on `address + port` and the
-two paths legitimately report different ports. Not incorrect, just redundant
-and confusing. Fixing it likely needs `instance_id` to be the dedup key rather
-than address/port.
+broadcast, LAN address), because dedup was keyed on `address + port` and the
+two paths legitimately report different ports.
+
+Fixed without needing a new `instance_id` field: `agentmux` PR #3094 had
+already added `host.hostname` to `/agentmux/discovery`'s response, but the
+mobile client never consumed it — `fetchDiscoveryInfo()` didn't parse it, and
+both `addManual`/`_maybeAutoConnect` hardcoded `hostname: address` (the raw
+IP) instead. Wired the field through and changed every dedup site
+(`isSameInstance`, `@visibleForTesting`) to treat matching non-empty
+hostnames as the same instance, falling back to the original address:port
+comparison when either side has none.
 
 ### B2. `dev-full.sh` has no readiness wait for the relay
 `scripts/dev-full.sh` starts `discovery_relay.dart` and immediately launches
