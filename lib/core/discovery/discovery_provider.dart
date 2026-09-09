@@ -210,7 +210,6 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
       // nothing here previously made "dev host unreachable" indistinguishable
       // from "dev-define wasn't passed", which cost real time diagnosing an
       // emulator/host connectivity issue with no signal to go on.
-      //
       AppLogger.log(
         devAutoConnectFailureMessage(e, address, port),
         name: 'DiscoveryNotifier',

@@ -29,16 +29,29 @@ class LocalApiClient {
   /// This is deliberately NOT the "your dev key is stale, rebuild" message —
   /// [fetchAgents] is only ever reached via `_enrichWithAgents`, whose sole
   /// callers are the mDNS scanner and UDP broadcast prober
-  /// (`discovery_provider.dart`). Every instance reaching this code carries
-  /// the narrow, LAN-broadcast `lan_key`, never the full instance key, and
-  /// `/agentmux/discovery` requires full auth — so a 401 here is not staleness
-  /// or a transient failure, it is the **guaranteed, permanent** result of
-  /// calling this route with that credential. "Rebuild the app" was actively
-  /// wrong advice for the case this actually handles (Codex P2 on
-  /// agentmux-mobile#20/#21) — nothing about rebuilding changes what a
-  /// lan_key is scoped to. The rebuild-fixable staleness case is real, but
-  /// belongs to dev auto-connect specifically, which DOES hold the full key
-  /// — see `DiscoveryNotifier._maybeAutoConnect`'s own catch block.
+  /// (`discovery_provider.dart`).
+  ///
+  /// **Evidence this depends on lives in the sibling `agentmux` (desktop/srv)
+  /// repo, not this one — flagging that explicitly since it isn't verifiable
+  /// from `agentmux-mobile`'s own source (ReAgent P1 on this PR correctly
+  /// pointed out that nothing here shows it).** As of `agentmux` PR #2572
+  /// ("stop broadcasting the full-access auth_key to LAN peers", landing
+  /// `docs/specs/SPEC_JEKT_LAN_WAN_TRUST_HARDENING_2026_08_13.md`'s LAN P0-1),
+  /// the value broadcast over mDNS/UDP — read here as `instance.authKey` — is
+  /// a separate, narrowly-scoped `lan_key`, not the full instance `auth_key`.
+  /// Server-side, `agentmux-srv/src/server/mod.rs`'s `lan_or_full_auth_middleware`
+  /// accepts that `lan_key` on exactly three routes (`reactive/inject`,
+  /// `reactive/agent`, `reactive/agent-names`); `/agentmux/discovery` is
+  /// registered under the separate `authed_routes` group (full `auth_key`
+  /// only). So a 401 from this route, for an instance sourced from mDNS/UDP,
+  /// is not staleness or a transient failure — it is the **guaranteed,
+  /// permanent** result of calling it with a credential that was never valid
+  /// there. "Rebuild the app" was actively wrong advice for the case this
+  /// actually handles (Codex P2, separately) — nothing about rebuilding
+  /// changes what a `lan_key` is scoped to. The rebuild-fixable staleness
+  /// case is real, but belongs to dev auto-connect specifically, which DOES
+  /// hold the full key — see `DiscoveryNotifier._maybeAutoConnect`'s own
+  /// catch block.
   @visibleForTesting
   static String fetchAgentsFailureMessage(Object error, String base) {
     final isUnauthorized =
@@ -49,10 +62,9 @@ class LocalApiClient {
     return 'fetchAgents got 401 for $base — expected, not a bug: this '
         "instance's LAN-broadcast credential (lan_key) is scoped to a few "
         'forwarding routes and does not grant access to /agentmux/discovery, '
-        'so its agent list cannot be fetched this way. See '
-        'docs/specs/REMOTE_TERMINALS_AND_CONVERSATION_HISTORY.md for the '
-        'scoped-read-credential proposal this would need. Agent list left '
-        'empty.';
+        'so its agent list cannot be fetched this way (see '
+        'agentmux/docs/specs/SPEC_JEKT_LAN_WAN_TRUST_HARDENING_2026_08_13.md, '
+        'LAN P0-1). Agent list left empty.';
   }
 
   /// Calls GET /agentmux/discovery and returns the agent list from host.addressable.
