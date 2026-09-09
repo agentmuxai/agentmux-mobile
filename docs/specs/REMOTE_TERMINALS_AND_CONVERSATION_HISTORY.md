@@ -53,20 +53,34 @@ it is **cloud-tier only**; the LAN path has no streaming channel.
 
 ### 3.2 Which credential does the phone actually hold?
 
-This is the load-bearing fact, and it is counter-intuitive:
+**Correction (2026-09-09):** an earlier version of this section argued "the
+app calls `GET /agentmux/discovery`, which is full-auth, therefore the app is
+already operating with the full `auth_key`." That inference is wrong — it
+conflates *calling* a route with *succeeding* at it. The app calls
+`/agentmux/discovery` for every instance it knows about regardless of how
+that instance was connected; whether the call succeeds depends entirely on
+which credential that specific instance carries. Caught via a real Codex
+review finding on the PR this spec shipped in, which pointed out the same
+conflation independently on a related fix in the same PR
+(agentmux-mobile#20/#21) — see that PR's discussion for the sibling case.
 
-- **QR pairing hands the phone the full instance `auth_key`.**
-  `frontend/app/statusbar/HostPopover.tsx:81-92` builds
-  `agentmux://connect?…&token=<authKey>` from `getApi().getAuthKey()`.
-- **The mDNS/UDP path hands out only the narrow `lan_key`.** The wire field is
-  still *named* `auth_key` for back-compat (`backend/lan_discovery.rs:58-74`),
-  but since PR #2572 (2026-08-14) the value is the scoped `lan_key`, which
-  grants exactly three routes via `lan_or_full_auth_middleware`:
-  `reactive/inject`, `reactive/agent`, `reactive/agent-names`.
-- The mobile app calls `GET /agentmux/discovery`, which lives in
-  `authed_routes` (**full auth**, `server/mod.rs:427`). A `lan_key`-only phone
-  would 401 there. **Therefore the app is already operating with the full
-  `auth_key`.**
+There are **three** distinct provenances, not two, and they matter a lot for
+what phase 1 can actually do:
+
+| Path | Code | Credential | Reaches `/agentmux/discovery`? |
+|---|---|---|---|
+| mDNS/UDP scan (the everyday "Discover" flow) | `MdnsScanner`/`UdpBroadcastProber` → `_enrichWithAgents` | narrow `lan_key` | **No — guaranteed 401, always, structurally.** Not staleness, not a bug to fix by retrying: `lan_key` was never valid for this route (`lan_or_full_auth_middleware` grants exactly three routes — `reactive/inject`, `reactive/agent`, `reactive/agent-names` — and `/agentmux/discovery` isn't one of them). |
+| QR / manual pairing | `qr_scan_screen.dart` / `manual_add_sheet.dart` → `addManual` | full `auth_key` (`HostPopover.tsx:81-92` encodes `getApi().getAuthKey()` into the QR) | Yes |
+| Dev auto-connect | `_maybeAutoConnect`, build-time `--dart-define` | full `auth_key`, baked in at **build** time | Yes, until the desktop restarts — the launcher mints a fresh `auth_key` every run, so this specific path degrades to a 401 over time (see `docs/retro/retro-mobile-dev-and-discovery-session-2026-09-08.md` A4) |
+
+**Consequence this changes:** "No agents reported" on the *existing* Agents
+list is not a rare glitch for a plain, mDNS/UDP-discovered instance — it is
+the permanent, guaranteed outcome, today, for every instance connected
+through the app's primary discovery flow. Only instances added via QR/manual
+pairing or dev auto-connect can show agents at all. This spec's Terminals and
+History features inherit that same split: they work today, with zero new
+server code, **only** for QR/manually-paired instances — never for a plainly
+discovered one, regardless of any authorization decision in §4.4.
 
 **What the full `auth_key` also grants**, beyond the read access this feature
 wants: `POST /api/v1/shell/create`, `/api/v1/agent/open`,
@@ -196,9 +210,15 @@ Keep it visually distinct from the message feed — they are different things
 
 ### 4.4 Authorization — the actual work
 
-Because a QR-paired phone already holds the full `auth_key`, v1 could ship
-**with no server changes at all**. That is worth stating explicitly, and also
-worth not doing quietly: it would normalize handing phones a key that can spawn
+Because a QR-paired (or dev-connected) phone already holds the full
+`auth_key`, v1 could ship **with no server changes at all** — but, per §3.2's
+correction, only for instances connected that way. A phone that only ever
+used the app's normal "Discover" flow (mDNS/UDP) is not merely missing a nice
+UI for this — it structurally cannot reach any of it, including the
+already-shipped Agents list, until something in §4.4 changes.
+
+Shipping on the existing key is also worth not doing quietly even for the
+QR/manual case: it would normalize handing phones a key that can spawn
 shells, open agents, bulk-stop the fleet, and drive the UI.
 
 Options:
@@ -228,15 +248,22 @@ Recorded here so the option is visibly closed rather than silently skipped.
 
 ## 5. Phasing
 
-| Phase | Contents | Server work |
-|---|---|---|
-| 1 | Terminals list + plain-text scrollback (paged, pull-to-refresh) | none strictly required (§4.4); Option A if chosen |
-| 2 | Agent History tab | none — `/agentmux/reactive/transcript` exists |
-| 3 | Scoped read credential + per-device revocation UI | Option A, if deferred from phase 1 |
-| 4 | Live streaming (LAN WebSocket), xterm-fidelity rendering | new WS endpoint |
+| Phase | Contents | Server work | Works for mDNS/UDP-discovered instances? |
+|---|---|---|---|
+| 1 | Terminals list + plain-text scrollback (paged, pull-to-refresh) | none strictly required for QR/manual-paired instances (§4.4); Option A if chosen | **No — needs Option A regardless of phase** |
+| 2 | Agent History tab | none — `/agentmux/reactive/transcript` exists | **No**, same reason |
+| 3 | Scoped read credential + per-device revocation UI | Option A, if deferred from phase 1 | Turns "no" above into "yes" |
+| 4 | Live streaming (LAN WebSocket), xterm-fidelity rendering | new WS endpoint | Depends on phase 3 landing first |
 
-The unusual property here — the feature works before the security work — is
-exactly why §4.4 should be decided **before** phase 1 ships, not after.
+Two properties worth being explicit about, since they pull in opposite
+directions: the feature works *for QR/manually-paired instances* before the
+security work does, which is exactly why §4.4 should be decided **before**
+phase 1 ships, not after — and it does **not** work at all for the app's
+primary discovery flow until phase 3, regardless of how phases 1-2 are
+sequenced. If mDNS/UDP-discovered instances are meant to be the common case
+for this feature (plausibly true — QR pairing is presently a fallback/initial
+step, not the everyday flow), phase 3 is not really optional-and-later; it is
+a prerequisite for the feature mattering to most users.
 
 ## 6. Explicitly out of scope
 
