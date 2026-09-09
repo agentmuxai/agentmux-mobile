@@ -22,18 +22,23 @@ Quick reference (see README for the full commands + why each step exists):
 Or just run `scripts/dev-full.sh`, which does all of the above plus the
 discovery relay in one command.
 
-**Never launch the emulator or `flutter run` by appending a shell `&`.** Use the
-Bash tool's own `run_in_background: true` (with no `&`). This is harness-level
-behavior, not repo-specific: a command backgrounded with `&` returns
-immediately, so the tracked process is the launcher shell that exits in
-milliseconds, and the real long-running process is killed out from under you
-when the tool call returns. It fails *silently* — the emulator simply vanishes
-from `tasklist` with nothing in its log, and `adb devices` keeps showing a
-stale `offline` ghost entry, which reads like an emulator bug rather than a
-process-lifetime one. The full explanation lives in the `agentmux` repo's
-`CLAUDE.md` ("Launching `task dev` from an agent / MCP Shell") — cross-
-referenced here because an agent working only in this repo has no reason to
-read that file, and this cost real debugging time on 2026-09-08.
+**When launching the emulator or `flutter run` from a Bash *tool call*, never
+append a shell `&`** — use the Bash tool's own `run_in_background: true` (with
+no `&`) instead. This is harness-level behavior, not repo-specific: a tool call
+returns as soon as the backgrounded command is spawned, so the tracked process
+is the launcher shell that exits in milliseconds, and the real long-running
+process is killed out from under you. It fails *silently* — the emulator simply
+vanishes from `tasklist` with nothing in its log, and `adb devices` keeps
+showing a stale `offline` ghost entry, which reads like an emulator bug rather
+than a process-lifetime one.
+
+Note this is specifically about tool calls, **not** about `&` in general:
+README.md's step 2 uses a trailing `&`, which is correct for a human in an
+interactive shell (the parent shell stays alive) and wrong to copy verbatim
+into a tool call. The README says so inline. The full explanation lives in the
+`agentmux` repo's `CLAUDE.md` ("Launching `task dev` from an agent / MCP
+Shell") — cross-referenced here because an agent working only in this repo has
+no reason to read that file, and this cost real debugging time on 2026-09-08.
 
 ## Architecture
 
