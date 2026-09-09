@@ -197,15 +197,22 @@ wrong, not for their own sake.
 
 ---
 
-## Suggested order if picking this up
+## Status (updated 2026-09-09)
 
-1. **B4** — plist/XML lint in CI. Two lines, catches a bug class that has now
-   bitten twice.
-2. **A2** — expose hostname in `/agentmux/discovery`. Small, self-contained,
-   immediately visible in the mobile UI.
-3. **A1** — populate LAN peer agent lists. Biggest functional unlock
-   (cross-host agent discovery), also the biggest change.
-4. **B2** — relay readiness wait in `dev-full.sh`. Removes nondeterminism from
-   every future discovery debugging session.
-5. **C1** — cross-reference the no-`&` harness rule into this repo's CLAUDE.md.
-6. **A4** / **B1** / **A3** — smaller correctness/polish items.
+Every actionable item above is resolved:
+
+- **B4** (XML/plist lint in CI), **B2** (relay readiness wait), **C1**
+  (harness doc cross-ref) — `agentmux-mobile#18`.
+- **B3** (nothing had ever built for iOS) — Clare@starpower's
+  `agentmux-mobile#19` found the real latent deployment-target bug this
+  predicted.
+- **A2** (expose hostname in `/agentmux/discovery`) — `agentmux#3094`.
+- **A1** (populate LAN peer agent lists) — `agentmux#3102`.
+- **A4** (dev auto-connect 401) — root-caused as not a code bug (the
+  desktop mints a fresh key every launch); diagnostics fixed in
+  `agentmux-mobile#20`.
+- **B1** (duplicate host cards) — `agentmux-mobile#23`.
+- **A3** ("duplicate" LAN peer entries) — investigated and re-closed above;
+  not a bug.
+
+Nothing from this retro remains open as of this correction.
