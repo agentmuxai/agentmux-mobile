@@ -40,6 +40,13 @@ unzip -q flutter_sdk.zip -d /c/src
 export PATH="/c/src/flutter/bin:/c/Users/<user>/AppData/Local/Android/Sdk/platform-tools:$PATH"
 
 # 2. Launch the emulator — long-running GUI process, run it detached/backgrounded.
+#    The trailing `&` below is for a HUMAN in an interactive shell, where the
+#    parent shell stays alive and the emulator survives.
+#    AGENTS: do NOT copy the `&`. A Bash *tool call* returns immediately, so the
+#    backgrounded emulator is killed out from under you — silently, leaving only
+#    a stale `offline` entry in `adb devices`. Use the harness's own background
+#    mechanism instead (Bash tool `run_in_background: true`, no `&`), or just run
+#    `scripts/dev-full.sh`. See CLAUDE.md's sandbox section.
 "C:\Users\<user>\AppData\Local\Android\Sdk\emulator\emulator.exe" -avd AgentMux_Pixel9 &
 
 # 3. Wait for a FULL boot (not just adb-visible — sys.boot_completed is the real signal).
