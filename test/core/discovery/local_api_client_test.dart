@@ -13,29 +13,35 @@ DioException _dioWithStatus(int status) {
 
 void main() {
   group('LocalApiClient.fetchAgentsFailureMessage', () {
-    // A 401 here has one overwhelmingly likely cause — the desktop mints a
-    // fresh auth_key every launch while AGENTMUX_DEV_KEY is baked in at build
-    // time — and the generic "failed" text sends you debugging connectivity
-    // instead of rebuilding. Observed live: an AgentMux auto-update mid-session
-    // silently turned a working instance into "No agents reported".
-    test('a 401 says the key is stale and to rebuild', () {
+    // fetchAgents() is only ever reached via _enrichWithAgents, whose sole
+    // callers are the mDNS scanner and UDP broadcast prober — every instance
+    // that reaches here carries the narrow lan_key, never the full instance
+    // key, and /agentmux/discovery requires full auth. So a 401 here is a
+    // structural, permanent consequence of that scoping, not staleness — an
+    // earlier version of this message wrongly said "rebuild the app", which
+    // was actively misleading (Codex P2 on agentmux-mobile#20/#21): rebuilding
+    // cannot change what a lan_key is scoped to. The rebuild-fixable
+    // staleness case is real, but belongs to dev auto-connect specifically,
+    // covered separately in discovery_provider_test.dart.
+    test('a 401 explains the lan_key scoping, not staleness', () {
       final msg = LocalApiClient.fetchAgentsFailureMessage(
         _dioWithStatus(401),
-        'http://10.0.2.2:59859',
+        'http://192.168.1.68:60371',
       );
       expect(msg, contains('401'));
-      expect(msg, contains('stale'));
-      expect(msg, contains('Rebuild'));
-      expect(msg, contains('http://10.0.2.2:59859'));
+      expect(msg, contains('lan_key'));
+      expect(msg, isNot(contains('stale')));
+      expect(msg, isNot(contains('Rebuild')));
+      expect(msg, contains('http://192.168.1.68:60371'));
     });
 
     test('other Dio status codes keep the generic message', () {
       final msg = LocalApiClient.fetchAgentsFailureMessage(
         _dioWithStatus(500),
-        'http://10.0.2.2:59859',
+        'http://192.168.1.68:60371',
       );
       expect(msg, contains('agent list left empty'));
-      expect(msg, isNot(contains('stale')));
+      expect(msg, isNot(contains('lan_key')));
     });
 
     test('a non-Dio error keeps the generic message', () {
@@ -44,7 +50,7 @@ void main() {
         'http://192.168.1.68:60371',
       );
       expect(msg, contains('agent list left empty'));
-      expect(msg, isNot(contains('stale')));
+      expect(msg, isNot(contains('lan_key')));
       expect(msg, contains('http://192.168.1.68:60371'));
     });
 
@@ -60,7 +66,7 @@ void main() {
         'http://10.0.2.2:60237',
       );
       expect(msg, contains('agent list left empty'));
-      expect(msg, isNot(contains('stale')));
+      expect(msg, isNot(contains('lan_key')));
     });
   });
 }

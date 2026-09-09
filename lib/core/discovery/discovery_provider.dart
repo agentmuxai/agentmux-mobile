@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../logging/app_logger.dart';
@@ -208,13 +210,46 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
       // nothing here previously made "dev host unreachable" indistinguishable
       // from "dev-define wasn't passed", which cost real time diagnosing an
       // emulator/host connectivity issue with no signal to go on.
+      //
       AppLogger.log(
-        'Dev auto-connect to $address:$port failed',
+        devAutoConnectFailureMessage(e, address, port),
         name: 'DiscoveryNotifier',
         error: e,
         stackTrace: stackTrace,
       );
     }
+  }
+
+  /// The log line for a failed [_maybeAutoConnect], split out so the 401
+  /// special case is testable without a live server (same pattern as
+  /// `LocalApiClient.fetchAgentsFailureMessage`).
+  ///
+  /// A 401 here specifically means the dev key is stale, and — unlike
+  /// `fetchAgents()`'s generic 401 handling (see its own doc comment) — that
+  /// diagnosis is actually correct in this one spot: `_kDevKey` is always the
+  /// FULL instance `auth_key` (baked in at build time by `run-emulator.sh`'s
+  /// `--dart-define`), and the desktop mints a fresh one on every launch
+  /// (`agentmux-launcher`'s `srv_spawner.rs` — "Generate a fresh auth_key per
+  /// run"). So any AgentMux restart invalidates it, and rebuilding really is
+  /// the fix — Codex P2 on agentmux-mobile#20/#21 was right that this
+  /// diagnosis belongs here, not in the shared `fetchAgents()` path that
+  /// mDNS/UDP-scoped (`lan_key`) instances also go through, where the same
+  /// advice would be wrong.
+  @visibleForTesting
+  static String devAutoConnectFailureMessage(
+    Object error,
+    String address,
+    int port,
+  ) {
+    final isStaleDevKey =
+        error is DioException && error.response?.statusCode == 401;
+    if (!isStaleDevKey) {
+      return 'Dev auto-connect to $address:$port failed';
+    }
+    return 'Dev auto-connect to $address:$port got 401 — the dev key is '
+        'almost certainly stale (the desktop mints a new one per launch; '
+        'AGENTMUX_DEV_KEY is baked in at build time). Rebuild the app '
+        'against the running instance.';
   }
 
   List<LanInstance> _mergeWithManual(List<LanInstance> scanned) {

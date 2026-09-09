@@ -25,6 +25,20 @@ class LocalApiClient {
 
   /// The log line for a failed [fetchAgents], split out so the 401 special
   /// case is testable without standing up a Dio mock.
+  ///
+  /// This is deliberately NOT the "your dev key is stale, rebuild" message —
+  /// [fetchAgents] is only ever reached via `_enrichWithAgents`, whose sole
+  /// callers are the mDNS scanner and UDP broadcast prober
+  /// (`discovery_provider.dart`). Every instance reaching this code carries
+  /// the narrow, LAN-broadcast `lan_key`, never the full instance key, and
+  /// `/agentmux/discovery` requires full auth — so a 401 here is not staleness
+  /// or a transient failure, it is the **guaranteed, permanent** result of
+  /// calling this route with that credential. "Rebuild the app" was actively
+  /// wrong advice for the case this actually handles (Codex P2 on
+  /// agentmux-mobile#20/#21) — nothing about rebuilding changes what a
+  /// lan_key is scoped to. The rebuild-fixable staleness case is real, but
+  /// belongs to dev auto-connect specifically, which DOES hold the full key
+  /// — see `DiscoveryNotifier._maybeAutoConnect`'s own catch block.
   @visibleForTesting
   static String fetchAgentsFailureMessage(Object error, String base) {
     final isUnauthorized =
@@ -32,10 +46,13 @@ class LocalApiClient {
     if (!isUnauthorized) {
       return 'fetchAgents failed for $base, agent list left empty';
     }
-    return 'fetchAgents got 401 for $base — the auth key is almost certainly '
-        'stale (the desktop mints a new one per launch; AGENTMUX_DEV_KEY is '
-        'baked in at build time). Rebuild the app against the running '
-        'instance. Agent list left empty.';
+    return 'fetchAgents got 401 for $base — expected, not a bug: this '
+        "instance's LAN-broadcast credential (lan_key) is scoped to a few "
+        'forwarding routes and does not grant access to /agentmux/discovery, '
+        'so its agent list cannot be fetched this way. See '
+        'docs/specs/REMOTE_TERMINALS_AND_CONVERSATION_HISTORY.md for the '
+        'scoped-read-credential proposal this would need. Agent list left '
+        'empty.';
   }
 
   /// Calls GET /agentmux/discovery and returns the agent list from host.addressable.
@@ -50,16 +67,6 @@ class LocalApiClient {
       // exact call is what enriches mDNS/UDP results with agent lists, and a
       // silent failure here previously made a real connectivity problem
       // indistinguishable from "instance genuinely has no agents".
-      //
-      // A 401 gets its own message because it has one overwhelmingly likely
-      // cause that the generic text sends you hunting in the wrong place:
-      // the desktop mints a FRESH auth_key on every launch
-      // (agentmux-launcher's srv_spawner.rs — "Generate a fresh auth_key per
-      // run"), while AGENTMUX_DEV_KEY is baked into this app at BUILD time by
-      // scripts/run-emulator.sh. So any AgentMux restart — including an
-      // auto-update — invalidates the built-in key, and the instance silently
-      // renders as "No agents reported" rather than "your key is stale".
-      // The fix is to rebuild the app, not to debug connectivity.
       AppLogger.log(
         fetchAgentsFailureMessage(e, _base),
         name: 'LocalApiClient',
