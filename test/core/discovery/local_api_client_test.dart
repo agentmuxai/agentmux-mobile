@@ -16,21 +16,30 @@ void main() {
     // fetchAgents() is only ever reached via _enrichWithAgents, whose sole
     // callers are the mDNS scanner and UDP broadcast prober — every instance
     // that reaches here carries the narrow lan_key, never the full instance
-    // key, and /agentmux/discovery requires full auth. So a 401 here is a
-    // structural, permanent consequence of that scoping, not staleness — an
-    // earlier version of this message wrongly said "rebuild the app", which
-    // was actively misleading (Codex P2 on agentmux-mobile#20/#21): rebuilding
-    // cannot change what a lan_key is scoped to. The rebuild-fixable
-    // staleness case is real, but belongs to dev auto-connect specifically,
-    // covered separately in discovery_provider_test.dart.
-    test('a 401 explains the lan_key scoping, not staleness', () {
+    // key, and /agentmux/discovery isn't among the routes that key grants.
+    // An earlier version of this message wrongly said "rebuild the app"
+    // (Codex P2 on agentmux-mobile#20/#21) — rebuilding cannot change what a
+    // lan_key is scoped to. A later version stated the lan_key-scoping cause
+    // as flat certainty, which ReAgent correctly flagged (twice) as unsound:
+    // that fact lives entirely in a sibling repo this one can't verify
+    // against, so a confidently wrong diagnosis here would read a REAL
+    // stale/rotated key as "expected, not a bug" and stop it being
+    // investigated. Hedged deliberately — see the source's own doc comment.
+    // The rebuild-fixable staleness case is real, but belongs to dev
+    // auto-connect specifically, covered separately in
+    // discovery_provider_test.dart.
+    test('a 401 offers the lan_key-scoping explanation, hedged', () {
       final msg = LocalApiClient.fetchAgentsFailureMessage(
         _dioWithStatus(401),
         'http://192.168.1.68:60371',
       );
       expect(msg, contains('401'));
       expect(msg, contains('lan_key'));
-      expect(msg, isNot(contains('stale')));
+      expect(msg, contains('likely'), reason: 'must not overclaim certainty');
+      // "stale" is allowed to appear as the ruled-in alternative explanation
+      // ("...rather than a stale/rotated key") — what must NOT happen is the
+      // message asserting staleness as the diagnosis, or telling anyone to
+      // rebuild (that WAS the bug: Codex P2 on agentmux-mobile#20/#21).
       expect(msg, isNot(contains('Rebuild')));
       expect(msg, contains('http://192.168.1.68:60371'));
     });

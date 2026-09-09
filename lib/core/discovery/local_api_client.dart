@@ -29,29 +29,23 @@ class LocalApiClient {
   /// This is deliberately NOT the "your dev key is stale, rebuild" message —
   /// [fetchAgents] is only ever reached via `_enrichWithAgents`, whose sole
   /// callers are the mDNS scanner and UDP broadcast prober
-  /// (`discovery_provider.dart`).
+  /// (`discovery_provider.dart`), so a 401 here means something structurally
+  /// different from a 401 on the dev-connect path (see
+  /// `DiscoveryNotifier._maybeAutoConnect`'s own message for that case).
   ///
-  /// **Evidence this depends on lives in the sibling `agentmux` (desktop/srv)
-  /// repo, not this one — flagging that explicitly since it isn't verifiable
-  /// from `agentmux-mobile`'s own source (ReAgent P1 on this PR correctly
-  /// pointed out that nothing here shows it).** As of `agentmux` PR #2572
-  /// ("stop broadcasting the full-access auth_key to LAN peers", landing
-  /// `docs/specs/SPEC_JEKT_LAN_WAN_TRUST_HARDENING_2026_08_13.md`'s LAN P0-1),
-  /// the value broadcast over mDNS/UDP — read here as `instance.authKey` — is
-  /// a separate, narrowly-scoped `lan_key`, not the full instance `auth_key`.
-  /// Server-side, `agentmux-srv/src/server/mod.rs`'s `lan_or_full_auth_middleware`
-  /// accepts that `lan_key` on exactly three routes (`reactive/inject`,
-  /// `reactive/agent`, `reactive/agent-names`); `/agentmux/discovery` is
-  /// registered under the separate `authed_routes` group (full `auth_key`
-  /// only). So a 401 from this route, for an instance sourced from mDNS/UDP,
-  /// is not staleness or a transient failure — it is the **guaranteed,
-  /// permanent** result of calling it with a credential that was never valid
-  /// there. "Rebuild the app" was actively wrong advice for the case this
-  /// actually handles (Codex P2, separately) — nothing about rebuilding
-  /// changes what a `lan_key` is scoped to. The rebuild-fixable staleness
-  /// case is real, but belongs to dev auto-connect specifically, which DOES
-  /// hold the full key — see `DiscoveryNotifier._maybeAutoConnect`'s own
-  /// catch block.
+  /// As of `agentmux` PR #2572 (`SPEC_JEKT_LAN_WAN_TRUST_HARDENING_2026_08_13.md`
+  /// LAN P0-1), the value broadcast over mDNS/UDP is a separate, narrowly
+  /// scoped `lan_key`, not the full instance `auth_key` — and
+  /// `/agentmux/discovery` is not among the routes that credential grants
+  /// (`lan_or_full_auth_middleware` in `agentmux-srv/src/server/mod.rs`).
+  ///
+  /// **That fact lives entirely in a sibling repo this one can't see, so it's
+  /// deliberately hedged below rather than asserted as certain (ReAgent P1,
+  /// raised twice on this PR) — a wrong CONFIDENT diagnosis is worse than a
+  /// vague one, since a real stale/rotated key would then read as "expected,
+  /// not a bug" and stop being investigated.** If a later `agentmux` change
+  /// ever widens what `lan_key` can reach, this message would need updating
+  /// too, and nothing in this repo would flag that drift automatically.
   @visibleForTesting
   static String fetchAgentsFailureMessage(Object error, String base) {
     final isUnauthorized =
@@ -59,12 +53,11 @@ class LocalApiClient {
     if (!isUnauthorized) {
       return 'fetchAgents failed for $base, agent list left empty';
     }
-    return 'fetchAgents got 401 for $base — expected, not a bug: this '
-        "instance's LAN-broadcast credential (lan_key) is scoped to a few "
-        'forwarding routes and does not grant access to /agentmux/discovery, '
-        'so its agent list cannot be fetched this way (see '
-        'agentmux/docs/specs/SPEC_JEKT_LAN_WAN_TRUST_HARDENING_2026_08_13.md, '
-        'LAN P0-1). Agent list left empty.';
+    return 'fetchAgents got 401 for $base — if this instance came from LAN '
+        'discovery (not QR/manual pairing), this is likely because its '
+        'lan_key is scoped to a few forwarding routes that may not include '
+        '/agentmux/discovery, rather than a stale/rotated key. Agent list '
+        'left empty.';
   }
 
   /// Calls GET /agentmux/discovery and returns the agent list from host.addressable.
