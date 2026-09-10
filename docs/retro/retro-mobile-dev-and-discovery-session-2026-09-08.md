@@ -100,14 +100,16 @@ IP) instead. Wired the field through and changed every dedup site
 hostnames as the same instance, falling back to the original address:port
 comparison when either side has none.
 
-### B2. `dev-full.sh` has no readiness wait for the relay
-`scripts/dev-full.sh` starts `discovery_relay.dart` and immediately launches
+### B2. `dev-full.sh` had no readiness wait for the relay — **done**
+`scripts/dev-full.sh` started `discovery_relay.dart` and immediately launched
 the app. Across runs, the relay sometimes logged **zero** probes received
 while the app reported datagrams received — consistent with the app's first
-scan firing before the relay's socket is bound. Needs a bind-readiness wait
-(poll the port) rather than assuming the background start is instant. This made
-live verification non-deterministic and cost real debugging time chasing a
-race that looked like a logic bug.
+scan firing before the relay's socket is bound. This made live verification
+non-deterministic and cost real debugging time chasing a race that looked
+like a logic bug.
+**Fixed** (commit `02ca1da`, PR #18): `dev-full.sh` now polls
+`/tmp/discovery_relay.log` for the relay's `listening on 127.0.0.1` line
+before launching the app, bounded at 30s with a loud warning on timeout.
 
 ### B3. Nothing had ever built for iOS
 No CI job and (apparently) no local build has ever targeted iOS in this repo.
@@ -134,17 +136,18 @@ undetected because nothing had tried to actually release.
 
 ## C. Environment / harness friction (claudius, Windows + Git Bash)
 
-### C1. Backgrounding with `&` silently kills long-running processes
+### C1. Backgrounding with `&` silently kills long-running processes — **done**
 Launching the Android emulator with `... &` inside a Bash tool call let the
 tool return immediately, then the emulator was killed (Windows job-object /
 process-group teardown). No error, no log line — it just vanished from
 `tasklist`, and `adb devices` kept showing a stale `offline` ghost entry.
 Cost ~15 minutes of misdiagnosis. The fix (use the Bash tool's own
-`run_in_background: true`, never a shell `&`) **is** already documented — but
-in the `agentmux` repo's `CLAUDE.md`, under a `task dev` heading. An agent
-working in `agentmux-mobile` has no reason to read it.
-**Smoothing:** cross-reference that rule from `agentmux-mobile`'s `CLAUDE.md`,
-since it's harness-level, not repo-level, knowledge.
+`run_in_background: true`, never a shell `&`) **was** already documented — but
+only in the `agentmux` repo's `CLAUDE.md`, under a `task dev` heading, which
+an agent working in `agentmux-mobile` has no reason to read.
+**Smoothing — done** (commit `02ca1da`, PR #18): this repo's `CLAUDE.md` now
+carries the full no-`&` rule in its sandbox section, cross-referencing
+`agentmux`'s `CLAUDE.md` for the underlying explanation.
 
 ### C2. Silent-command idle timeout kills legitimate waits
 A poll loop beginning with `adb wait-for-device` was killed at 600s for
