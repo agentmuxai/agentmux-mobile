@@ -1,7 +1,7 @@
 name: agentmux_mobile
 description: AgentMux Mobile — cloud agent fleet companion
 publish_to: 'none'
-version: 0.2.0+17
+version: 0.2.0+18
 
 environment:
   sdk: ^3.7.0
@@ -55,8 +55,22 @@ dev_dependencies:
   json_serializable: ^6.9.0
   riverpod_generator: ^2.6.3
   mocktail: ^1.0.4
+  flutter_launcher_icons: ^0.14.3
 
 flutter:
   uses-material-design: true
   assets:
     - assets/images/
+
+# Source: agentmux's own primary app icon (assets/linux/icons/hicolor/512x512/apps/agentmux.png
+# in the agentmux repo) copied verbatim to assets/icon/icon.png here — the same "blue blocks"
+# mark used everywhere else AgentMux ships an icon, not a mobile-specific design. Regenerate
+# with `dart run flutter_launcher_icons` after replacing that source file.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/icon.png"
+  # The source has an alpha channel (RGBA); Apple rejects any transparency
+  # in the App Store icon, so this flattens it onto an opaque background
+  # for iOS specifically. Android's adaptive/legacy icons keep the alpha.
+  remove_alpha_ios: true
