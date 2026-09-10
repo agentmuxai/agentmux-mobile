@@ -37,33 +37,68 @@ never lands on `AppState` or in this response.
 **Impact:** medium — small change (~15 lines), directly fixes the mobile app
 showing a raw `10.0.2.2` instead of `claudius`.
 
-### A3. Duplicate/partial LAN peer entries for the same host
+### A3. "Duplicate" LAN peer entries for the same host — INVESTIGATED, likely not a bug
 `DiscoverAgents` returned two entries for `192.168.1.68` — one with
-`hostname: "gamerlove"` (port 63324) and one with `hostname: ""` (port 60371).
-The blank one is the known blank-TXT-first-resolution case, but the practical
-result is a peer list with confusing duplicates of the same machine.
-**Owner:** `agentmux-srv` (`lan_discovery.rs`). **Impact:** low-medium.
+`hostname: "gamerlove"` (port 63324) and one with `hostname: ""` (port
+60371). Originally logged here as a duplicate-entry bug; that diagnosis was
+too hasty and is corrected.
 
-### A4. Dev auto-connect gets a 401 on rescan
+`mdns_instance_label(hostname, port)` (`agentmux-srv/src/backend/lan_discovery.rs`)
+keys the mDNS service instance name on **both** hostname and port, and a
+`fullname`-collision check confirms cross-instance collisions are structurally
+impossible by construction (see that function's own commit history — a prior
+naming scheme's collision bug is what motivated the current one). Two
+different ports therefore mean two genuinely distinct **registered**
+AgentMux processes, not two representations of one instance — this app
+explicitly supports running multiple instances in parallel (`CLAUDE.md`,
+"Multiple Instances Run in Parallel"), so a dev machine running two channels
+at once is an expected, ordinary state, not a discovery defect.
+
+What's real and still open: a freshly-resolved peer's hostname can show
+blank until a TXT-bearing `ServiceResolved` event arrives (the known
+blank-TXT-first-resolution timing gap) — cosmetic and self-correcting as
+more mDNS events fire, not worth a dedicated fix on its own.
+**Owner:** none — re-closed after investigation. **Impact:** none identified.
+
+### A4. Dev auto-connect gets a 401 on rescan — ROOT-CAUSED, not a code bug
 With `AGENTMUX_DEV_ADDR`/`AGENTMUX_DEV_KEY` set, the initial connect succeeds
 and the agent list populates, but a later scan logged
 `fetchAgents failed for http://10.0.2.2:59859 ... status code of 401`.
-Not chased down — the auth key is injected once at build time, so something is
-either rotating or being rejected on re-request.
-**Owner:** unclear (`agentmux-srv` auth, or mobile's client). **Impact:**
-medium — it silently empties an otherwise-working instance's agent list.
+
+**Cause:** `agentmux-launcher`'s `srv_spawner.rs` mints a **fresh `auth_key`
+per run** ("Generate a fresh auth_key per run", UUID v4), while
+`AGENTMUX_DEV_KEY` is baked into the Flutter app at **build** time by
+`run-emulator.sh`. Any AgentMux restart — including a silent auto-update —
+invalidates the built-in key. Confirmed by the session's own evidence: the
+desktop went 0.55.37 → 0.55.39 mid-session, i.e. it restarted underneath the
+already-built app.
+
+So there's nothing to "fix" in the auth path — it's inherent to baking a
+per-run credential in at build time. What *was* wrong is that it failed
+**silently**: `fetchAgents` swallows the error and returns `[]`, so the card
+renders "No agents reported", which reads as "this instance has no agents"
+rather than "your key is stale". Addressed by giving the 401 its own log
+message naming the cause and the remedy (rebuild), plus a note in `CLAUDE.md`
+where someone actually hits it. **Owner:** resolved (mobile diagnostics).
 
 ---
 
 ## B. Mobile app / dev loop (`agentmux-mobile`)
 
-### B1. Two cards for the same machine
-The same physical host appears twice on the Discovery screen — once as
+### B1. Two cards for the same machine — RESOLVED
+The same physical host appeared twice on the Discovery screen — once as
 `10.0.2.2` (dev auto-connect, loopback) and once as `claudius` (real UDP
-broadcast, LAN address), because dedup is keyed on `address + port` and the
-two paths legitimately report different ports. Not incorrect, just redundant
-and confusing. Fixing it likely needs `instance_id` to be the dedup key rather
-than address/port.
+broadcast, LAN address), because dedup was keyed on `address + port` and the
+two paths legitimately report different ports.
+
+Fixed without needing a new `instance_id` field: `agentmux` PR #3094 had
+already added `host.hostname` to `/agentmux/discovery`'s response, but the
+mobile client never consumed it — `fetchDiscoveryInfo()` didn't parse it, and
+both `addManual`/`_maybeAutoConnect` hardcoded `hostname: address` (the raw
+IP) instead. Wired the field through and changed every dedup site
+(`isSameInstance`, `@visibleForTesting`) to treat matching non-empty
+hostnames as the same instance, falling back to the original address:port
+comparison when either side has none.
 
 ### B2. `dev-full.sh` had no readiness wait for the relay — **done**
 `scripts/dev-full.sh` started `discovery_relay.dart` and immediately launched
@@ -165,17 +200,22 @@ wrong, not for their own sake.
 
 ---
 
-## Suggested order if picking this up
+## Status (updated 2026-09-09)
 
-1. **B4** — plist/XML lint in CI. Two lines, catches a bug class that has now
-   bitten twice.
-2. **A2** — expose hostname in `/agentmux/discovery`. Small, self-contained,
-   immediately visible in the mobile UI.
-3. **A1** — populate LAN peer agent lists. Biggest functional unlock
-   (cross-host agent discovery), also the biggest change.
-4. ~~**B2** — relay readiness wait in `dev-full.sh`.~~ **Done** (commit
-   `02ca1da`, PR #18): the script now waits for the relay's bind line in
-   `/tmp/discovery_relay.log` before launching the app.
-5. ~~**C1** — cross-reference the no-`&` harness rule into this repo's
-   CLAUDE.md.~~ **Done** (same commit): see `CLAUDE.md`'s sandbox section.
-6. **A4** / **B1** / **A3** — smaller correctness/polish items.
+Every actionable item above is resolved:
+
+- **B4** (XML/plist lint in CI), **B2** (relay readiness wait), **C1**
+  (harness doc cross-ref) — `agentmux-mobile#18`.
+- **B3** (nothing had ever built for iOS) — Clare@starpower's
+  `agentmux-mobile#19` found the real latent deployment-target bug this
+  predicted.
+- **A2** (expose hostname in `/agentmux/discovery`) — `agentmux#3094`.
+- **A1** (populate LAN peer agent lists) — `agentmux#3102`.
+- **A4** (dev auto-connect 401) — root-caused as not a code bug (the
+  desktop mints a fresh key every launch); diagnostics fixed in
+  `agentmux-mobile#20`.
+- **B1** (duplicate host cards) — `agentmux-mobile#23`.
+- **A3** ("duplicate" LAN peer entries) — investigated and re-closed above;
+  not a bug.
+
+Nothing from this retro remains open as of this correction.

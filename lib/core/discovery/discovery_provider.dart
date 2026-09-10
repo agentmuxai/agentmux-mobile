@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../logging/app_logger.dart';
@@ -102,8 +104,7 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
         .timeout(_timeout, onTimeout: (sink) => sink.close())
         .asyncMap(_enrichWithAgents)
         .forEach((instance) {
-      if (!mdnsInstances.any(
-          (m) => m.address == instance.address && m.port == instance.port)) {
+      if (!mdnsInstances.any((m) => isSameInstance(m, instance))) {
         mdnsInstances.add(instance);
       }
       state = AsyncValue.data(DiscoveryResults(_mergeWithManual(mdnsInstances)));
@@ -135,8 +136,7 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
         // forEach() below from waiting on it past _udpProbeTimeout.
         .timeout(_udpProbeTimeout, onTimeout: (sink) => sink.close())
         .forEach((instance) {
-      if (!udpInstances.any(
-          (m) => m.address == instance.address && m.port == instance.port)) {
+      if (!udpInstances.any((m) => isSameInstance(m, instance))) {
         udpInstances.add(instance);
       }
       state =
@@ -159,7 +159,7 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
     final client = LocalApiClient.fromParts(address, port, authKey);
     final info = await client.fetchDiscoveryInfo();
     final instance = LanInstance(
-      hostname: address,
+      hostname: info.hostname.isNotEmpty ? info.hostname : address,
       version: info.version,
       address: address,
       port: port,
@@ -167,9 +167,12 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
       agents: info.agents,
     );
 
-    // Replace any existing manual entry with the same address:port.
-    _manualInstances.removeWhere(
-        (m) => m.address == address && m.port == port);
+    // Replace any existing entry for the same physical instance — by
+    // hostname when available (retro B1: the same machine reached two
+    // different ways, e.g. this manual entry and a since-superseded
+    // mDNS/UDP one, previously showed as two cards since dedup only ever
+    // compared address+port), falling back to address:port otherwise.
+    _manualInstances.removeWhere((m) => isSameInstance(m, instance));
     _manualInstances.insert(0, instance);
 
     // Patch current state immediately without re-scanning.
@@ -177,7 +180,7 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
       DiscoveryResults(:final instances) => List<LanInstance>.from(instances),
       _ => <LanInstance>[],
     };
-    current.removeWhere((m) => m.address == address && m.port == port);
+    current.removeWhere((m) => isSameInstance(m, instance));
     current.insert(0, instance);
     state = AsyncValue.data(DiscoveryResults(current));
   }
@@ -196,7 +199,7 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
       final client = LocalApiClient.fromParts(address, port, _kDevKey);
       final info = await client.fetchDiscoveryInfo();
       _manualInstances.insert(0, LanInstance(
-        hostname: address,
+        hostname: info.hostname.isNotEmpty ? info.hostname : address,
         version: info.version,
         address: address,
         port: port,
@@ -209,7 +212,7 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
       // from "dev-define wasn't passed", which cost real time diagnosing an
       // emulator/host connectivity issue with no signal to go on.
       AppLogger.log(
-        'Dev auto-connect to $address:$port failed',
+        devAutoConnectFailureMessage(e, address, port),
         name: 'DiscoveryNotifier',
         error: e,
         stackTrace: stackTrace,
@@ -217,14 +220,68 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
     }
   }
 
+  /// The log line for a failed [_maybeAutoConnect], split out so the 401
+  /// special case is testable without a live server (same pattern as
+  /// `LocalApiClient.fetchAgentsFailureMessage`).
+  ///
+  /// A 401 here specifically means the dev key is stale, and — unlike
+  /// `fetchAgents()`'s generic 401 handling (see its own doc comment) — that
+  /// diagnosis is actually correct in this one spot: `_kDevKey` is always the
+  /// FULL instance `auth_key` (baked in at build time by `run-emulator.sh`'s
+  /// `--dart-define`), and the desktop mints a fresh one on every launch
+  /// (`agentmux-launcher`'s `srv_spawner.rs` — "Generate a fresh auth_key per
+  /// run"). So any AgentMux restart invalidates it, and rebuilding really is
+  /// the fix — Codex P2 on agentmux-mobile#20/#21 was right that this
+  /// diagnosis belongs here, not in the shared `fetchAgents()` path that
+  /// mDNS/UDP-scoped (`lan_key`) instances also go through, where the same
+  /// advice would be wrong.
+  @visibleForTesting
+  static String devAutoConnectFailureMessage(
+    Object error,
+    String address,
+    int port,
+  ) {
+    final isStaleDevKey =
+        error is DioException && error.response?.statusCode == 401;
+    if (!isStaleDevKey) {
+      return 'Dev auto-connect to $address:$port failed';
+    }
+    return 'Dev auto-connect to $address:$port got 401 — the dev key is '
+        'almost certainly stale (the desktop mints a new one per launch; '
+        'AGENTMUX_DEV_KEY is baked in at build time). Rebuild the app '
+        'against the running instance.';
+  }
+
   List<LanInstance> _mergeWithManual(List<LanInstance> scanned) {
     final merged = <LanInstance>[..._manualInstances];
     for (final inst in scanned) {
-      if (!merged.any((m) => m.address == inst.address && m.port == inst.port)) {
+      if (!merged.any((m) => isSameInstance(m, inst))) {
         merged.add(inst);
       }
     }
     return merged;
+  }
+
+  /// Whether [a] and [b] describe the same physical AgentMux instance,
+  /// even when reached two different ways (retro B1). The clearest real
+  /// case: dev auto-connect reaches this machine's own sidecar over
+  /// loopback (`10.0.2.2:<port>`) while UDP-broadcast discovery reaches the
+  /// exact same process over its real LAN address — different address:port
+  /// pairs, same instance, previously rendered as two duplicate cards.
+  ///
+  /// Hostname is a reasonable identity signal here (not a cryptographic
+  /// one — see `docs/specs/REMOTE_TERMINALS_AND_CONVERSATION_HISTORY.md` for
+  /// why identity/auth over LAN needs more rigor than this for anything
+  /// higher-stakes than deduplicating a display list): two entries this app
+  /// discovers are overwhelmingly likely to be the same box if they report
+  /// the same non-empty hostname. Falls back to the original address:port
+  /// comparison when either side has no hostname (older server, or a
+  /// manual/dev entry added before its `fetchDiscoveryInfo()` call
+  /// resolved), so behavior is unchanged in that case.
+  @visibleForTesting
+  static bool isSameInstance(LanInstance a, LanInstance b) {
+    if (a.hostname.isNotEmpty && a.hostname == b.hostname) return true;
+    return a.address == b.address && a.port == b.port;
   }
 
   Future<LanInstance> _enrichWithAgents(LanInstance instance) async {
