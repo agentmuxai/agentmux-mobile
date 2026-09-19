@@ -19,6 +19,61 @@ Connect account — same caveat `RELEASE_SIGNING_SETUP.md` already carries.
   to check the actual Cognito Hosted UI config in AWS. Not something
   readable from either repo's source.
 
+## None of this has ever been built by Xcode — read this before trusting green CI
+
+**This is the single most important caveat in this document.** Every iOS
+native file this effort touched (`ios/Runner/PrivacyInfo.xcprivacy`,
+`ios/Runner.xcodeproj/project.pbxproj`,
+`ios/Runner/Base.lproj/LaunchScreen.storyboard`) was hand-edited on Windows,
+with no Mac and no Xcode available anywhere in this sandbox. `.github/workflows/ci.yml`
+runs on `ubuntu-latest` and only ever does `flutter analyze` / `flutter test`
+— it has **never once invoked Xcode, `xcodebuild`, or `pod install`** for any
+PR in this whole effort. A green CI check on any of the merged PRs proves the
+Dart/Flutter code compiles and passes tests; it proves **nothing** about
+whether the iOS native project itself is valid.
+
+Worse, before 2026-09-19's follow-up fix, CI's own XML-well-formedness check
+(`ios/**/*.plist` only) didn't even cover `*.xcprivacy` or `*.storyboard` —
+so `PrivacyInfo.xcprivacy` and the edited `LaunchScreen.storyboard` had
+**never been parsed by anything, CI or otherwise**, and `project.pbxproj`
+(not XML at all — the older OpenStep/NeXT plist text format) was never
+covered by any check and never will be by that XML-only approach.
+
+**What's been done about it, short of an actual Mac:**
+- `ci.yml`'s XML check now also globs `*.xcprivacy` and `*.storyboard`, so
+  future edits to those files at least get parsed on every PR.
+- Added a CI step that parses `project.pbxproj` with the `pbxproj` PyPI
+  package (implements the real OpenStep/NeXT plist grammar in pure Python —
+  no Mac needed to *parse* it, only to actually *build* with it). This
+  catches gross corruption (unbalanced braces, broken object references)
+  that nothing previously caught.
+- Beyond just "does it parse," the `PrivacyInfo.xcprivacy` wiring in
+  `project.pbxproj` was independently re-verified with that same library:
+  confirmed the `PBXFileReference` exists with the right `path`/
+  `lastKnownFileType`, a `PBXBuildFile` correctly references it, that build
+  file is actually present in the **Runner target's** `PBXResourcesBuildPhase`
+  (not the unrelated `RunnerTests` one), and the file reference is in the
+  `Runner` `PBXGroup` (so it shows up in Xcode's navigator). This is real
+  semantic verification, not just "it parsed" — but it is still not the
+  same thing as Xcode actually building the app.
+
+**What this still doesn't prove, and can only be checked with a real Mac:**
+- That Xcode's own project-format validation accepts the file (pbxproj
+  parsing successfully doesn't guarantee Xcode agrees the file is
+  well-formed by its own, stricter rules).
+- That `flutter build ipa` actually succeeds end-to-end.
+- That Xcode's generated Privacy Report doesn't flag anything (see the
+  `PrivacyInfo.xcprivacy` gaps already noted below).
+- That the launch screen and app icon actually render correctly on a real
+  iOS simulator/device — everything visual in this doc was verified on the
+  Android emulator only (this repo's own documented sandbox), which cannot
+  render iOS-specific assets at all.
+
+**The first real test of any of this iOS-native work should be triggering
+`release-ios.yml` once secrets are configured (step 7 below) — treat that
+first run as a genuine unknown, not a formality, regardless of how much
+Dart-level CI has passed in the meantime.**
+
 ## Why apps actually get rejected (grounded in current data, not folklore)
 
 Apple reviewed ~9.1M submissions in 2025 and rejected ~23% of them. Ranked
@@ -112,7 +167,10 @@ account or network.
 ### Code-side gaps
 
 - [x] **`PrivacyInfo.xcprivacy` added** (`ios/Runner/PrivacyInfo.xcprivacy`,
-      registered in `project.pbxproj`'s Resources build phase). Declares
+      registered in `project.pbxproj`'s Resources build phase — 2026-09-19:
+      independently re-verified with the `pbxproj` library, not just
+      asserted; see "None of this has ever been built by Xcode" above for
+      what that verification does and doesn't cover). Declares
       `NSPrivacyTracking = false`, no tracking domains, and email address
       collected for App Functionality only. **Caveat, not fully closed:**
       this only covers what this repo's own Dart/Swift code does.
@@ -145,6 +203,12 @@ account or network.
       is not a substitute for the in-app flow Apple's guideline requires.
 - [x] **README iOS version fixed** — was "iOS 16+", now says "iOS 15.5+"
       matching the Xcode project's actual `IPHONEOS_DEPLOYMENT_TARGET`.
+- [x] **CI now actually validates the iOS native files it touches** —
+      `ci.yml`'s XML check was silently missing `*.xcprivacy` and
+      `*.storyboard` (glob only matched `*.plist`), and nothing anywhere
+      validated `project.pbxproj` at all (not XML, and this CI job runs on
+      `ubuntu-latest` so it never invokes Xcode). Fixed both gaps — see
+      "None of this has ever been built by Xcode" above.
 - [x] **Privacy Policy / Support links added to in-app Settings** —
       `lib/features/settings/settings_screen.dart`'s About section now has
       "Privacy Policy" and "Support" list tiles (open via `url_launcher`,

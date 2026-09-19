@@ -37,12 +37,26 @@ jobs:
       # AndroidManifest.xml (broke 100% of Android builds) and once in
       # ios/Runner/Info.plist. Neither `flutter analyze` nor `flutter test`
       # parses these files, so nothing caught either one.
+      #
+      # *.xcprivacy and *.storyboard are also XML but were NOT covered by
+      # the original *.plist-only globs below, despite both file types now
+      # existing in this repo (PrivacyInfo.xcprivacy, LaunchScreen.storyboard)
+      # — this CI job runs on ubuntu-latest and has never invoked Xcode, so
+      # those files had literally never been parsed by anything, CI or
+      # otherwise, until this fix (see docs/specs/APP_STORE_SUBMISSION_READINESS.md).
       - name: Validate platform manifests are well-formed XML
         run: |
           python3 - <<'PY'
           import glob, sys, xml.dom.minidom
           failed = False
-          for pattern in ("android/app/src/**/AndroidManifest.xml", "ios/**/*.plist", "macos/**/*.plist"):
+          patterns = (
+              "android/app/src/**/AndroidManifest.xml",
+              "ios/**/*.plist",
+              "ios/**/*.xcprivacy",
+              "ios/**/*.storyboard",
+              "macos/**/*.plist",
+          )
+          for pattern in patterns:
               for path in glob.glob(pattern, recursive=True):
                   try:
                       xml.dom.minidom.parse(path)
@@ -50,4 +64,23 @@ jobs:
                       print(f"::error file={path}::malformed XML: {exc}")
                       failed = True
           sys.exit(1 if failed else 0)
+          PY
+
+      # This CI job runs on ubuntu-latest and never invokes Xcode, so a
+      # hand-edited project.pbxproj (not XML — the older OpenStep/NeXT plist
+      # text format) had never been parsed by anything before this check.
+      # `pbxproj` (PyPI) implements that grammar in pure Python, so this
+      # catches gross corruption (unbalanced braces, broken references)
+      # without needing a Mac. It is NOT a substitute for an actual Xcode
+      # build — see docs/specs/APP_STORE_SUBMISSION_READINESS.md for what
+      # that step still needs to verify (Privacy Report generation, actual
+      # compilation) once real Apple credentials/a Mac runner are available.
+      - name: Validate ios/Runner.xcodeproj/project.pbxproj parses
+        run: |
+          pip install --quiet pbxproj
+          python3 - <<'PY'
+          from pbxproj import XcodeProject
+          path = "ios/Runner.xcodeproj/project.pbxproj"
+          project = XcodeProject.load(path)
+          print(f"{path}: parsed OK, {len(project.objects)} objects")
           PY
