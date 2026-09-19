@@ -40,6 +40,11 @@ class DiscoveryScreen extends ConsumerWidget {
             onPressed: () => context.push('/login'),
           ),
           IconButton(
+            icon: const Icon(Icons.visibility_outlined),
+            tooltip: 'View a demo fleet',
+            onPressed: () => context.push('/demo'),
+          ),
+          IconButton(
             icon: const Icon(Icons.bug_report_outlined),
             tooltip: 'Debug log',
             onPressed: () => context.push('/debug-log'),
@@ -149,6 +154,12 @@ class _EmptyView extends StatelessWidget {
             icon: const Icon(Icons.cloud),
             label: const Text('Sign in to cloud →'),
             onPressed: () => context.push('/login'),
+          ),
+          const SizedBox(height: 12),
+          TextButton.icon(
+            icon: const Icon(Icons.visibility_outlined),
+            label: const Text('View a demo fleet'),
+            onPressed: () => context.push('/demo'),
           ),
         ],
       ),
