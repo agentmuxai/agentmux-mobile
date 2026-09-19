@@ -45,6 +45,11 @@ class DiscoveryScreen extends ConsumerWidget {
             onPressed: () => context.push('/demo'),
           ),
           IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Settings',
+            onPressed: () => context.push('/settings'),
+          ),
+          IconButton(
             icon: const Icon(Icons.bug_report_outlined),
             tooltip: 'Debug log',
             onPressed: () => context.push('/debug-log'),
