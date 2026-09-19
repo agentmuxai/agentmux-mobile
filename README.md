@@ -227,5 +227,5 @@ lib/
 
 - Flutter 3.38.9 (pinned via `.fvmrc`)
 - Dart 3.10+
-- iOS 16+ / Android API 24+
+- iOS 15.5+ (matches `IPHONEOS_DEPLOYMENT_TARGET` in `ios/Runner.xcodeproj`) / Android API 24+
 - Cognito public app client (see Platform setup above)
