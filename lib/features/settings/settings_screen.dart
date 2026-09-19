@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/auth/auth_provider.dart';
 import '../../core/billing/billing_provider.dart';
@@ -80,10 +81,10 @@ class SettingsScreen extends ConsumerWidget {
               ],
             ),
           ],
-          const _Section(
+          _Section(
             title: 'About',
             children: [
-              ListTile(
+              const ListTile(
                 title: Text('Version',
                     style: TextStyle(color: AppColors.textSecondary)),
                 trailing: Text(
@@ -91,12 +92,44 @@ class SettingsScreen extends ConsumerWidget {
                   style: TextStyle(color: AppColors.textMuted, fontSize: 13),
                 ),
               ),
+              ListTile(
+                leading: const Icon(Icons.visibility_outlined,
+                    color: AppColors.textSecondary),
+                title: const Text('View a demo fleet',
+                    style: TextStyle(color: AppColors.textSecondary)),
+                trailing: const Icon(Icons.chevron_right,
+                    color: AppColors.textMuted),
+                onTap: () => context.push('/demo'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.privacy_tip_outlined,
+                    color: AppColors.textSecondary),
+                title: const Text('Privacy Policy',
+                    style: TextStyle(color: AppColors.textSecondary)),
+                trailing: const Icon(Icons.open_in_new,
+                    color: AppColors.textMuted, size: 16),
+                onTap: () => _openUrl('https://agentmux.ai/mobile-privacy'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.help_outline,
+                    color: AppColors.textSecondary),
+                title: const Text('Support',
+                    style: TextStyle(color: AppColors.textSecondary)),
+                trailing: const Icon(Icons.open_in_new,
+                    color: AppColors.textMuted, size: 16),
+                onTap: () => _openUrl('https://agentmux.ai/support'),
+              ),
             ],
           ),
         ],
       ),
     );
   }
+
+  void _openUrl(String url) => launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
 
   void _confirmSignOut(BuildContext context, WidgetRef ref) {
     showDialog(

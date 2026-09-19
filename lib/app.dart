@@ -7,6 +7,8 @@ import 'core/discovery/models/lan_instance.dart';
 import 'features/agent_detail/agent_detail_screen.dart';
 import 'features/agent_list/agent_list_screen.dart';
 import 'features/debug/debug_log_screen.dart';
+import 'features/demo/demo_agent_detail_screen.dart';
+import 'features/demo/demo_fleet_screen.dart';
 import 'features/discovery/discovery_screen.dart';
 import 'features/lan_agent/lan_agent_screen.dart';
 import 'features/login/login_screen.dart';
@@ -48,6 +50,20 @@ GoRouter _buildRouter(AsyncValue<AuthStatus> authState) {
       GoRoute(
         path: '/debug-log',
         builder: (_, __) => const DebugLogScreen(),
+      ),
+
+      // ── Demo mode: static sample data, no network call, no auth ────────
+      // See docs/specs/APP_STORE_SUBMISSION_READINESS.md — this is the
+      // reviewer-testability path for anyone without a LAN instance or a
+      // real Cognito account.
+      GoRoute(
+        path: '/demo',
+        builder: (_, __) => const DemoFleetScreen(),
+      ),
+      GoRoute(
+        path: '/demo/agent/:id',
+        builder: (_, state) =>
+            DemoAgentDetailScreen(agentId: state.pathParameters['id']!),
       ),
 
       // ── LAN agent detail (no auth required) ───────────────────────────

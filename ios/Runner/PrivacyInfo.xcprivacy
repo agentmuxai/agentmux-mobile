@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  App-level privacy manifest for the Runner target only. This declares what
+  the app's OWN Dart/Swift code does — it does not (and cannot, from source
+  alone) certify every bundled CocoaPods plugin's own manifest. NSPrivacyAccessedAPITypes
+  is left empty here because no first-party code in this repo calls a
+  required-reason API directly; several plugins (path_provider, flutter_secure_storage,
+  and Flutter's own engine) may still declare required-reason API usage in
+  THEIR OWN bundled PrivacyInfo.xcprivacy files, which Xcode aggregates
+  automatically at archive time. This has not been verified against Xcode's
+  generated Privacy Report — that step requires a real Mac (this repo was
+  authored on Windows) and should happen as part of the first `flutter build
+  ipa` dry run, before relying on this file being the complete picture. See
+  docs/specs/APP_STORE_SUBMISSION_READINESS.md.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeEmailAddress</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array/>
+</dict>
+</plist>
