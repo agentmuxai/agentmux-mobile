@@ -34,20 +34,52 @@ class DiscoveryScreen extends ConsumerWidget {
             tooltip: 'Connect manually',
             onPressed: () => showManualAddSheet(context),
           ),
-          IconButton(
-            icon: const Icon(Icons.cloud_outlined),
-            tooltip: 'Cloud login',
-            onPressed: () => context.push('/login'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.visibility_outlined),
-            tooltip: 'View a demo fleet',
-            onPressed: () => context.push('/demo'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.bug_report_outlined),
-            tooltip: 'Debug log',
-            onPressed: () => context.push('/debug-log'),
+          // Cloud login/Demo/Settings/Debug consolidated into one overflow
+          // menu rather than four more direct IconButtons. Even the
+          // previous 5-control version (4 icons + this popup) still left
+          // only ~64dp for the title on a 320dp iPhone SE per Codex review
+          // on #28 — moving one more action in leaves 3 direct icons + 1
+          // overflow trigger (~192dp), comfortably clearing room for
+          // "AgentMux" at any supported width.
+          PopupMenuButton<_MoreAction>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'More',
+            onSelected: (action) => switch (action) {
+              _MoreAction.cloudLogin => context.push('/login'),
+              _MoreAction.demo => context.push('/demo'),
+              _MoreAction.settings => context.push('/settings'),
+              _MoreAction.debugLog => context.push('/debug-log'),
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: _MoreAction.cloudLogin,
+                child: ListTile(
+                  leading: Icon(Icons.cloud_outlined),
+                  title: Text('Cloud login'),
+                ),
+              ),
+              PopupMenuItem(
+                value: _MoreAction.demo,
+                child: ListTile(
+                  leading: Icon(Icons.visibility_outlined),
+                  title: Text('View a demo fleet'),
+                ),
+              ),
+              PopupMenuItem(
+                value: _MoreAction.settings,
+                child: ListTile(
+                  leading: Icon(Icons.settings_outlined),
+                  title: Text('Settings'),
+                ),
+              ),
+              PopupMenuItem(
+                value: _MoreAction.debugLog,
+                child: ListTile(
+                  leading: Icon(Icons.bug_report_outlined),
+                  title: Text('Debug log'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -65,6 +97,8 @@ class DiscoveryScreen extends ConsumerWidget {
     );
   }
 }
+
+enum _MoreAction { cloudLogin, demo, settings, debugLog }
 
 class _ScanningView extends StatelessWidget {
   const _ScanningView();

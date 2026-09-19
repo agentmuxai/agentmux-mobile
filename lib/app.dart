@@ -138,16 +138,31 @@ class AgentMuxApp extends ConsumerWidget {
 }
 
 // Bottom-nav shell for cloud screens: /agents, /usage, /settings.
-class _CloudShell extends StatelessWidget {
+class _CloudShell extends ConsumerWidget {
   const _CloudShell({required this.child});
   final Widget child;
 
   static const _tabs = ['/agents', '/usage', '/settings'];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final location = GoRouterState.of(context).matchedLocation;
     final index = _tabs.indexWhere((t) => location.startsWith(t)).clamp(0, 2);
+    final authState = ref.watch(authProvider);
+    final isAuthed = authState.valueOrNull == AuthStatus.authenticated;
+
+    // Only Settings is actually usable unauthenticated — Agents/Usage are
+    // both auth-gated by the router's own redirect and would just bounce
+    // straight to /login with no explanation if tapped. Showing all three
+    // tabs as if they were live options is misleading in that state (a real
+    // finding from Codex/ReAgent review on #28: an unauthenticated user
+    // reaching Settings via Discovery's new menu item could tap Agents/Usage
+    // and get silently redirected). Settings' own AppBar already has an
+    // explicit back button for this case, so dropping the tab bar entirely
+    // isn't a dead end.
+    if (!isAuthed) {
+      return Scaffold(body: child);
+    }
 
     return Scaffold(
       body: child,

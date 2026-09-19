@@ -21,7 +21,34 @@ class SettingsScreen extends ConsumerWidget {
     final tierAsync = ref.watch(billingTierProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(
+        title: const Text('Settings'),
+        // Explicit back control. Based on navigation history
+        // (context.canPop(), go_router's own router-level back capability),
+        // not auth status — an authenticated user can also reach Settings
+        // via a push (Discovery's overflow menu), not just the bottom-nav
+        // tab, and in that case canPop() is genuinely true. Gating on
+        // isAuthed alone (an earlier version of this fix) wrongly hid the
+        // button for that case. The `|| !isAuthed` is a defensive fallback
+        // for the original pre-auth entry point specifically: there,
+        // Settings is the sole entry in the ShellRoute's nested navigator,
+        // so Flutter's own Navigator.canPop is false and neither the
+        // AppBar's default back arrow nor iOS's edge-swipe gesture (which
+        // key off that same local canPop) appear on their own — even though
+        // go_router's canPop()/back-dispatcher may or may not agree,
+        // depending on shell-navigator internals this sandbox can't fully
+        // verify. Omitted only for the genuine bottom-nav-tab case
+        // (authenticated, not pushed, nothing to pop): Settings is then a
+        // peer to Agents/Usage, neither of which has a back button either.
+        leading: (!context.canPop() && isAuthed)
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => context.canPop()
+                    ? context.pop()
+                    : context.go('/discover'),
+              ),
+      ),
       body: ListView(
         children: [
           const SizedBox(height: 8),
