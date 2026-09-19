@@ -15,13 +15,16 @@ Connect account — same caveat `RELEASE_SIGNING_SETUP.md` already carries.
   testability" below — this is now closed, not open.
 - Privacy policy / support URL → **hosted on agentmux.ai** (`agentmux-landing`
   repo). Built — see "Privacy policy / support URL" below.
-- Cognito federation (Guideline 4.8) → **RESOLVED, yes it federates to
-  Google.** Confirmed directly against the backend, not inferred — see
-  "Does the Cognito Hosted UI federate" below (kept high-level here
-  deliberately; this is a public repo, backend infra detail lives in the
-  private repo that owns it). Guideline 4.8 applies; also surfaced a
-  separate, previously-untracked finding that mobile cloud sign-in is
-  likely broken today regardless of Apple.
+- Cognito federation question → **answered: yes, it federates to
+  Google.** Confirmed directly against the backend, not inferred (kept
+  high-level here deliberately — this is a public repo, backend infra
+  detail lives in the private repo that owns it). This means **two new
+  action items are now open, neither done yet**: Guideline 4.8 compliance
+  (add Sign in with Apple, or confirm Google independently qualifies),
+  and a separately-surfaced, previously-untracked bug where mobile cloud
+  sign-in is likely broken today regardless of Apple (tracked at
+  `agentmuxai/agentmux-cloud#80`). See the checklist below — don't read
+  "the question is answered" as "the work is done."
 
 ## None of this has ever been built by Xcode — read this before trusting green CI
 
@@ -242,23 +245,15 @@ account or network.
       email alias since I can't verify it's a monitored inbox; only reused
       `privacy@agentmux.ai`, which the existing `/privacy` page already
       established as real.
-- [x] **Does the Cognito Hosted UI federate to Google/Facebook/etc.? RESOLVED,
-      2026-09-19 — yes, to Google. Guideline 4.8 applies.** Confirmed
+- [x] **Does the Cognito Hosted UI federate to Google/Facebook/etc.? — the
+      question itself is resolved, 2026-09-19: yes, to Google.** Confirmed
       against the actual backend configuration (private repo, not
       reproduced here — this is a public repo and that config is
-      infrastructure detail that shouldn't be). **This means Guideline
-      4.8 applies**: before submission, either add "Sign in with Apple"
-      as an equivalent option, or confirm the existing Google option
-      independently meets 4.8's three criteria (name+email only,
-      private-email-relay available, no non-consensual ad tracking) —
-      Google Sign-In through Cognito does not automatically satisfy this
-      just by existing. This is a build-affecting change, not a metadata
-      fix, so needs resolving before the first submission attempt, not
-      after a rejection. Full technical detail (which construct, which
-      app client, file/line references) is recorded privately in the
-      backend repo that owns it, not here.
+      infrastructure detail that shouldn't be). This only closes the
+      *investigation*; it opens two new action items below, neither of
+      which is done yet — don't read this checkmark as "4.8 is handled."
 
-      **Which repo owns Cognito, answering the original question:** the
+      Which repo owns Cognito, answering the original question: the
       backend/cloud repo, not `a5af/shared-infrastructure` — MuxBus
       deliberately runs its own separate identity setup rather than
       sharing the org's general-purpose one, specifically to keep its
@@ -266,16 +261,25 @@ account or network.
       whoever owns that repo if you need the specifics; not detailing
       the "why not shared-infra" evidence here for the same
       public-repo-shouldn't-hold-private-infra-detail reason as above.
-
-      **New finding, not previously tracked anywhere: mobile cloud
-      sign-in is likely non-functional today, independent of the Apple
-      question.** The backend's identity configuration has no
-      mobile-specific entry at all, and doesn't appear to recognize this
-      app's OAuth redirect. If the mobile app is pointed at the same
-      client the desktop app uses, sign-in would likely fail outright
-      with a redirect mismatch, not just be untested. This needs a fix
-      on the backend side — outside this repo, and reported there rather
-      than detailed here.
+- [ ] **Guideline 4.8 compliance action — NOT done.** Because the answer
+      above is yes, before submission this repo needs either "Sign in
+      with Apple" added as an equivalent login option, or confirmation
+      that the existing Google option independently meets 4.8's three
+      criteria (name+email only, private-email-relay available, no
+      non-consensual ad tracking) — it doesn't satisfy this just by
+      existing. This is a build-affecting change, not a metadata fix, so
+      it needs resolving before the first submission attempt, not
+      discovered from a rejection.
+- [ ] **Mobile cloud sign-in is likely non-functional today, independent
+      of the Apple question — NOT done, tracked at
+      `agentmuxai/agentmux-cloud#80`.** Found while investigating the
+      above: the backend's identity configuration has no mobile-specific
+      entry at all, and doesn't appear to recognize this app's OAuth
+      redirect. If the mobile app is pointed at the same client the
+      desktop app uses, sign-in would likely fail outright with a
+      redirect mismatch, not just be untested. Fix lives on the backend
+      side, outside this repo — full technical detail in that PR's repo,
+      not reproduced here.
 - [ ] **App name / subtitle / category / keywords / description /
       screenshots copy** — needs actual product copy from you; I can
       draft first passes once the reviewer-testability decision is made
