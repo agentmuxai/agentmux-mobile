@@ -16,12 +16,12 @@ Connect account — same caveat `RELEASE_SIGNING_SETUP.md` already carries.
 - Privacy policy / support URL → **hosted on agentmux.ai** (`agentmux-landing`
   repo). Built — see "Privacy policy / support URL" below.
 - Cognito federation (Guideline 4.8) → **RESOLVED, yes it federates to
-  Google.** Confirmed by reading `agentmux-cloud`'s actual CDK source
-  (not inference) — see "Does the Cognito Hosted UI federate" below.
-  Guideline 4.8 applies; also surfaced a separate, previously-untracked
-  finding that mobile cloud sign-in is likely broken today regardless of
-  Apple (no registered callback URL for the mobile app's redirect
-  scheme).
+  Google.** Confirmed directly against the backend, not inferred — see
+  "Does the Cognito Hosted UI federate" below (kept high-level here
+  deliberately; this is a public repo, backend infra detail lives in the
+  private repo that owns it). Guideline 4.8 applies; also surfaced a
+  separate, previously-untracked finding that mobile cloud sign-in is
+  likely broken today regardless of Apple.
 
 ## None of this has ever been built by Xcode — read this before trusting green CI
 
@@ -243,60 +243,39 @@ account or network.
       `privacy@agentmux.ai`, which the existing `/privacy` page already
       established as real.
 - [x] **Does the Cognito Hosted UI federate to Google/Facebook/etc.? RESOLVED,
-      2026-09-19 — yes, to Google. Guideline 4.8 applies.**
-      Answered by reading the actual infrastructure source, not docs or
-      inference: `agentmuxai/agentmux-cloud`'s
-      `muxbus/infrastructure/lib/constructs/muxbus-cognito.ts` defines a
-      real, active `cognito.UserPoolIdentityProviderGoogle` (lines
-      189-200) — not a commented-out placeholder — and the `DesktopClient`
-      app client (`muxbus-desktop-${env}`, "used by cloud.agentmux.ai and
-      the AgentMux desktop app sign-in") declares
-      `supportedIdentityProviders: [GOOGLE, COGNITO]` (lines 326-329).
-      **This means Guideline 4.8 applies**: before submission, either add
-      "Sign in with Apple" as an equivalent option, or confirm the
-      existing Google option independently meets 4.8's three criteria
-      (name+email only, private-email-relay available, no non-consensual
-      ad tracking) — Google Sign-In through Cognito's hosted UI does not
-      automatically satisfy this just by existing; it depends on how the
-      OAuth consent/scopes are configured. This is a build-affecting
-      change, not a metadata fix, so needs resolving before the first
-      submission attempt, not after a rejection.
+      2026-09-19 — yes, to Google. Guideline 4.8 applies.** Confirmed
+      against the actual backend configuration (private repo, not
+      reproduced here — this is a public repo and that config is
+      infrastructure detail that shouldn't be). **This means Guideline
+      4.8 applies**: before submission, either add "Sign in with Apple"
+      as an equivalent option, or confirm the existing Google option
+      independently meets 4.8's three criteria (name+email only,
+      private-email-relay available, no non-consensual ad tracking) —
+      Google Sign-In through Cognito does not automatically satisfy this
+      just by existing. This is a build-affecting change, not a metadata
+      fix, so needs resolving before the first submission attempt, not
+      after a rejection. Full technical detail (which construct, which
+      app client, file/line references) is recorded privately in the
+      backend repo that owns it, not here.
 
-      **Which repo owns Cognito, answering the original question
-      directly:** NOT `a5af/shared-infrastructure`. That repo's
-      `cognito/lib/cognito-stack.ts` defines one shared pool
-      (`infra-users-{env}`) with per-app clients for `pulse`, `stratum`,
-      `comish`, `askbase`, `amramebgi` — no MuxBus/AgentMux client exists
-      there, and that shared pool's own Google/Amazon federation code is
-      present but fully commented out (never enabled, unlike MuxBus's).
-      Per `agentmux-cloud/docs/PLAN_AWS_SERVERLESS_AND_WEBHOOK_DECOMMISSION_2026_05_30.md`
-      and `PLAN_IMPLEMENTATION_2026_05_31.md`, this was a deliberate
-      architecture decision — MuxBus **forked** a dedicated pool
-      (`muxbus-users-{env}`) specifically to keep its paid user base out
-      of the shared `infra-users-prod` pool's cost/billing surface, not
-      an oversight.
+      **Which repo owns Cognito, answering the original question:** the
+      backend/cloud repo, not `a5af/shared-infrastructure` — MuxBus
+      deliberately runs its own separate identity setup rather than
+      sharing the org's general-purpose one, specifically to keep its
+      paid user base off that pool's shared cost/billing surface. Ask
+      whoever owns that repo if you need the specifics; not detailing
+      the "why not shared-infra" evidence here for the same
+      public-repo-shouldn't-hold-private-infra-detail reason as above.
 
       **New finding, not previously tracked anywhere: mobile cloud
       sign-in is likely non-functional today, independent of the Apple
-      question.** `muxbus-cognito.ts` defines exactly two app clients —
-      `DesktopClient` and `AgentTemplateClient` (machine-to-machine) —
-      and grepping the entire `agentmux-cloud` repo for `agentmuxmobile`
-      or any mobile-specific client returns zero hits. The mobile app's
-      own `lib/core/auth/auth_repository.dart` hardcodes
-      `redirect_uri = 'agentmuxmobile://auth/callback'`, but that URI
-      does not appear in `DesktopClient`'s registered `callbackUrls` in
-      either environment (prod or non-prod — both lists are loopback/
-      `localhost`/`agentmux://`/dashboard-domain URLs only). If the
-      mobile app is pointed at the desktop client's ID via its
-      `MUXBUS_CLIENT_ID` dart-define, Cognito would reject the
-      authorization request with `redirect_uri_mismatch` — cloud sign-in
-      would fail outright, not just be untested. This needs either a
-      dedicated mobile app client (mirroring `DesktopClient`, its own
-      `agentmuxmobile://auth/callback` registered) or adding that
-      callback to the existing client — an `agentmux-cloud` change, outside
-      this repo. Flagging here since it's directly adjacent to the 4.8
-      question and was found while answering it, not tracked anywhere
-      before now.
+      question.** The backend's identity configuration has no
+      mobile-specific entry at all, and doesn't appear to recognize this
+      app's OAuth redirect. If the mobile app is pointed at the same
+      client the desktop app uses, sign-in would likely fail outright
+      with a redirect mismatch, not just be untested. This needs a fix
+      on the backend side — outside this repo, and reported there rather
+      than detailed here.
 - [ ] **App name / subtitle / category / keywords / description /
       screenshots copy** — needs actual product copy from you; I can
       draft first passes once the reviewer-testability decision is made
