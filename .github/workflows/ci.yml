@@ -77,7 +77,13 @@ jobs:
       # compilation) once real Apple credentials/a Mac runner are available.
       - name: Validate ios/Runner.xcodeproj/project.pbxproj parses
         run: |
-          pip install --quiet pbxproj
+          # ubuntu-latest (24.04) marks its system Python as PEP 668
+          # "externally-managed" — a bare `pip install` fails outright with
+          # `error: externally-managed-environment`. This is a throwaway,
+          # single-step CI install with no persistent env to protect, so
+          # --break-system-packages is the right override here (not a venv,
+          # which would be overkill for one library in one step).
+          pip install --quiet --break-system-packages pbxproj
           python3 - <<'PY'
           from pbxproj import XcodeProject
           path = "ios/Runner.xcodeproj/project.pbxproj"
