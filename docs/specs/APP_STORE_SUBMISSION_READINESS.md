@@ -335,11 +335,9 @@ Numbered in the order you'd actually do them:
    (likely Developer Tools or Utilities), age rating questionnaire,
    privacy policy URL (`https://agentmux.ai/mobile-privacy`), support URL
    (`https://agentmux.ai/support`), description, keywords, promotional
-   text, copyright. **Prerequisite**: `agentmux-landing` needs to actually
-   be built and deployed with these new pages before Apple can reach
-   them — they exist in the repo (`src/components/MobilePrivacyPage.tsx`,
-   `src/components/SupportPage.tsx`, both routed in `src/index.tsx`) but
-   haven't been shipped to prod as part of this pass.
+   text, copyright. Both URLs are live in prod as of 2026-09-19 (deployed
+   via `agentmux-landing`'s `landing-deploy.yml`, verified 200 with
+   correct content) — no remaining prerequisite here.
 10. **Provide screenshots**: at minimum one 6.9" iPhone set (1320×2868,
     1290×2796, or 1260×2736 px) — and, because this app targets iPad too,
     one 13" iPad set (2064×2752 px). Apple auto-scales these down for
