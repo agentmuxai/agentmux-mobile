@@ -39,20 +39,42 @@ class DiscoveryScreen extends ConsumerWidget {
             tooltip: 'Cloud login',
             onPressed: () => context.push('/login'),
           ),
-          IconButton(
-            icon: const Icon(Icons.visibility_outlined),
-            tooltip: 'View a demo fleet',
-            onPressed: () => context.push('/demo'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Settings',
-            onPressed: () => context.push('/settings'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.bug_report_outlined),
-            tooltip: 'Debug log',
-            onPressed: () => context.push('/debug-log'),
+          // Demo/Settings/Debug consolidated into one overflow menu rather
+          // than three more direct IconButtons: seven fixed-width icons
+          // (~48dp each) exceed the ~320dp usable width on the smallest
+          // iOS 15.5-supported devices (e.g. iPhone SE), clipping the last
+          // action and squeezing the title on any ~360-390dp phone too.
+          PopupMenuButton<_MoreAction>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'More',
+            onSelected: (action) => switch (action) {
+              _MoreAction.demo => context.push('/demo'),
+              _MoreAction.settings => context.push('/settings'),
+              _MoreAction.debugLog => context.push('/debug-log'),
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: _MoreAction.demo,
+                child: ListTile(
+                  leading: Icon(Icons.visibility_outlined),
+                  title: Text('View a demo fleet'),
+                ),
+              ),
+              PopupMenuItem(
+                value: _MoreAction.settings,
+                child: ListTile(
+                  leading: Icon(Icons.settings_outlined),
+                  title: Text('Settings'),
+                ),
+              ),
+              PopupMenuItem(
+                value: _MoreAction.debugLog,
+                child: ListTile(
+                  leading: Icon(Icons.bug_report_outlined),
+                  title: Text('Debug log'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -70,6 +92,8 @@ class DiscoveryScreen extends ConsumerWidget {
     );
   }
 }
+
+enum _MoreAction { demo, settings, debugLog }
 
 class _ScanningView extends StatelessWidget {
   const _ScanningView();

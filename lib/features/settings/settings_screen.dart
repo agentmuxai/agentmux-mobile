@@ -21,7 +21,28 @@ class SettingsScreen extends ConsumerWidget {
     final tierAsync = ref.watch(billingTierProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(
+        title: const Text('Settings'),
+        // Explicit back control, shown only for the unauthenticated
+        // pre-login entry point (Discovery's app bar pushes here). In that
+        // case this is the sole entry in the ShellRoute's nested navigator,
+        // so Navigator.canPop is false and neither the AppBar's default
+        // back arrow nor iOS's edge-swipe gesture (which key off that same
+        // local canPop) appear — even though go_router's own back-button
+        // dispatcher happens to still resolve a hardware/system back press
+        // to /discover. Don't rely on that ambient, platform-inconsistent
+        // behavior. Omitted when authenticated: Settings is then reached as
+        // a bottom-nav tab (peer to Agents/Usage, neither of which has a
+        // back button either), not a pushed screen.
+        leading: isAuthed
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => context.canPop()
+                    ? context.pop()
+                    : context.go('/discover'),
+              ),
+      ),
       body: ListView(
         children: [
           const SizedBox(height: 8),
