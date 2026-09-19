@@ -34,25 +34,30 @@ class DiscoveryScreen extends ConsumerWidget {
             tooltip: 'Connect manually',
             onPressed: () => showManualAddSheet(context),
           ),
-          IconButton(
-            icon: const Icon(Icons.cloud_outlined),
-            tooltip: 'Cloud login',
-            onPressed: () => context.push('/login'),
-          ),
-          // Demo/Settings/Debug consolidated into one overflow menu rather
-          // than three more direct IconButtons: seven fixed-width icons
-          // (~48dp each) exceed the ~320dp usable width on the smallest
-          // iOS 15.5-supported devices (e.g. iPhone SE), clipping the last
-          // action and squeezing the title on any ~360-390dp phone too.
+          // Cloud login/Demo/Settings/Debug consolidated into one overflow
+          // menu rather than four more direct IconButtons. Even the
+          // previous 5-control version (4 icons + this popup) still left
+          // only ~64dp for the title on a 320dp iPhone SE per Codex review
+          // on #28 — moving one more action in leaves 3 direct icons + 1
+          // overflow trigger (~192dp), comfortably clearing room for
+          // "AgentMux" at any supported width.
           PopupMenuButton<_MoreAction>(
             icon: const Icon(Icons.more_vert),
             tooltip: 'More',
             onSelected: (action) => switch (action) {
+              _MoreAction.cloudLogin => context.push('/login'),
               _MoreAction.demo => context.push('/demo'),
               _MoreAction.settings => context.push('/settings'),
               _MoreAction.debugLog => context.push('/debug-log'),
             },
             itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: _MoreAction.cloudLogin,
+                child: ListTile(
+                  leading: Icon(Icons.cloud_outlined),
+                  title: Text('Cloud login'),
+                ),
+              ),
               PopupMenuItem(
                 value: _MoreAction.demo,
                 child: ListTile(
@@ -93,7 +98,7 @@ class DiscoveryScreen extends ConsumerWidget {
   }
 }
 
-enum _MoreAction { demo, settings, debugLog }
+enum _MoreAction { cloudLogin, demo, settings, debugLog }
 
 class _ScanningView extends StatelessWidget {
   const _ScanningView();
