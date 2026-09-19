@@ -42,36 +42,91 @@ already uses for the desktop app — the two are different certificate types
 issued for different purposes (App Store submission vs. outside-the-Store
 distribution) and are not interchangeable.
 
-1. **Create an Apple Distribution certificate** (Apple Developer portal →
-   Certificates → "+" → Apple Distribution), export it as a `.p12` with a
-   password from Keychain Access.
-2. **Register an App ID** for `com.agentmux.agentmuxMobile` if not already
-   done, then **create an App Store provisioning profile** for it using the
-   certificate from step 1. Download the `.mobileprovision`.
-3. **Create an App Store Connect API key** (App Store Connect → Users and
-   Access → Integrations tab → App Store Connect API, "Team Keys"). Creating
-   a key at all requires the account itself to have Account Holder or Admin
-   privileges — if you don't see the Integrations tab, ask whoever owns the
-   Apple Developer account to grant you Admin, or to generate the key
-   directly. **The key's own access role must be "App Manager", not
-   "Developer"** — Developer-role keys can only upload builds/use
-   TestFlight; this repo's `release-ios.yml` has an optional step that
-   creates App Store versions and submits for review, which needs App
-   Manager. Download the `.p8` **once** — Apple does not let you download it
-   again. Note the Key ID and Issuer ID shown on that page.
-4. **Add GitHub repo secrets**:
-   - `IOS_DISTRIBUTION_CERTIFICATE` — `base64 -w0 Certificates.p12`
-   - `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD` — the export password from step 1
-   - `IOS_PROVISIONING_PROFILE` — `base64 -w0 profile.mobileprovision`
+**No Mac or Xcode required for any of this** — every step below is either a
+web form at developer.apple.com / appstoreconnect.apple.com, or a command
+run in a normal shell. The usual Apple docs assume you'll generate the
+certificate's private key via Keychain Access, which only exists on macOS;
+this repo's actual dev machine is Windows, so step 1 below uses OpenSSL
+(already present in Git Bash — confirmed with `openssl version`) instead.
+The one thing that genuinely does need a Mac is the CI *build* itself, and
+that already happens on GitHub's own `macos-latest` runner via
+`release-ios.yml` — not on your machine.
+
+1. **Generate a private key and CSR with OpenSSL** (replaces Keychain
+   Access — run this in Git Bash, in a scratch directory, not inside this
+   repo):
+   ```bash
+   openssl genrsa -out ios_distribution.key 2048
+   openssl req -new -key ios_distribution.key -out ios_distribution.csr \
+     -subj "/emailAddress=YOUR_APPLE_ID_EMAIL/CN=YOUR_NAME_OR_ORG/C=US"
+   ```
+   Keep `ios_distribution.key` — you need it again in step 4, and you'd
+   need it to regenerate the cert if it's ever lost. It never gets uploaded
+   anywhere.
+2. **Upload the CSR at developer.apple.com** → Certificates, Identifiers &
+   Profiles → Certificates → "+" → **Apple Distribution** → upload
+   `ios_distribution.csr` from step 1. Download the resulting certificate
+   as `ios_distribution.cer`.
+3. **Register the App ID and provisioning profile** — both are plain web
+   forms, no Xcode:
+   - Identifiers → "+" → App IDs → App → bundle ID `com.agentmux.agentmuxMobile`
+     (must match exactly; skip this if it's already registered).
+   - Profiles → "+" → **App Store** distribution type → select the App ID
+     above → select the Apple Distribution certificate from step 2 →
+     generate → download as `agentmux_mobile.mobileprovision`.
+4. **Convert Apple's `.cer` + your private key into the `.p12` CI actually
+   needs**, still in Git Bash, still with OpenSSL:
+   ```bash
+   openssl x509 -inform DER -outform PEM -in ios_distribution.cer -out ios_distribution.pem
+   openssl pkcs12 -export \
+     -out ios_distribution.p12 \
+     -inkey ios_distribution.key \
+     -in ios_distribution.pem \
+     -password pass:CHOOSE_A_P12_PASSWORD
+   ```
+   **Unverified, flag for the first real run**: OpenSSL 3.x (what Git Bash
+   ships, confirmed 3.5.4 in this sandbox) defaults to AES-256 PKCS#12
+   encryption. `release-ios.yml`'s `security import` step (macOS, recent
+   `macos-latest`) should read that fine — Apple's Security framework has
+   supported it for years — but this hasn't been exercised against a real
+   Apple cert from this Windows-only sandbox. If `security import` fails
+   in the actual CI run with something like "MAC verification failed," add
+   `-legacy` to the `pkcs12 -export` command above (forces the older
+   RC2/3DES format some older tooling expects) and re-export.
+5. **Create an App Store Connect API key** (App Store Connect → Users and
+   Access → Integrations tab → App Store Connect API, "Team Keys") — also a
+   plain web form. Creating a key at all requires the account itself to
+   have Account Holder or Admin privileges — if you don't see the
+   Integrations tab, ask whoever owns the Apple Developer account to grant
+   you Admin, or to generate the key directly. **The key's own access role
+   must be "App Manager", not "Developer"** — Developer-role keys can only
+   upload builds/use TestFlight; this repo's `release-ios.yml` has an
+   optional step that creates App Store versions and submits for review,
+   which needs App Manager. Download the `.p8` **once** — Apple does not
+   let you download it again. Note the Key ID and Issuer ID shown on that
+   page.
+6. **Add GitHub repo secrets** (Settings → Secrets and variables → Actions,
+   on `agentmuxai/agentmux-mobile`):
+   - `IOS_DISTRIBUTION_CERTIFICATE` — `base64 -w0 ios_distribution.p12`
+   - `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD` — the password you chose in step 4
+   - `IOS_PROVISIONING_PROFILE` — `base64 -w0 agentmux_mobile.mobileprovision`
    - `APPSTORE_CONNECT_API_KEY` — `base64 -w0 AuthKey_XXXXXXXXXX.p8`
-   - `APPSTORE_CONNECT_API_KEY_ID`, `APPSTORE_CONNECT_ISSUER_ID` — from step 3
+   - `APPSTORE_CONNECT_API_KEY_ID`, `APPSTORE_CONNECT_ISSUER_ID` — from step 5
    - `APPLE_TEAM_ID` **is already set** (reused from `agentmux`'s own repo
      secrets) — Team ID is account-level, not certificate-specific, so no
      new value is needed here.
-5. As with the Android keystore, back up the `.p12`, `.mobileprovision`, and
-   `.p8` in `secrets-cli` (`services/infra`) under a consistent
+7. As with the Android keystore, back up `ios_distribution.p12`,
+   `ios_distribution.key`, `agentmux_mobile.mobileprovision`, and the `.p8`
+   in `secrets-cli` (`services/infra`) under a consistent
    `agentmux-mobile-ios-*` naming convention — GitHub secrets can't be read
-   back once written.
+   back once written, so these files are your only copy if you ever need to
+   rotate or re-download something.
+8. **Reviewing the TestFlight build and submitting for review also don't
+   need Xcode** — both happen at appstoreconnect.apple.com in a browser
+   (TestFlight tab for build processing/compliance status; My Apps → the
+   app → the version page for submission), or via the TestFlight app on a
+   physical iPhone/iPad to actually run the build. Xcode's Organizer is
+   only one of several ways to do this, not the only one.
 
 ## After setup
 
