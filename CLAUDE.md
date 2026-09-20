@@ -1,5 +1,20 @@
 # AgentMux Mobile — Agent Instructions
 
+## Git hooks — one-time setup
+
+This repo strips `Co-Authored-By:` trailers from every commit (policy:
+only the actual person/identity who opened the PR is attributed). The
+hook lives at `.githooks/commit-msg` but isn't active until
+`core.hooksPath` points at it — run once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+(No `npm`/`prepare` script to piggyback this onto in a Flutter project —
+every other repo in this org auto-activates the same hook via `npm install`;
+this one needs the explicit one-liner.)
+
 ## Local dev sandbox — read this first
 
 This app must be verified on a real OS target, not a browser tab. **Do not use
