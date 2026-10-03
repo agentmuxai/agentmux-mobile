@@ -111,11 +111,31 @@ class HttpFleetTransport implements FleetTransport {
           final body = res.data;
           if (body == null) throw const FleetFeedUnsupported('fleet/events');
           out.add(null);
+          // Ends the stream with [e] so the session reconnects. Also stops
+          // reading: after a parse failure the parser's buffer is poisoned.
+          void fail(Object e, StackTrace st) {
+            if (out.isClosed) return;
+            cancel.cancel();
+            unawaited(bytesSub?.cancel());
+            out.addError(e, st);
+            unawaited(out.close());
+          }
+
           final parser = SseParser();
           final decoder = const Utf8Decoder(allowMalformed: true)
               .startChunkedConversion(_SinkFn((text) {
+            if (out.isClosed) return;
+            final List<SseEvent> events;
+            try {
+              events = parser.add(text);
+            } on FormatException catch (e, st) {
+              // An over-long line from a misbehaving peer: a lost stream, not
+              // proof of life (ReAgent P2 on #34).
+              fail(e, st);
+              return;
+            }
             out.add(null);
-            for (final e in parser.add(text)) {
+            for (final e in events) {
               if (e.event != 'fleet') continue;
               final snap = FleetSnapshot.tryParse(_tryJson(e.data));
               if (snap != null) out.add(snap);
@@ -123,11 +143,10 @@ class HttpFleetTransport implements FleetTransport {
           }));
           bytesSub = body.stream.timeout(idleTimeout).listen(
                 decoder.add,
-                onError: (Object e, StackTrace st) {
-                  out.addError(e, st);
-                  out.close();
+                onError: fail,
+                onDone: () {
+                  if (!out.isClosed) unawaited(out.close());
                 },
-                onDone: out.close,
                 cancelOnError: true,
               );
         } on DioException catch (e, st) {
