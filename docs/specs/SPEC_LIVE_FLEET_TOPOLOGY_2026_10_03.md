@@ -1,8 +1,8 @@
 # Spec: Live fleet topology (host -> channel -> agent) that keeps up with change
 
 **Status:** adopted 2026-10-03 (owner: "adopt all the best recommendations, write spec to file and
-implement"). Implemented, not yet merged: mobile on `clamk/discovery-agents-and-channels` (this repo),
-desktop on `clamk/lan-fleet-feed` (`agentmux`, `docs/specs/SPEC_LAN_FLEET_FEED_2026_10_03.md`). The
+implement"). Implemented, not yet merged: mobile in #34 (this repo), desktop in agentmuxai/agentmux#4297
+(`docs/specs/SPEC_LAN_FLEET_FEED_2026_10_03.md` there). The
 desktop routes were checked live against this app's own transport (section 8).
 **Date:** 2026-10-03
 **Author:** Clamk
