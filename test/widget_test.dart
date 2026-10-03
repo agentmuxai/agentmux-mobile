@@ -10,9 +10,9 @@ void main() {
     );
     expect(find.text('AgentMux'), findsOneWidget);
 
-    // DiscoveryNotifier.build() schedules a 5s Stream.timeout() Timer for the
-    // mDNS scan; advance the fake clock past it so the Timer fires and clears
-    // before teardown, or the test binding's pending-timer invariant fails.
+    // Let the first discovery round's scan-window timers fire. The notifier's
+    // periodic tick and round timers are cancelled when the ProviderScope is
+    // disposed at teardown, so the binding's pending-timer check passes.
     await tester.pump(const Duration(seconds: 6));
   });
 }

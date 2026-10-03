@@ -53,9 +53,9 @@ class MdnsScanner {
       }
       // NOT "await for completed, so record the outcome here" — this point
       // is only reached if the mDNS lookup stream ends on its own. In real
-      // usage it never does: the caller's `.timeout()` wrapper
-      // (discovery_provider.dart) always ends this scan via external
-      // cancellation, which unwinds straight past this line to `finally`
+      // usage it never does: the caller (`DiscoveryNotifier._listenWithin`)
+      // cancels the subscription when its scan window ends, and that
+      // cancellation unwinds straight past this line to `finally`
       // (reagent P1 on PR #17 — an earlier version set `outcome` here and
       // it silently never ran, leaving `outcome` stuck at its initial
       // 'empty' default even when instances WERE resolved). `outcome` is

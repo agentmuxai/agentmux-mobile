@@ -36,7 +36,8 @@ class UdpBroadcastProber {
   /// Broadcasts a discovery probe and yields a [LanInstance] for every valid
   /// response received within [timeout]. The socket is always closed when
   /// the stream ends — whether [timeout] elapses internally or the caller
-  /// cancels the stream (e.g. via its own `.timeout()`).
+  /// cancels the stream (`DiscoveryNotifier._listenWithin` does when its scan
+  /// window ends).
   ///
   /// [tryEmulatorRelay] additionally unicasts the same probe to
   /// `scripts/discovery_relay.dart` on the host (if it happens to be
@@ -114,9 +115,9 @@ class UdpBroadcastProber {
 
       // NOT "record the outcome after yield* completes" — this point is
       // only reached if `controller.stream` ends on its own accord (its
-      // internal `timer` firing). In practice the caller's own `.timeout()`
-      // wrapper (discovery_provider.dart) races the same duration and can
-      // end this probe via external cancellation instead, which unwinds
+      // internal `timer` firing). In practice the caller's own scan window
+      // (`DiscoveryNotifier._listenWithin`) races the same duration and can
+      // end this probe by cancelling the subscription instead, which unwinds
       // straight past this line to `finally` (same bug class as
       // MdnsScanner.scan() — reagent P1 on PR #17, fixed there and
       // proactively applied here too). `outcome` is derived in `finally`
