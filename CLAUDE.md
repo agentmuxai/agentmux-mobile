@@ -22,16 +22,20 @@ Quick reference (see README for the full commands + why each step exists):
 Or just run `scripts/dev-full.sh`, which does all of the above plus the
 discovery relay in one command.
 
-**If a connected instance suddenly shows "No agents reported", rebuild the
-app — don't debug the network.** The desktop mints a **fresh `auth_key` on
-every launch** (`agentmux-launcher`'s `srv_spawner.rs`: "Generate a fresh
-auth_key per run"), but `AGENTMUX_DEV_KEY` is baked into the app at *build*
-time by `run-emulator.sh`. So any AgentMux restart — including a silent
-auto-update — invalidates the built-in key. The request 401s, `fetchAgents`
-falls back to an empty list, and the card renders as though the instance
-simply has no agents. `LocalApiClient` now logs a specific message for the
-401 case (visible in the in-app Debug log, 🐛 in the app bar) rather than
-the generic failure text.
+**`dev-full.sh` shows this machine the way a phone sees it** (LAN only, the
+broadcast `lan_key`); pass `--dev-connect` to also bake in this machine's own
+sidecar URL and full key. Don't verify LAN behaviour through `--dev-connect`:
+the full key shows things no phone can see (other channels with LAN off).
+See `docs/specs/SPEC_LIVE_FLEET_TOPOLOGY_2026_10_03.md` §5.5.
+
+**With `--dev-connect`, if the dev connection never appears, or shows "not
+authorised" after a desktop restart, rebuild the app — don't debug the
+network.** The desktop mints a **fresh
+`auth_key` on every launch** (`agentmux-launcher`'s `srv_spawner.rs`:
+"Generate a fresh auth_key per run"), but `AGENTMUX_DEV_KEY` is baked into the
+app at *build* time by `run-emulator.sh`. So any AgentMux restart — including a
+silent auto-update — invalidates the built-in key and the request 401s. The
+in-app Debug log (🐛) carries the specific stale-dev-key message.
 
 **When launching the emulator or `flutter run` from a Bash *tool call*, never
 append a shell `&`** — use the Bash tool's own `run_in_background: true` (with
