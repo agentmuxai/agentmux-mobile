@@ -1,7 +1,7 @@
 name: agentmux_mobile
 description: AgentMux Mobile — cloud agent fleet companion
 publish_to: 'none'
-version: 0.2.0+22
+version: 0.2.0+23
 
 environment:
   sdk: ^3.7.0
@@ -43,6 +43,8 @@ dependencies:
   mobile_scanner: ^6.0.5
 
   # Utilities
+  # Time source the fleet sessions read, so tests can drive it with fake_async.
+  clock: ^1.1.2
   intl: ^0.19.0
   cupertino_icons: ^1.0.8
   url_launcher: ^6.3.2
@@ -56,6 +58,7 @@ dev_dependencies:
   json_serializable: ^6.9.0
   riverpod_generator: ^2.6.3
   mocktail: ^1.0.4
+  fake_async: ^1.3.3
   flutter_launcher_icons: ^0.14.3
 
 flutter:

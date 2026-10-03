@@ -127,6 +127,36 @@ String? classifyNetworkHint(List<InternetAddress> addresses) {
   return null;
 }
 
+// Mobile-data interfaces on Android (`rmnet_data0`, `ccmni0`, `v4-rmnet...`)
+// and iOS (`pdp_ip0`), plus 464XLAT's `clat`. They come and go without the
+// Wi-Fi network changing, so they never count as a network change.
+const _cellularPrefixes = ['rmnet', 'v4-rmnet', 'ccmni', 'pdp_ip', 'clat', 'wwan'];
+
+const _privateCidrs = ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'];
+
+/// Identifies the local network LAN discovery runs on, from a
+/// [NetworkSnapshot.interfaces] list (`name=address`): the sorted /24 prefixes
+/// of private IPv4 addresses on non-cellular interfaces, e.g. `192.168.1`.
+///
+/// Deliberately blind to churn that is not a different network: IPv6
+/// addresses (privacy addresses rotate on their own), mobile-data interfaces,
+/// and public or CGNAT addresses. Null when nothing qualifies (no Wi-Fi, or
+/// enumeration failed), which the caller treats as "unknown", not "changed".
+String? lanNetworkSignature(List<String> interfaces) {
+  final prefixes = <String>{};
+  for (final entry in interfaces) {
+    final eq = entry.indexOf('=');
+    if (eq < 0) continue;
+    final name = entry.substring(0, eq).toLowerCase();
+    final address = entry.substring(eq + 1);
+    if (_cellularPrefixes.any(name.startsWith)) continue;
+    if (!_privateCidrs.any((c) => _inCidr(address, c))) continue;
+    prefixes.add(address.substring(0, address.lastIndexOf('.')));
+  }
+  if (prefixes.isEmpty) return null;
+  return (prefixes.toList()..sort()).join(',');
+}
+
 int? _ipv4ToInt(String ip) {
   final parts = ip.split('.');
   if (parts.length != 4) return null;

@@ -25,7 +25,10 @@ class _ResolveOutcome {
 }
 
 class MdnsScanner {
-  Stream<LanInstance> scan() async* {
+  /// [logSummary] false keeps the end-of-scan line out of the debug log
+  /// (discovery repeats every few seconds); the structured
+  /// [DiscoveryTelemetry] summary is updated either way.
+  Stream<LanInstance> scan({bool logSummary = true}) async* {
     final client = MDnsClient();
     await AndroidMulticastLock.acquire();
     final stopwatch = Stopwatch()..start();
@@ -50,9 +53,9 @@ class MdnsScanner {
       }
       // NOT "await for completed, so record the outcome here" — this point
       // is only reached if the mDNS lookup stream ends on its own. In real
-      // usage it never does: the caller's `.timeout()` wrapper
-      // (discovery_provider.dart) always ends this scan via external
-      // cancellation, which unwinds straight past this line to `finally`
+      // usage it never does: the caller (`DiscoveryNotifier._listenWithin`)
+      // cancels the subscription when its scan window ends, and that
+      // cancellation unwinds straight past this line to `finally`
       // (reagent P1 on PR #17 — an earlier version set `outcome` here and
       // it silently never ran, leaving `outcome` stuck at its initial
       // 'empty' default even when instances WERE resolved). `outcome` is
@@ -102,7 +105,9 @@ class MdnsScanner {
           ? 'failed: $errorDetail'
           : '$ptrCount PTR record(s) seen, $resolvedCount resolved$discardText '
               'in ${stopwatch.elapsedMilliseconds}ms';
-      AppLogger.log('mDNS scan complete: $detail', name: 'MdnsScanner');
+      if (logSummary) {
+        AppLogger.log('mDNS scan complete: $detail', name: 'MdnsScanner');
+      }
       DiscoveryTelemetry.lastMdnsSummary = ScanSummary(
         layer: 'mdns',
         outcome: outcome,
@@ -120,6 +125,7 @@ class MdnsScanner {
     String? version;
     String? hostname;
     String? instanceId;
+    String? channel;
 
     // SRV → host + port
     await for (final srv in client.lookup<SrvResourceRecord>(
@@ -149,6 +155,8 @@ class MdnsScanner {
             hostname = v;
           case 'instance_id':
             instanceId = v;
+          case 'channel':
+            channel = v.isEmpty ? null : v;
         }
       }
       break;
@@ -183,6 +191,7 @@ class MdnsScanner {
       port: port,
       authKey: authKey,
       instanceId: instanceId,
+      channel: channel,
     ));
   }
 }

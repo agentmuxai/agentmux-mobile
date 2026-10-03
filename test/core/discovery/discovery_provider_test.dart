@@ -28,8 +28,8 @@ DioException _dioWithStatus(int status) {
 
 void main() {
   group('DiscoveryNotifier.devAutoConnectFailureMessage', () {
-    // Unlike LocalApiClient.fetchAgentsFailureMessage's 401 case, THIS 401
-    // really does mean a stale key: _kDevKey is always the full instance
+    // Unlike a LAN-discovered channel's 401, THIS 401 really does mean a
+    // stale key: _kDevKey is always the full instance
     // auth_key (baked in at build time), never the scoped lan_key mDNS/UDP
     // results carry, and the desktop mints a fresh auth_key every launch.
     test('a 401 says the dev key is stale and to rebuild', () {
@@ -88,7 +88,11 @@ void main() {
     // discovery over the real LAN address — rendered as two duplicate
     // cards ("10.0.2.2" and "claudius" side by side), because dedup
     // everywhere only ever compared address:port.
-    test('same non-empty hostname merges even with different address:port',
+    //
+    // Hostname alone stopped being identity once several channels could run
+    // on one machine (each its own srv, its own port) — the same process
+    // still matches because it keeps one port however it is reached.
+    test('same non-empty hostname and port merges even with different address',
         () {
       final devConnect = _instance(
         hostname: 'claudius',
@@ -98,9 +102,16 @@ void main() {
       final udpDiscovered = _instance(
         hostname: 'claudius',
         address: '192.168.1.230',
-        port: 51894,
+        port: 59859,
       );
       expect(DiscoveryNotifier.isSameInstance(devConnect, udpDiscovered), isTrue);
+    });
+
+    test('same hostname on different ports is a different channel, not a duplicate',
+        () {
+      final stable = _instance(hostname: 'narko', address: '192.168.1.50', port: 29704);
+      final dev = _instance(hostname: 'narko', address: '192.168.1.50', port: 29706);
+      expect(DiscoveryNotifier.isSameInstance(stable, dev), isFalse);
     });
 
     test('different non-empty hostnames never merge, even sharing a port',

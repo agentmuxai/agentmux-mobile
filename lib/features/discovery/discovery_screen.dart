@@ -4,8 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/discovery/discovery_provider.dart';
 import '../../core/discovery/discovery_telemetry.dart';
-import '../../core/discovery/models/lan_instance.dart';
-import 'instance_card.dart';
+import '../../core/discovery/host_tree.dart';
+import 'host_card.dart';
 import 'manual_add_sheet.dart';
 import 'qr_scan_screen.dart';
 
@@ -83,17 +83,11 @@ class DiscoveryScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: state.when(
-        loading: () => const _ScanningView(),
-        error: (e, _) => _ErrorView(message: e.toString()),
-        data: (s) => switch (s) {
-          DiscoveryScanning() => const _ScanningView(),
-          DiscoveryEmpty() => const _EmptyView(),
-          DiscoveryResults(:final instances) =>
-            _ResultsView(instances: instances),
-          DiscoveryError(:final message) => _ErrorView(message: message),
-        },
-      ),
+      body: switch (state) {
+        DiscoveryScanning() => const _ScanningView(),
+        DiscoveryEmpty() => const _EmptyView(),
+        DiscoveryResults(:final hosts) => _ResultsView(hosts: hosts),
+      },
     );
   }
 }
@@ -201,24 +195,9 @@ class _EmptyView extends StatelessWidget {
   }
 }
 
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message});
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        'Discovery error: $message',
-        style: const TextStyle(color: Colors.redAccent),
-      ),
-    );
-  }
-}
-
 class _ResultsView extends ConsumerWidget {
-  const _ResultsView({required this.instances});
-  final List<LanInstance> instances;
+  const _ResultsView({required this.hosts});
+  final List<HostNode> hosts;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -226,8 +205,13 @@ class _ResultsView extends ConsumerWidget {
       onRefresh: () => ref.read(discoveryProvider.notifier).refresh(),
       child: ListView.builder(
         padding: const EdgeInsets.all(12),
-        itemCount: instances.length,
-        itemBuilder: (_, i) => InstanceCard(instance: instances[i]),
+        itemCount: hosts.length,
+        // Keyed by host so an update never hands one host's expanded state
+        // to another.
+        itemBuilder: (_, i) => HostCard(
+          key: ValueKey('host:${hosts[i].name.toLowerCase()}'),
+          host: hosts[i],
+        ),
       ),
     );
   }

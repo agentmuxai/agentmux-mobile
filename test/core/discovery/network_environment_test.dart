@@ -6,6 +6,48 @@ import 'package:agentmux_mobile/core/discovery/network_environment.dart';
 InternetAddress _v4(String ip) => InternetAddress(ip, type: InternetAddressType.IPv4);
 
 void main() {
+  group('lanNetworkSignature', () {
+    test('private IPv4 /24 prefixes, sorted and de-duplicated', () {
+      expect(
+        lanNetworkSignature([
+          'wlan0=192.168.1.50',
+          'eth0=10.0.2.15',
+          'wlan0=192.168.1.51',
+        ]),
+        '10.0.2,192.168.1',
+      );
+    });
+
+    test('ignores IPv6, mobile data, public and CGNAT addresses', () {
+      final base = lanNetworkSignature(['wlan0=192.168.1.50']);
+      expect(
+        lanNetworkSignature([
+          'wlan0=192.168.1.50',
+          'wlan0=fe80::1',
+          'wlan0=2001:db8::5',
+          'rmnet_data0=10.71.4.2',
+          'pdp_ip0=10.1.2.3',
+          'ccmni0=172.20.1.1',
+          'clat4=192.0.0.4',
+          'tun0=100.64.3.2',
+          'eth1=8.8.8.8',
+        ]),
+        base,
+      );
+    });
+
+    test('null when nothing qualifies, including a failed enumeration', () {
+      expect(lanNetworkSignature(const []), isNull);
+      expect(lanNetworkSignature(['rmnet_data0=10.71.4.2']), isNull);
+      expect(lanNetworkSignature(['garbage']), isNull);
+    });
+
+    test('a different Wi-Fi network gives a different signature', () {
+      expect(lanNetworkSignature(['wlan0=192.168.1.50']),
+          isNot(lanNetworkSignature(['wlan0=10.20.0.7'])));
+    });
+  });
+
   group('classifyNetworkHint', () {
     test('flags the Android emulator\'s QEMU/SLIRP NAT range (10.0.2.0/24)', () {
       // Confirmed live 2026-08-18 on AgentMux_Pixel9: eth0=10.0.2.15,

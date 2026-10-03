@@ -1,17 +1,31 @@
 #!/usr/bin/env bash
 # One-shot dev bootstrap: boot the AgentMux_Pixel9 emulator (if not already
 # running), start the discovery relay so LAN discovery works from inside the
-# emulator's NAT, then launch the app via run-emulator.sh so it also
-# auto-connects to this machine's own AgentMux sidecar. Combines the manual
-# steps documented in README.md's "Local Android sandbox" section so every
-# discovery path (sidecar auto-connect, LAN relay, QR, manual, cloud) is live
-# on every launch instead of requiring separate manual steps each time.
+# emulator's NAT, then launch the app. Combines the manual steps documented in
+# README.md's "Local Android sandbox" section so every discovery path (LAN
+# relay, QR, manual, cloud, and the sidecar auto-connect with --dev-connect)
+# is live on every launch instead of requiring separate manual steps each time.
 #
-# Usage: scripts/dev-full.sh [extra flutter run args, e.g. --dart-define=...]
+# Usage: scripts/dev-full.sh [--dev-connect] [extra flutter run args]
 #
-# Requires: flutter + adb + emulator on PATH, AVD `AgentMux_Pixel9` present,
-# AGENTMUX_LOCAL_URL/AGENTMUX_AUTH_KEY set (see scripts/run-emulator.sh).
+# By default the app finds this machine the way a phone would: over the LAN
+# (UDP probe via the relay; mDNS does not work on the emulator), holding only
+# the broadcast lan_key. `--dev-connect` additionally bakes in this machine's
+# own sidecar URL and FULL key (scripts/run-emulator.sh), which shows more than
+# a phone can ever see (e.g. other channels with LAN off) - opt in only when
+# that is what you are testing. See
+# docs/specs/SPEC_LIVE_FLEET_TOPOLOGY_2026_10_03.md section 5.5.
+#
+# Requires: flutter + adb + emulator on PATH, AVD `AgentMux_Pixel9` present;
+# with --dev-connect, AGENTMUX_LOCAL_URL/AGENTMUX_AUTH_KEY set (see
+# scripts/run-emulator.sh).
 set -euo pipefail
+
+dev_connect=0
+if [ "${1:-}" = "--dev-connect" ]; then
+  dev_connect=1
+  shift
+fi
 
 cd "$(dirname "$0")/.."
 
@@ -53,4 +67,7 @@ if ! grep -q "listening on 127.0.0.1" /tmp/discovery_relay.log 2>/dev/null; then
   echo "dev-full:   from the emulator may find nothing. See /tmp/discovery_relay.log" >&2
 fi
 
-exec scripts/run-emulator.sh -d "$DEVICE_ID" "$@"
+if [ "$dev_connect" = 1 ]; then
+  exec scripts/run-emulator.sh -d "$DEVICE_ID" "$@"
+fi
+exec flutter run -d "$DEVICE_ID" "$@"

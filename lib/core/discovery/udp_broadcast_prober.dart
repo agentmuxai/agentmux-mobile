@@ -36,7 +36,8 @@ class UdpBroadcastProber {
   /// Broadcasts a discovery probe and yields a [LanInstance] for every valid
   /// response received within [timeout]. The socket is always closed when
   /// the stream ends — whether [timeout] elapses internally or the caller
-  /// cancels the stream (e.g. via its own `.timeout()`).
+  /// cancels the stream (`DiscoveryNotifier._listenWithin` does when its scan
+  /// window ends).
   ///
   /// [tryEmulatorRelay] additionally unicasts the same probe to
   /// `scripts/discovery_relay.dart` on the host (if it happens to be
@@ -47,6 +48,7 @@ class UdpBroadcastProber {
   Stream<LanInstance> probe({
     Duration timeout = _defaultProbeWindow,
     bool tryEmulatorRelay = false,
+    bool logSummary = true,
   }) async* {
     RawDatagramSocket? socket;
     StreamSubscription<RawSocketEvent>? subscription;
@@ -80,10 +82,10 @@ class UdpBroadcastProber {
         final datagram = socket?.receive();
         if (datagram == null) return;
         datagramsReceived++;
-        final instance = parseResponse(datagram);
-        if (instance != null) {
+        final instances = parseResponseWithSiblings(datagram);
+        if (instances.isNotEmpty) {
           validResponses++;
-          controller.add(instance);
+          instances.forEach(controller.add);
         }
       }, onError: (Object e, StackTrace stackTrace) {
         // Socket-level error mid-listen — same graceful-fallback contract
@@ -113,9 +115,9 @@ class UdpBroadcastProber {
 
       // NOT "record the outcome after yield* completes" — this point is
       // only reached if `controller.stream` ends on its own accord (its
-      // internal `timer` firing). In practice the caller's own `.timeout()`
-      // wrapper (discovery_provider.dart) races the same duration and can
-      // end this probe via external cancellation instead, which unwinds
+      // internal `timer` firing). In practice the caller's own scan window
+      // (`DiscoveryNotifier._listenWithin`) races the same duration and can
+      // end this probe by cancelling the subscription instead, which unwinds
       // straight past this line to `finally` (same bug class as
       // MdnsScanner.scan() — reagent P1 on PR #17, fixed there and
       // proactively applied here too). `outcome` is derived in `finally`
@@ -152,8 +154,10 @@ class UdpBroadcastProber {
               '$datagramsReceived datagram(s) received ($validResponses valid'
               '${malformed > 0 ? ', $malformed malformed/unrelated' : ''}) '
               'in ${stopwatch.elapsedMilliseconds}ms';
-      AppLogger.log('UDP broadcast probe complete: $detail',
-          name: 'UdpBroadcastProber');
+      if (logSummary) {
+        AppLogger.log('UDP broadcast probe complete: $detail',
+            name: 'UdpBroadcastProber');
+      }
       DiscoveryTelemetry.lastUdpSummary = ScanSummary(
         layer: 'udp_broadcast',
         outcome: outcome,
@@ -188,6 +192,7 @@ class UdpBroadcastProber {
       final port = decoded['port'];
       final authKey = decoded['auth_key'];
       final instanceId = decoded['instance_id'];
+      final channel = decoded['channel'];
 
       if (hostname is! String ||
           version is! String ||
@@ -222,9 +227,58 @@ class UdpBroadcastProber {
         port: port,
         authKey: authKey,
         instanceId: instanceId is String ? instanceId : null,
+        channel: channel is String && channel.isNotEmpty ? channel : null,
       );
     } catch (_) {
       return null;
     }
+  }
+
+  /// Most siblings taken from one reply; a host runs a handful of channels.
+  static const maxSiblings = 16;
+
+  /// [parseResponse], plus one instance per entry of the reply's `siblings`:
+  /// the other LAN-enabled channels on the same machine, which cannot answer
+  /// the probe themselves because only one process can hold the port
+  /// (`SPEC_LIVE_FLEET_TOPOLOGY_2026_10_03.md` section 4.3). Each sibling is
+  /// reached at the replying host's address on its own port, with the
+  /// `lan_key` that sibling already broadcasts over mDNS. Empty when the
+  /// datagram is not a valid reply; malformed sibling entries are skipped.
+  @visibleForTesting
+  static List<LanInstance> parseResponseWithSiblings(Datagram datagram) {
+    final primary = parseResponse(datagram);
+    if (primary == null) return const [];
+    final result = [primary];
+    try {
+      final decoded = jsonDecode(utf8.decode(datagram.data)) as Map;
+      final siblings = decoded['siblings'];
+      if (siblings is! List) return result;
+      for (final s in siblings.take(maxSiblings)) {
+        if (s is! Map) continue;
+        final channel = s['channel'];
+        final port = s['port'];
+        final authKey = s['auth_key'];
+        final version = s['version'];
+        if (port is! int || port <= 0 || port > 65535) continue;
+        if (authKey is! String || authKey.isEmpty || authKey.length > 256) {
+          continue;
+        }
+        if (port == primary.port) continue;
+        result.add(LanInstance(
+          hostname: primary.hostname,
+          version: version is String ? version : primary.version,
+          address: primary.address,
+          port: port,
+          authKey: authKey,
+          channel: channel is String && channel.isNotEmpty && channel.length <= 128
+              ? channel
+              : null,
+        ));
+      }
+    } catch (_) {
+      // The primary reply was valid; a broken `siblings` field loses only
+      // the siblings.
+    }
+    return result;
   }
 }
