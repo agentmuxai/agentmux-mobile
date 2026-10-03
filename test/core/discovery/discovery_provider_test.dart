@@ -28,8 +28,8 @@ DioException _dioWithStatus(int status) {
 
 void main() {
   group('DiscoveryNotifier.devAutoConnectFailureMessage', () {
-    // Unlike LocalApiClient.fetchAgentsFailureMessage's 401 case, THIS 401
-    // really does mean a stale key: _kDevKey is always the full instance
+    // Unlike a LAN-discovered channel's 401, THIS 401 really does mean a
+    // stale key: _kDevKey is always the full instance
     // auth_key (baked in at build time), never the scoped lan_key mDNS/UDP
     // results carry, and the desktop mints a fresh auth_key every launch.
     test('a 401 says the dev key is stale and to rebuild', () {

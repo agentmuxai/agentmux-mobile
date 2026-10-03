@@ -475,20 +475,17 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
   }
 
   /// The log line for a failed [_maybeAutoConnect], split out so the 401
-  /// special case is testable without a live server (same pattern as
-  /// `LocalApiClient.fetchAgentsFailureMessage`).
+  /// special case is testable without a live server.
   ///
-  /// A 401 here specifically means the dev key is stale, and — unlike
-  /// `fetchAgents()`'s generic 401 handling (see its own doc comment) — that
-  /// diagnosis is actually correct in this one spot: `_kDevKey` is always the
-  /// FULL instance `auth_key` (baked in at build time by `run-emulator.sh`'s
+  /// A 401 here specifically means the dev key is stale, and that diagnosis
+  /// is correct in this one spot only: `_kDevKey` is always the FULL instance
+  /// `auth_key` (baked in at build time by `run-emulator.sh`'s
   /// `--dart-define`), and the desktop mints a fresh one on every launch
   /// (`agentmux-launcher`'s `srv_spawner.rs` — "Generate a fresh auth_key per
   /// run"). So any AgentMux restart invalidates it, and rebuilding really is
-  /// the fix — Codex P2 on agentmux-mobile#20/#21 was right that this
-  /// diagnosis belongs here, not in the shared `fetchAgents()` path that
-  /// mDNS/UDP-scoped (`lan_key`) instances also go through, where the same
-  /// advice would be wrong.
+  /// the fix. A LAN-discovered channel holds the scoped `lan_key` instead, and
+  /// its 401 (a session's "not authorised") must not get this advice — Codex
+  /// P2 on agentmux-mobile#20/#21.
   @visibleForTesting
   static String devAutoConnectFailureMessage(
     Object error,
