@@ -110,7 +110,8 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
   Future<void>? _roundInFlight;
   bool _firstRoundDone = false;
   bool _logNextRound = true;
-  String? _networkSignature;
+  String? _snapshotText;
+  String? _lanSignature;
   AppLifecycleListener? _lifecycle;
 
   @override
@@ -149,6 +150,15 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
     await _maybeAutoConnect();
     unawaited(_round());
   }
+
+  /// The app went to the background. Called by the lifecycle listener;
+  /// public so tests can drive it without a widgets binding.
+  @visibleForTesting
+  void handlePause() => _pause();
+
+  /// The app came back to the foreground.
+  @visibleForTesting
+  void handleResume() => _resume();
 
   void _pause() {
     if (_paused || _disposed) return;
@@ -272,32 +282,44 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
     _roundTimer = Timer(interval, () => unawaited(_round()));
   }
 
-  /// Records the network this round ran on. A different set of local
-  /// addresses means a different network: every LAN channel found on the old
-  /// one is dropped and discovery starts again quickly.
+  /// Records the network this round ran on.
+  ///
+  /// Only a change of [lanNetworkSignature] (the private IPv4 subnets of
+  /// non-cellular interfaces) is a new network: IPv6 privacy addresses and
+  /// mobile data come and go on their own, and an empty interface list means
+  /// "unknown", not "changed". On a real change every LAN session reconnects
+  /// over the new network and discovery runs fast again. Nothing is deleted:
+  /// hosts that belonged to the old network stop answering, dim, and age out
+  /// like any other quiet channel, so the screen never blanks.
   void _noteNetwork(NetworkSnapshot snapshot) {
-    final signature = ([...snapshot.interfaces]..sort()).join(',');
-    if (signature == _networkSignature) return;
-    final changed = _networkSignature != null;
-    _networkSignature = signature;
-    DiscoveryTelemetry.lastNetworkSnapshot = snapshot;
-    AppLogger.log('Network snapshot: ${snapshot.format()}',
-        name: 'DiscoveryNotifier');
-    if (snapshot.hint != null) {
-      AppLogger.log('Network hint: ${snapshot.hint}', name: 'DiscoveryNotifier');
+    final text = ([...snapshot.interfaces]..sort()).join(',');
+    if (text != _snapshotText) {
+      _snapshotText = text;
+      DiscoveryTelemetry.lastNetworkSnapshot = snapshot;
+      AppLogger.log('Network snapshot: ${snapshot.format()}',
+          name: 'DiscoveryNotifier');
+      if (snapshot.hint != null) {
+        AppLogger.log('Network hint: ${snapshot.hint}',
+            name: 'DiscoveryNotifier');
+      }
     }
+    final signature = lanNetworkSignature(snapshot.interfaces);
+    if (signature == null || signature == _lanSignature) return;
+    final changed = _lanSignature != null;
+    _lanSignature = signature;
     if (!changed) return;
+    AppLogger.log('Local network changed ($signature); reconnecting',
+        name: 'DiscoveryNotifier');
     final lanIds = [
       for (final r in _store.records.values)
         if (r.source == EndpointSource.lan) r.id,
     ];
     for (final id in lanIds) {
       _sessions.remove(id)?.stop();
+      _startSession(id);
     }
-    _store = _store.remove(lanIds);
     _burstUntil = clock.now().add(burstLength);
     _logNextRound = true;
-    _scheduleEmit();
   }
 
   void _onDiscovered(LanInstance instance) =>
@@ -376,16 +398,24 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
   void _emit() {
     if (_disposed) return;
     final now = clock.now();
-    final entries = [
-      for (final r in _store.records.values)
-        if (r.presence(now) != Presence.gone)
-          FleetEntry(
-            instance: r.toInstance(),
-            presence: r.presence(now),
-            error: r.visibleError(now),
-            lastSeen: r.lastAlive,
-          ),
-    ];
+    // Right after coming back to the foreground, what went quiet while the
+    // app slept is shown dimmed, not hidden, until it has had a chance to
+    // answer (see [resumeGrace]).
+    final inGrace = now.isBefore(_graceUntil);
+    final entries = <FleetEntry>[];
+    for (final r in _store.records.values) {
+      var presence = r.presence(now);
+      if (presence == Presence.gone) {
+        if (!inGrace) continue;
+        presence = Presence.stale;
+      }
+      entries.add(FleetEntry(
+        instance: r.toInstance(),
+        presence: presence,
+        error: r.visibleError(now),
+        lastSeen: r.lastAlive,
+      ));
+    }
     state = entries.isNotEmpty
         ? DiscoveryResults(buildHostTrees(entries))
         : (_firstRoundDone ? const DiscoveryEmpty() : const DiscoveryScanning());

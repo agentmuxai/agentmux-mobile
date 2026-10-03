@@ -33,6 +33,7 @@ class _FakeUdp extends UdpBroadcastProber {
 /// One fake desktop channel per port: streams its agents while alive.
 class _FakeHost {
   final agents = <int, List<String>>{};
+  final connects = <int, int>{};
   final dead = <int>{};
   final open = <int, List<StreamController<FleetSnapshot?>>>{};
 
@@ -60,6 +61,7 @@ class _HostTransport implements FleetTransport {
 
   @override
   Stream<FleetSnapshot?> events({String? lastEventId}) {
+    host.connects.update(port, (n) => n + 1, ifAbsent: () => 1);
     if (host.dead.contains(port)) return Stream.error(_down);
     final c = StreamController<FleetSnapshot?>();
     host.open.putIfAbsent(port, () => []).add(c);
@@ -183,18 +185,71 @@ void main() {
     });
   });
 
-  test('a network change drops what was found on the old network', () {
+  test('a network change reconnects without blanking the screen', () {
     fakeAsync((async) {
       udp.replies = [_reply(29704, 'local-main')];
       host.agents[29704] = ['Clamk'];
       container.read(discoveryProvider);
       async.elapse(const Duration(seconds: 1));
-      expect(container.read(discoveryProvider), isA<DiscoveryResults>());
+      expect(host.connects[29704], 1);
 
+      // A different Wi-Fi network; the old host is not on it.
       interfaces = ['wlan0=10.20.0.7'];
       udp.replies = [];
+      host.kill(29704);
       async.elapse(const Duration(seconds: 6));
+      expect(host.connects[29704], greaterThan(1), reason: 'reconnected');
+      expect(container.read(discoveryProvider), isA<DiscoveryResults>(),
+          reason: 'still shown, dimming, not wiped');
+
+      // It ages out like any other quiet channel.
+      async.elapse(const Duration(minutes: 6));
       expect(container.read(discoveryProvider), isA<DiscoveryEmpty>());
+    });
+  });
+
+  test('IPv6, mobile data and a failed enumeration are not a network change',
+      () {
+    fakeAsync((async) {
+      udp.replies = [_reply(29704, 'local-main')];
+      host.agents[29704] = ['Clamk'];
+      container.read(discoveryProvider);
+      async.elapse(const Duration(seconds: 1));
+      expect(host.connects[29704], 1);
+
+      interfaces = [
+        'wlan0=192.168.1.50',
+        'wlan0=fe80::1c2b:3aff:fe4d:5e6f',
+        'rmnet_data0=10.71.4.2',
+      ];
+      async.elapse(const Duration(seconds: 6));
+      interfaces = [];
+      async.elapse(const Duration(seconds: 6));
+      interfaces = ['wlan0=192.168.1.50'];
+      async.elapse(const Duration(seconds: 6));
+      expect(host.connects[29704], 1, reason: 'the stream was never dropped');
+    });
+  });
+
+  test('channels that went quiet in the background stay visible on resume',
+      () {
+    fakeAsync((async) {
+      udp.replies = [_reply(29704, 'local-main')];
+      host.agents[29704] = ['Clamk'];
+      final notifier = container.read(discoveryProvider.notifier);
+      container.read(discoveryProvider);
+      async.elapse(const Duration(seconds: 1));
+
+      notifier.handlePause();
+      async.elapse(const Duration(minutes: 10));
+      notifier.handleResume();
+      async.elapse(const Duration(milliseconds: 200));
+      // Long past the 300 s limit, yet shown (dimmed) while it reconnects.
+      final s = container.read(discoveryProvider);
+      expect(s, isA<DiscoveryResults>());
+      async.elapse(const Duration(seconds: 2));
+      final after = container.read(discoveryProvider) as DiscoveryResults;
+      expect(after.hosts.single.presence, Presence.live);
     });
   });
 

@@ -211,9 +211,15 @@ still finds every channel mDNS can see.
 - A UDP reply's `siblings` each become an endpoint at the replying host's address.
 - Every sighting renews the endpoint's lease.
 - **Background:** discovery and all sessions stop. **Foreground:** discovery runs at once and every
-  session resyncs (with jitter).
-- **Network change** (a different set of local addresses, checked each round): every LAN session is
-  dropped and rediscovered.
+  session resyncs (with jitter). For 15 s after returning, a channel past the 300 s limit is shown
+  dimmed rather than hidden, so channels that went quiet only because the app slept do not vanish
+  and reappear.
+- **Network change**, checked each round: only a change in the private IPv4 /24 subnets of
+  non-cellular interfaces counts (`lanNetworkSignature`). IPv6 privacy addresses rotate and mobile
+  data comes and goes without the Wi-Fi network changing, and an empty interface list means
+  "unknown". On a real change every LAN session reconnects over the new network and discovery runs
+  fast again; nothing is deleted, so hosts of the old network dim and age out like any other quiet
+  channel and the screen never blanks.
 
 ### 5.2 Sessions
 
