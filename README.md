@@ -90,10 +90,13 @@ flutter run -d emulator-5554 \
   `docs/specs/DISCOVERY_DIAGNOSTICS_TELEMETRY.md`'s follow-up section for the full design, and
   that script's own doc comment for how it works.
 - **`scripts/dev-full.sh` combines the emulator boot, the discovery relay, and
-  `run-emulator.sh` into one command** — every discovery path (sidecar
-  auto-connect, LAN relay, QR, manual, cloud) is live on every launch instead
-  of requiring the steps above separately each time:
-  `scripts/dev-full.sh [extra flutter run args]`.
+  the app launch into one command**, so LAN discovery, QR, manual and cloud are
+  live on every launch instead of requiring the steps above separately each time:
+  `scripts/dev-full.sh [--dev-connect] [extra flutter run args]`. By default the
+  emulator sees this machine exactly as a phone would (LAN only, broadcast
+  `lan_key`). `--dev-connect` also connects to this machine's own sidecar with its
+  full key via `run-emulator.sh`, which shows more than a phone can (see
+  `docs/specs/SPEC_LIVE_FLEET_TOPOLOGY_2026_10_03.md` §5.5).
 
 ## Quick start
 

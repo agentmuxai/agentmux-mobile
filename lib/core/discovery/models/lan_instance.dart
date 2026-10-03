@@ -10,6 +10,12 @@ class LanAgent with _$LanAgent {
     @JsonKey(name: 'agent_id') required String name,
     @JsonKey(name: 'last_seen') int? lastSeen,
     @Default(true) bool addressable,
+
+    /// The AgentMux channel (e.g. `stable`, `dev`) this agent lives in, set
+    /// only for an agent reported by a SIBLING channel on the same host
+    /// (`host.cross_channel`). Null for an agent hosted by the instance
+    /// itself.
+    String? channel,
   }) = _LanAgent;
 
   factory LanAgent.fromJson(Map<String, dynamic> json) =>
@@ -25,6 +31,10 @@ class LanInstance with _$LanInstance {
     required int port,
     required String authKey,
     String? instanceId,
+
+    /// This instance's own AgentMux channel (e.g. `stable`, `dev`), when the
+    /// desktop reports it. Null for a server that does not.
+    String? channel,
     @Default([]) List<LanAgent> agents,
   }) = _LanInstance;
 

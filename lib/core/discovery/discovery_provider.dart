@@ -1,9 +1,16 @@
+import 'dart:async';
+
+import 'package:clock/clock.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../fleet/channel_session.dart';
+import '../fleet/fleet_store.dart';
+import '../fleet/fleet_transport.dart';
 import '../logging/app_logger.dart';
 import 'discovery_telemetry.dart';
+import 'host_tree.dart';
 import 'local_api_client.dart';
 import 'mdns_scanner.dart';
 import 'models/lan_instance.dart';
@@ -21,22 +28,19 @@ sealed class DiscoveryState {
   const DiscoveryState();
 }
 
+/// The first discovery round has not finished and nothing is known yet.
 class DiscoveryScanning extends DiscoveryState {
   const DiscoveryScanning();
 }
 
 class DiscoveryResults extends DiscoveryState {
-  const DiscoveryResults(this.instances);
-  final List<LanInstance> instances;
+  const DiscoveryResults(this.hosts);
+  final List<HostNode> hosts;
 }
 
+/// A round finished and no channel is known.
 class DiscoveryEmpty extends DiscoveryState {
   const DiscoveryEmpty();
-}
-
-class DiscoveryError extends DiscoveryState {
-  const DiscoveryError(this.message);
-  final String message;
 }
 
 // ─── providers ───────────────────────────────────────────────────────────────
@@ -46,147 +50,377 @@ final mdnsScannerProvider = Provider<MdnsScanner>((_) => MdnsScanner());
 final udpBroadcastProberProvider =
     Provider<UdpBroadcastProber>((_) => UdpBroadcastProber());
 
+typedef FleetTransportFactory = FleetTransport Function(
+  String address,
+  int port,
+  String authKey,
+);
+
+/// How sessions reach a channel; overridden in tests.
+final fleetTransportFactoryProvider = Provider<FleetTransportFactory>(
+  (_) => (address, port, authKey) =>
+      HttpFleetTransport(address, port, authKey),
+);
+
+final networkSnapshotProvider =
+    Provider<Future<NetworkSnapshot> Function()>((_) => captureNetworkSnapshot);
+
+/// Whether discovery pauses in the background (spec P10). Off in unit tests
+/// that run without a widgets binding.
+final followAppLifecycleProvider = Provider<bool>((_) => true);
+
 final discoveryProvider =
-    AsyncNotifierProvider<DiscoveryNotifier, DiscoveryState>(
-        DiscoveryNotifier.new);
+    NotifierProvider<DiscoveryNotifier, DiscoveryState>(DiscoveryNotifier.new);
 
 // ─── notifier ────────────────────────────────────────────────────────────────
 
-class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
-  static const _timeout = Duration(seconds: 5);
-  // Layer-2 fallback (UDP broadcast probe). Only run when mDNS came back
-  // empty, so this never stacks on top of the common case where mDNS just
-  // works — kept short since it's a last resort, not the primary path.
-  static const _udpProbeTimeout = Duration(seconds: 2);
+/// Keeps the host -> channel -> agent tree current for as long as the app is
+/// in the foreground (`docs/specs/SPEC_LIVE_FLEET_TOPOLOGY_2026_10_03.md`).
+///
+/// Discovery runs in rounds (mDNS and the UDP probe together) every 5 s for a
+/// minute, then every 30 s. Every channel found gets a [ChannelSession] that
+/// keeps its agents current (push stream, else polling). A [FleetStore] holds
+/// the merged truth, and the tree is rebuilt from it at most every 150 ms. In
+/// the background everything stops; on return it resyncs at once.
+class DiscoveryNotifier extends Notifier<DiscoveryState> {
+  static const mdnsWindow = Duration(seconds: 4);
+  static const udpWindow = Duration(seconds: 2);
+  static const burstRoundInterval = Duration(seconds: 5);
+  static const steadyRoundInterval = Duration(seconds: 30);
+  static const burstLength = Duration(minutes: 1);
+  static const tickInterval = Duration(seconds: 5);
+  static const emitCoalesce = Duration(milliseconds: 150);
 
-  // Persists across refresh() calls within a session.
-  final _manualInstances = <LanInstance>[];
+  /// After coming back to the foreground, nothing is pruned for this long, so
+  /// channels that went quiet while the app slept get a chance to answer
+  /// before they are treated as gone.
+  static const resumeGrace = Duration(seconds: 15);
+
+  FleetStore _store = const FleetStore();
+  final _sessions = <String, ChannelSession>{};
+  int _nextId = 0;
+
+  Timer? _roundTimer;
+  Timer? _tickTimer;
+  Timer? _emitTimer;
+  DateTime _burstUntil = DateTime.fromMillisecondsSinceEpoch(0);
+  DateTime _graceUntil = DateTime.fromMillisecondsSinceEpoch(0);
+  bool _paused = false;
+  bool _disposed = false;
+  Future<void>? _roundInFlight;
+  bool _firstRoundDone = false;
+  bool _logNextRound = true;
+  String? _networkSignature;
+  AppLifecycleListener? _lifecycle;
 
   @override
-  Future<DiscoveryState> build() async {
-    state = const AsyncValue.data(DiscoveryScanning());
+  DiscoveryState build() {
+    ref.onDispose(_dispose);
+    if (ref.read(followAppLifecycleProvider)) {
+      _lifecycle = AppLifecycleListener(onPause: _pause, onResume: _resume);
+    }
+    scheduleMicrotask(_start);
+    return const DiscoveryScanning();
+  }
 
-    // One network-environment snapshot per scan session — the single piece
-    // of information that would have made "why isn't anything showing up"
-    // diagnosable in-app instead of requiring a manual `adb shell ip addr`
-    // detour (confirmed live 2026-08-18 on the emulator's isolated 10.0.2.x
-    // NAT). See docs/specs/DISCOVERY_DIAGNOSTICS_TELEMETRY.md.
-    final snapshot = await captureNetworkSnapshot();
-    // Reset first: lastMdnsSummary/lastUdpSummary must not carry over from a
-    // prior scan session — e.g. if mDNS succeeds this time and the UDP
-    // fallback below never runs, a stale UDP outcome from an earlier session
-    // would otherwise still show in DebugLogScreen's summary header.
-    DiscoveryTelemetry.reset();
+  /// Pull-to-refresh: one round now, every session skips its wait, and the
+  /// fast round interval starts again.
+  Future<void> refresh() {
+    _burstUntil = clock.now().add(burstLength);
+    for (final s in _sessions.values) {
+      s.resync();
+    }
+    return _round();
+  }
+
+  /// Connect to an instance by address/port/key without discovery (QR or
+  /// manual entry). Throws if the instance cannot be read, for the caller to
+  /// show. The channel is kept until the user removes it.
+  Future<void> addManual(String address, int port, String authKey) async {
+    await _connectDirect(address, port, authKey, EndpointSource.manual);
+  }
+
+  // ─── lifecycle ─────────────────────────────────────────────────────────────
+
+  Future<void> _start() async {
+    if (_disposed) return;
+    _burstUntil = clock.now().add(burstLength);
+    _tickTimer = Timer.periodic(tickInterval, (_) => _tick());
+    await _maybeAutoConnect();
+    unawaited(_round());
+  }
+
+  void _pause() {
+    if (_paused || _disposed) return;
+    _paused = true;
+    _roundTimer?.cancel();
+    for (final s in _sessions.values) {
+      s.stop();
+    }
+    _sessions.clear();
+  }
+
+  void _resume() {
+    if (!_paused || _disposed) return;
+    _paused = false;
+    final now = clock.now();
+    _burstUntil = now.add(burstLength);
+    _graceUntil = now.add(resumeGrace);
+    _logNextRound = true;
+    for (final id in _store.records.keys) {
+      _startSession(id);
+    }
+    unawaited(_round());
+  }
+
+  void _dispose() {
+    _disposed = true;
+    _roundTimer?.cancel();
+    _tickTimer?.cancel();
+    _emitTimer?.cancel();
+    for (final s in _sessions.values) {
+      s.stop();
+    }
+    _sessions.clear();
+    _lifecycle?.dispose();
+  }
+
+  // ─── discovery rounds ──────────────────────────────────────────────────────
+
+  Future<void> _round() => _roundInFlight ??= _runRound().whenComplete(() {
+        _roundInFlight = null;
+      });
+
+  Future<void> _runRound() async {
+    if (_paused || _disposed) return;
+    _roundTimer?.cancel();
+    final logSummary = _logNextRound;
+    _logNextRound = false;
+    var scanned = false;
+    try {
+      final snapshot = await ref.read(networkSnapshotProvider)();
+      if (_disposed || _paused) return;
+      _noteNetwork(snapshot);
+      scanned = true;
+      await Future.wait([
+        _listenWithin(
+          ref.read(mdnsScannerProvider).scan(logSummary: logSummary),
+          mdnsWindow,
+        ),
+        _listenWithin(
+          ref.read(udpBroadcastProberProvider).probe(
+                timeout: udpWindow,
+                // Only meaningful (and only sent) when the network snapshot
+                // looks like the emulator's QEMU/SLIRP NAT — see
+                // scripts/discovery_relay.dart's doc comment.
+                tryEmulatorRelay: snapshot.looksLikeEmulatorNat,
+                logSummary: logSummary,
+              ),
+          udpWindow,
+        ),
+      ]);
+    } catch (e, stackTrace) {
+      AppLogger.log(
+        'Discovery round failed',
+        name: 'DiscoveryNotifier',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    } finally {
+      if (!_disposed) {
+        if (scanned) _firstRoundDone = true;
+        _scheduleEmit();
+        _scheduleNextRound();
+      }
+    }
+  }
+
+  /// Feeds [scan]'s sightings in for at most [window] in total, then cancels
+  /// it (which ends an mDNS browse and releases its multicast lock). Not
+  /// `Stream.timeout`, which is an inactivity timeout: a browse that keeps
+  /// receiving records would never end. A scanner's own errors are logged
+  /// inside it; one here is only logged, so one layer cannot fail the round.
+  Future<void> _listenWithin(Stream<LanInstance> scan, Duration window) {
+    final done = Completer<void>();
+    late final StreamSubscription<LanInstance> sub;
+    final timer = Timer(window, () {
+      unawaited(sub.cancel());
+      if (!done.isCompleted) done.complete();
+    });
+    sub = scan.listen(
+      _onDiscovered,
+      onError: (Object e, StackTrace stackTrace) => AppLogger.log(
+        'Discovery scan error',
+        name: 'DiscoveryNotifier',
+        error: e,
+        stackTrace: stackTrace,
+      ),
+      onDone: () {
+        timer.cancel();
+        if (!done.isCompleted) done.complete();
+      },
+    );
+    return done.future;
+  }
+
+  void _scheduleNextRound() {
+    if (_paused || _disposed) return;
+    _roundTimer?.cancel();
+    final interval = clock.now().isBefore(_burstUntil)
+        ? burstRoundInterval
+        : steadyRoundInterval;
+    _roundTimer = Timer(interval, () => unawaited(_round()));
+  }
+
+  /// Records the network this round ran on. A different set of local
+  /// addresses means a different network: every LAN channel found on the old
+  /// one is dropped and discovery starts again quickly.
+  void _noteNetwork(NetworkSnapshot snapshot) {
+    final signature = ([...snapshot.interfaces]..sort()).join(',');
+    if (signature == _networkSignature) return;
+    final changed = _networkSignature != null;
+    _networkSignature = signature;
     DiscoveryTelemetry.lastNetworkSnapshot = snapshot;
     AppLogger.log('Network snapshot: ${snapshot.format()}',
         name: 'DiscoveryNotifier');
     if (snapshot.hint != null) {
       AppLogger.log('Network hint: ${snapshot.hint}', name: 'DiscoveryNotifier');
     }
-
-    // Dev emulator bootstrap: auto-connect to the host sidecar when launched via
-    // scripts/run-emulator.sh (passes --dart-define=AGENTMUX_DEV_ADDR/KEY).
-    await _maybeAutoConnect();
-
-    // Tracked separately from _manualInstances: whether to fall through to the
-    // UDP broadcast probe below must depend on whether mDNS itself found
-    // anything, not on whether the merged (manual + mDNS) list is non-empty.
-    // _mergeWithManual() always includes _manualInstances, so checking the
-    // merged list here would make the UDP fallback silently never run
-    // whenever dev auto-connect (or addManual()) had already seeded an
-    // instance — which is exactly the case where a user most wants to see
-    // what else is on the real LAN, not just the one already-known host.
-    final mdnsInstances = <LanInstance>[];
-
-    await ref
-        .read(mdnsScannerProvider)
-        .scan()
-        .timeout(_timeout, onTimeout: (sink) => sink.close())
-        .asyncMap(_enrichWithAgents)
-        .forEach((instance) {
-      if (!mdnsInstances.any((m) => isSameInstance(m, instance))) {
-        mdnsInstances.add(instance);
-      }
-      state = AsyncValue.data(DiscoveryResults(_mergeWithManual(mdnsInstances)));
-    });
-
-    if (mdnsInstances.isNotEmpty) {
-      return DiscoveryResults(_mergeWithManual(mdnsInstances));
+    if (!changed) return;
+    final lanIds = [
+      for (final r in _store.records.values)
+        if (r.source == EndpointSource.lan) r.id,
+    ];
+    for (final id in lanIds) {
+      _sessions.remove(id)?.stop();
     }
+    _store = _store.remove(lanIds);
+    _burstUntil = clock.now().add(burstLength);
+    _logNextRound = true;
+    _scheduleEmit();
+  }
 
-    // mDNS found nothing — corporate/guest WiFi often filters multicast, so
-    // fall back to a UDP broadcast probe with its own short internal
-    // timeout before giving up. Runs regardless of manual/dev auto-connect
-    // entries, since those describe one already-known instance and say
-    // nothing about what else is reachable on the LAN.
-    final udpInstances = <LanInstance>[];
-    await ref
-        .read(udpBroadcastProberProvider)
-        // tryEmulatorRelay: only meaningful (and only sent) when the network
-        // snapshot looks like the emulator's QEMU/SLIRP NAT — see
-        // scripts/discovery_relay.dart's doc comment. Inert everywhere else,
-        // including a real device, which has no 10.0.2.2 gateway at all.
-        .probe(timeout: _udpProbeTimeout, tryEmulatorRelay: snapshot.looksLikeEmulatorNat)
-        .asyncMap(_enrichWithAgents)
-        // Applied after asyncMap, not just around the raw probe stream: a
-        // slow/unreachable host's fetchAgents() call (5s connect + 10s
-        // receive timeout in local_api_client.dart) would otherwise keep
-        // this "short UDP fallback" blocked for up to ~15s per instance.
-        // This doesn't cancel that in-flight call, but it does stop
-        // forEach() below from waiting on it past _udpProbeTimeout.
-        .timeout(_udpProbeTimeout, onTimeout: (sink) => sink.close())
-        .forEach((instance) {
-      if (!udpInstances.any((m) => isSameInstance(m, instance))) {
-        udpInstances.add(instance);
+  void _onDiscovered(LanInstance instance) =>
+      _onSighting(Sighting.fromInstance(instance));
+
+  /// Returns the id of the record the sighting landed on.
+  String _onSighting(Sighting sighting) {
+    final (store, id, effect) = _store.sight(
+      sighting,
+      clock.now(),
+      newId: () => 'ch${_nextId++}',
+    );
+    _store = store;
+    switch (effect) {
+      case SightingEffect.added:
+        _startSession(id);
+      case SightingEffect.relocated:
+        _sessions.remove(id)?.stop();
+        _startSession(id);
+      case SightingEffect.renewed:
+        break;
+    }
+    _scheduleEmit();
+    return id;
+  }
+
+  // ─── sessions ──────────────────────────────────────────────────────────────
+
+  void _startSession(String id) {
+    if (_paused || _disposed || _sessions.containsKey(id)) return;
+    final r = _store.records[id];
+    if (r == null) return;
+    late final ChannelSession session;
+    session = ChannelSession(
+      transport: ref.read(fleetTransportFactoryProvider)(
+        r.address,
+        r.port,
+        r.authKey,
+      ),
+      // A full-key connection reads /agentmux/discovery, which also reports
+      // the machine's other channels; a LAN (lan_key) one uses the fleet feed.
+      startMode: r.source == EndpointSource.lan
+          ? SessionMode.stream
+          : SessionMode.legacy,
+      onUpdate: (u) {
+        if (_disposed || _sessions[id] != session) return;
+        _store = _store.apply(id, u, clock.now());
+        _scheduleEmit();
+      },
+    );
+    _sessions[id] = session;
+    session.start();
+  }
+
+  void _tick() {
+    if (_paused || _disposed) return;
+    final now = clock.now();
+    if (!now.isBefore(_graceUntil)) {
+      final (store, gone) = _store.prune(now);
+      _store = store;
+      for (final id in gone) {
+        _sessions.remove(id)?.stop();
       }
-      state =
-          AsyncValue.data(DiscoveryResults(_mergeWithManual(udpInstances)));
-    });
-
-    final fallbackResult = _mergeWithManual(udpInstances);
-    if (fallbackResult.isEmpty) return const DiscoveryEmpty();
-    return DiscoveryResults(fallbackResult);
+    }
+    // Presence ages with time even when nothing arrives.
+    _scheduleEmit();
   }
 
-  Future<void> refresh() async {
-    state = const AsyncValue.data(DiscoveryScanning());
-    ref.invalidateSelf();
+  // ─── view ──────────────────────────────────────────────────────────────────
+
+  void _scheduleEmit() {
+    if (_disposed || (_emitTimer?.isActive ?? false)) return;
+    _emitTimer = Timer(emitCoalesce, _emit);
   }
 
-  /// Connect to a LAN instance by address/port/authKey without mDNS.
-  /// Fetches version and agents from the instance, then merges into state.
-  Future<void> addManual(String address, int port, String authKey) async {
-    final client = LocalApiClient.fromParts(address, port, authKey);
-    final info = await client.fetchDiscoveryInfo();
-    final instance = LanInstance(
+  void _emit() {
+    if (_disposed) return;
+    final now = clock.now();
+    final entries = [
+      for (final r in _store.records.values)
+        if (r.presence(now) != Presence.gone)
+          FleetEntry(
+            instance: r.toInstance(),
+            presence: r.presence(now),
+            error: r.visibleError(now),
+            lastSeen: r.lastAlive,
+          ),
+    ];
+    state = entries.isNotEmpty
+        ? DiscoveryResults(buildHostTrees(entries))
+        : (_firstRoundDone ? const DiscoveryEmpty() : const DiscoveryScanning());
+  }
+
+  // ─── direct connections ────────────────────────────────────────────────────
+
+  Future<void> _connectDirect(
+    String address,
+    int port,
+    String authKey,
+    EndpointSource source,
+  ) async {
+    final info =
+        await LocalApiClient.fromParts(address, port, authKey).fetchDiscoveryInfo();
+    if (_disposed) return;
+    final id = _onSighting(Sighting(
       hostname: info.hostname.isNotEmpty ? info.hostname : address,
-      version: info.version,
       address: address,
       port: port,
       authKey: authKey,
-      agents: info.agents,
+      version: info.version,
+      channel: info.channel,
+      source: source,
+    ));
+    _store = _store.apply(
+      id,
+      SessionContact(agents: info.agents, channel: info.channel),
+      clock.now(),
     );
-
-    // Replace any existing entry for the same physical instance — by
-    // hostname when available (retro B1: the same machine reached two
-    // different ways, e.g. this manual entry and a since-superseded
-    // mDNS/UDP one, previously showed as two cards since dedup only ever
-    // compared address+port), falling back to address:port otherwise.
-    _manualInstances.removeWhere((m) => isSameInstance(m, instance));
-    _manualInstances.insert(0, instance);
-
-    // Patch current state immediately without re-scanning.
-    final current = switch (state.valueOrNull) {
-      DiscoveryResults(:final instances) => List<LanInstance>.from(instances),
-      _ => <LanInstance>[],
-    };
-    current.removeWhere((m) => isSameInstance(m, instance));
-    current.insert(0, instance);
-    state = AsyncValue.data(DiscoveryResults(current));
+    _scheduleEmit();
   }
 
-  // If AGENTMUX_DEV_ADDR/KEY dart-defines are set (emulator dev workflow), fetch
-  // the instance and seed _manualInstances so build() includes it automatically.
+  // If AGENTMUX_DEV_ADDR/KEY dart-defines are set (emulator dev workflow with
+  // `scripts/dev-full.sh --dev-connect`), connect to that instance directly.
   Future<void> _maybeAutoConnect() async {
     if (_kDevAddr.isEmpty || _kDevKey.isEmpty) return;
     final parts = _kDevAddr.split(':');
@@ -194,18 +428,8 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
     final port = int.tryParse(parts[1]);
     if (port == null) return;
     final address = parts[0];
-    if (_manualInstances.any((m) => m.address == address && m.port == port)) return;
     try {
-      final client = LocalApiClient.fromParts(address, port, _kDevKey);
-      final info = await client.fetchDiscoveryInfo();
-      _manualInstances.insert(0, LanInstance(
-        hostname: info.hostname.isNotEmpty ? info.hostname : address,
-        version: info.version,
-        address: address,
-        port: port,
-        authKey: _kDevKey,
-        agents: info.agents,
-      ));
+      await _connectDirect(address, port, _kDevKey, EndpointSource.dev);
     } catch (e, stackTrace) {
       // Dev-only bootstrap path (scripts/run-emulator.sh) — silently doing
       // nothing here previously made "dev host unreachable" indistinguishable
@@ -252,41 +476,20 @@ class DiscoveryNotifier extends AsyncNotifier<DiscoveryState> {
         'against the running instance.';
   }
 
-  List<LanInstance> _mergeWithManual(List<LanInstance> scanned) {
-    final merged = <LanInstance>[..._manualInstances];
-    for (final inst in scanned) {
-      if (!merged.any((m) => isSameInstance(m, inst))) {
-        merged.add(inst);
-      }
-    }
-    return merged;
-  }
-
-  /// Whether [a] and [b] describe the same physical AgentMux instance,
-  /// even when reached two different ways (retro B1). The clearest real
-  /// case: dev auto-connect reaches this machine's own sidecar over
-  /// loopback (`10.0.2.2:<port>`) while UDP-broadcast discovery reaches the
-  /// exact same process over its real LAN address — different address:port
-  /// pairs, same instance, previously rendered as two duplicate cards.
-  ///
-  /// Hostname is a reasonable identity signal here (not a cryptographic
-  /// one — see `docs/specs/REMOTE_TERMINALS_AND_CONVERSATION_HISTORY.md` for
-  /// why identity/auth over LAN needs more rigor than this for anything
-  /// higher-stakes than deduplicating a display list): two entries this app
-  /// discovers are overwhelmingly likely to be the same box if they report
-  /// the same non-empty hostname. Falls back to the original address:port
-  /// comparison when either side has no hostname (older server, or a
-  /// manual/dev entry added before its `fetchDiscoveryInfo()` call
-  /// resolved), so behavior is unchanged in that case.
+  /// Whether [a] and [b] describe the same channel, even when reached two
+  /// different ways (retro B1: dev auto-connect over loopback and UDP
+  /// discovery over the LAN address of the same process). See [sameChannel]
+  /// for the rule; hostname is a display-level identity signal here, not a
+  /// cryptographic one (see `docs/specs/REMOTE_TERMINALS_AND_CONVERSATION_HISTORY.md`).
   @visibleForTesting
-  static bool isSameInstance(LanInstance a, LanInstance b) {
-    if (a.hostname.isNotEmpty && a.hostname == b.hostname) return true;
-    return a.address == b.address && a.port == b.port;
-  }
-
-  Future<LanInstance> _enrichWithAgents(LanInstance instance) async {
-    final agents = await LocalApiClient(instance).fetchAgents();
-    if (agents.isEmpty) return instance;
-    return instance.copyWith(agents: agents);
-  }
+  static bool isSameInstance(LanInstance a, LanInstance b) => sameChannel(
+        hostnameA: a.hostname,
+        channelA: a.channel,
+        addressA: a.address,
+        portA: a.port,
+        hostnameB: b.hostname,
+        channelB: b.channel,
+        addressB: b.address,
+        portB: b.port,
+      );
 }

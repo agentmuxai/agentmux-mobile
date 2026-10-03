@@ -194,4 +194,74 @@ void main() {
       expect(instances, isA<List>());
     });
   });
+  group('UdpBroadcastProber.parseResponseWithSiblings', () {
+    Map<String, Object?> reply({Object? siblings}) => {
+          'type': 'agentmux_discover_response',
+          'v': 1,
+          'hostname': 'narko',
+          'version': '0.59.7',
+          'port': 29704,
+          'auth_key': 'lan-a',
+          'channel': 'local-main',
+          if (siblings != null) 'siblings': siblings,
+        };
+
+    test('each sibling becomes an instance at the replying host address', () {
+      final all = UdpBroadcastProber.parseResponseWithSiblings(_datagram(
+        jsonEncode(reply(siblings: [
+          {'channel': 'stable', 'port': 29700, 'auth_key': 'lan-b', 'version': '0.59.4'},
+        ])),
+        ip: '192.168.1.230',
+      ));
+      expect(all.map((i) => i.port), [29704, 29700]);
+      final sib = all[1];
+      expect(sib.hostname, 'narko');
+      expect(sib.address, '192.168.1.230');
+      expect(sib.authKey, 'lan-b');
+      expect(sib.channel, 'stable');
+      expect(sib.version, '0.59.4');
+    });
+
+    test('a reply without siblings is just the responder', () {
+      final all = UdpBroadcastProber.parseResponseWithSiblings(
+          _datagram(jsonEncode(reply())));
+      expect(all, hasLength(1));
+      expect(all.single.channel, 'local-main');
+    });
+
+    test('malformed siblings are skipped, the responder kept', () {
+      final all = UdpBroadcastProber.parseResponseWithSiblings(_datagram(
+        jsonEncode(reply(siblings: [
+          'nonsense',
+          {'channel': 'x', 'port': 0, 'auth_key': 'k'},
+          {'channel': 'x', 'port': 70000, 'auth_key': 'k'},
+          {'channel': 'x', 'port': 29701, 'auth_key': ''},
+          {'channel': 'x', 'port': 29704, 'auth_key': 'k'},
+          {'channel': 'ok', 'port': 29702, 'auth_key': 'k'},
+        ])),
+      ));
+      expect(all.map((i) => i.port), [29704, 29702]);
+    });
+
+    test('a siblings field that is not a list is ignored', () {
+      final all = UdpBroadcastProber.parseResponseWithSiblings(
+          _datagram(jsonEncode(reply(siblings: {'channel': 'x'}))));
+      expect(all, hasLength(1));
+    });
+
+    test('takes at most maxSiblings', () {
+      final all = UdpBroadcastProber.parseResponseWithSiblings(_datagram(
+        jsonEncode(reply(siblings: [
+          for (var i = 0; i < 40; i++)
+            {'channel': 'c$i', 'port': 30000 + i, 'auth_key': 'k'},
+        ])),
+      ));
+      expect(all, hasLength(1 + UdpBroadcastProber.maxSiblings));
+    });
+
+    test('an invalid reply yields nothing', () {
+      expect(
+          UdpBroadcastProber.parseResponseWithSiblings(_datagram('{}')), isEmpty);
+    });
+  });
 }
