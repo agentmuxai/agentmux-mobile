@@ -2,26 +2,16 @@
 
 ## Problem
 
-The org-wide weekly Security Researcher (`a5af/shared-infrastructure`,
-`weekly-analysts/scripts/security-researcher/run.py`) audits this repo along with
-`agentmux`, `agentmux-cloud`, `dev-tools`, and `agentmux-docs` — but it only knows how
-to scan two dependency-manifest types: `package.json` (via `npm audit`) and
-`requirements*.txt` (via `pip-audit`). This repo is Flutter/Dart (`pubspec.yaml`) —
-neither manifest type exists anywhere in the tree, so the scanner correctly finds
-nothing to audit every run.
-
-Until 2026-08-17 this read, in the weekly report, as vague/unremarkable prose
-("no audit output"), easy to misread as "clean" rather than "not covered." As of
-`docs/analysis/ANALYSIS_SECURITY_RESEARCHER_AUDIT_COVERAGE_GAP_2026_08_18.md` in
-shared-infrastructure, the report now explicitly marks this repo's `npm_audit`/
-`pip_audit` fields `status: "completed"` with `detail: "no package.json manifests
-found"` — i.e. deterministically confirmed as "not applicable," not silently dropped
-or ambiguous. **That fixed the reporting; it did not add Dart/pub coverage.**
+The organization's internal weekly security scan covers this repo, but its
+dependency-vulnerability check only understands npm and pip manifests. This repo is
+Flutter/Dart (`pubspec.yaml`), so that check has nothing to audit here. The scan
+reports this repo as "not applicable" for dependency auditing rather than "clean";
+that is accurate reporting, not Dart/pub coverage.
 
 ## Current state
 
 - Secret scanning (`trufflehog`, full git history) — **covered**, same as every
-  other repo in the scan list.
+  other repo the scan covers.
 - IAM/CDK/dependency-vulnerability scanning via `npm audit`/`pip-audit` —
   **not applicable**, correctly recognized as such.
 - Dart/Flutter dependency vulnerability scanning (`pubspec.yaml` / `pubspec.lock`
@@ -30,10 +20,8 @@ or ambiguous. **That fixed the reporting; it did not add Dart/pub coverage.**
 
 ## Scope (in) — if someone picks this up later
 
-- A `run_dart_audit()`-equivalent in the shared security-researcher script,
-  following the same `DependencyAuditResult` (`status`/`findings`/`detail`) shape
-  `run_npm_audit`/`run_pip_audit`/`run_trufflehog` already use, so it plugs into the
-  existing coverage-gap banner + posture-downgrade logic for free.
+- A Dart/pub dependency check in the internal security scanner, reporting results
+  in the same shape as its existing npm/pip checks.
 - Whatever `pub` tooling actually exists for this (`dart pub outdated`,
   `flutter pub deps`, or a pub.dev advisory-database lookup — needs research; unlike
   `npm audit`/`pip-audit`, there's no single well-known "just run this" command as
@@ -45,5 +33,5 @@ or ambiguous. **That fixed the reporting; it did not add Dart/pub coverage.**
   Flutter dependency tree being checked for known CVEs" finds an answer in under a
   minute instead of re-deriving "oh, the scanner doesn't support this ecosystem"
   from scratch — the exact rediscovery cost that motivated writing it down.
-- Adding Dart/pub scanning is a shared-infrastructure change (the scanner is
-  centralized, not per-repo), not something to build inside this repo.
+- Adding Dart/pub scanning is a change to the centralized internal scanner, not
+  something to build inside this repo.

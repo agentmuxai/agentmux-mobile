@@ -27,12 +27,9 @@ stored as part of writing this doc.
    - `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` — the raw JSON content from step 2
      (not base64 — `r0adkll/upload-google-play` expects plain text)
 4. Store the keystore itself (the actual file, not just the CI secret)
-   somewhere durable outside this repo — `secrets-cli` (`@a5af/secrets`,
-   `services/infra`) is the recommended place, following the same
-   `<host>`/`<app>`-prefixed flat-key convention already used for other
-   credentials there (e.g. `agentmux-mobile-android-keystore`, base64
-   value). It is your only copy; GitHub secrets are write-only and can't be
-   read back if lost.
+   somewhere durable outside this repo: store the keystore in the team's
+   private secret store; ask the maintainer. It is your only copy; GitHub
+   secrets are write-only and can't be read back if lost.
 
 ## iOS — App Store Connect / TestFlight
 
@@ -117,8 +114,7 @@ that already happens on GitHub's own `macos-latest` runner via
      new value is needed here.
 7. As with the Android keystore, back up `ios_distribution.p12`,
    `ios_distribution.key`, `agentmux_mobile.mobileprovision`, and the `.p8`
-   in `secrets-cli` (`services/infra`) under a consistent
-   `agentmux-mobile-ios-*` naming convention — GitHub secrets can't be read
+   in the team's private secret store (ask the maintainer) — GitHub secrets can't be read
    back once written, so these files are your only copy if you ever need to
    rotate or re-download something.
 8. **Reviewing the TestFlight build and submitting for review also don't

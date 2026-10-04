@@ -76,9 +76,8 @@ the desktop app.
 
 ## Known coverage gaps
 
-- **Dependency security scanning doesn't cover this repo.** The org-wide weekly Security
-  Researcher (`a5af/shared-infrastructure`) only supports `npm audit`/`pip-audit`; this is a
-  Dart/Flutter app (`pubspec.yaml`), which isn't a supported ecosystem yet. See
+- **Dependency security scanning doesn't cover this repo.** The internal security scan's
+  dependency check doesn't support Dart/Flutter (`pubspec.yaml`) yet. See
   `docs/specs/SECURITY_SCANNING_COVERAGE_GAP.md`.
 - **mDNS itself is unreliable on the Android emulator** specifically (works on real devices) —
   its default networking (QEMU/SLIRP, `10.0.2.0/24`) is an isolated NAT that can't receive real

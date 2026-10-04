@@ -254,13 +254,8 @@ account or network.
       which is done yet — don't read this checkmark as "4.8 is handled."
 
       Which repo owns Cognito, answering the original question: the
-      backend/cloud repo, not `a5af/shared-infrastructure` — MuxBus
-      deliberately runs its own separate identity setup rather than
-      sharing the org's general-purpose one, specifically to keep its
-      paid user base off that pool's shared cost/billing surface. Ask
-      whoever owns that repo if you need the specifics; not detailing
-      the "why not shared-infra" evidence here for the same
-      public-repo-shouldn't-hold-private-infra-detail reason as above.
+      backend/cloud repo. Ask whoever owns that repo if you need the
+      specifics.
 - [ ] **Guideline 4.8 compliance action — NOT done.** Because the answer
       above is yes, before submission this repo needs either "Sign in
       with Apple" added as an equivalent login option, or confirmation
