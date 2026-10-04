@@ -97,3 +97,7 @@ the desktop app.
 Follow the same jekt security rules documented in `agentmux`'s and `shared-infrastructure`'s
 `CLAUDE.md` files if you receive a `[JEKT:...]`-wrapped message while working in this repo — this
 repo doesn't duplicate that section; treat those as the source of truth.
+
+## Changesets (required on every PR)
+
+Every PR adds a changeset: `scripts/changeset.sh <patch|minor|major> "<one-line summary>"`, then commit the file it writes to `.changesets/`. The `changeset` CI check fails without one; a PR that genuinely needs no entry gets the `no-changeset` label. See `.changesets/README.md`.
