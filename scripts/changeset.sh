@@ -1,19 +1,12 @@
 #!/usr/bin/env bash
-# changeset.sh — author a new changeset file.
+# changeset.sh — add a changeset for this PR (see .changesets/README.md).
 #
 # Usage:
-#   scripts/changeset.sh <type> "<description>"
+#   scripts/changeset.sh <patch|minor|major> "<one-line summary>"
 #
-# Example:
-#   scripts/changeset.sh patch "fix(auth): cancel in-flight session on selection swap"
-#
-# Allowed types: patch | minor | major
-#
-# Produces:
-#   .changesets/<unix-ts>-<slug>.md
-#
-# The file's frontmatter holds the bump type; the body is the description.
-# RFC #857 Phase 2 / spec docs/specs/SPEC_MULTI_AGENT_VERSION_COORDINATION_2026_05_15.md.
+# Writes .changesets/<unix-ts>-<slug>-<rand4>.md with the type in its front
+# matter and the summary as its body, and prints the path. Commit that file
+# with the change.
 
 set -euo pipefail
 
@@ -21,12 +14,7 @@ TYPE="${1:-}"
 DESC="${2:-}"
 
 if [[ -z "$TYPE" || -z "$DESC" ]]; then
-    cat >&2 <<EOF
-Usage: $0 <patch|minor|major> "<description>"
-
-Example:
-    $0 patch "fix(auth): cancel in-flight session on selection swap"
-EOF
+    echo "Usage: $0 <patch|minor|major> \"<one-line summary>\"" >&2
     exit 1
 fi
 
@@ -38,7 +26,6 @@ case "$TYPE" in
         ;;
 esac
 
-# Locate repo root (the script may be invoked from anywhere).
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 if [[ -z "$REPO_ROOT" ]]; then
     echo "ERROR: not inside a git repository." >&2
@@ -48,10 +35,9 @@ fi
 DIR="$REPO_ROOT/.changesets"
 mkdir -p "$DIR"
 
-# Build a filename: <unix-ts>-<slug>-<rand4>.md
-# Slug: lowercase, replace anything non-alphanumeric with `-`, collapse, trim.
-# rand4 suffix: codex P2 on #865 — two agents running this in the same second
-# with the same slug would otherwise overwrite each other's changeset.
+# Slug: lowercase, anything non-alphanumeric becomes `-`, trimmed, at most 60
+# characters. The random suffix keeps two runs in the same second with the same
+# summary from writing the same file.
 TS="$(date +%s)"
 SLUG="$(printf '%s' "$DESC" \
     | tr '[:upper:]' '[:lower:]' \

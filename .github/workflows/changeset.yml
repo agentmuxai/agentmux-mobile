@@ -27,6 +27,8 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           AUTHOR: ${{ github.event.pull_request.user.login }}
           LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          # Empty: this repo has no release step that consumes changesets yet. Set it to
+          # the file a release PR updates (agentmux uses VERSION_HISTORY.md) when one exists.
           RELEASE_FILE: ""
         run: |
           set -euo pipefail
