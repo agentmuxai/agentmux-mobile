@@ -1,5 +1,11 @@
 # Security scanning — coverage gap (breadcrumb)
 
+> **Status (2026-10-05): closed in this repo.** Dart/Flutter dependency scanning now
+> runs here, in `.github/workflows/dependency-scan.yml` (OSV-Scanner against the
+> resolved `pubspec.lock`: on PRs touching `pubspec.yaml`/`pubspec.lock`, weekly,
+> and on demand). The rest of this doc is the original breadcrumb, kept for history;
+> its "Scope (out)" reasoning was superseded by doing it per repo instead.
+
 ## Problem
 
 The organization's internal weekly security scan covers this repo, but its
@@ -15,8 +21,9 @@ that is accurate reporting, not Dart/pub coverage.
 - IAM/CDK/dependency-vulnerability scanning via `npm audit`/`pip-audit` —
   **not applicable**, correctly recognized as such.
 - Dart/Flutter dependency vulnerability scanning (`pubspec.yaml` / `pubspec.lock`
-  against pub.dev advisories) — **not implemented anywhere**. No automated coverage
-  exists for this dimension today.
+  against pub.dev advisories) — **covered in this repo** by
+  `.github/workflows/dependency-scan.yml` (see the status note above); still not
+  part of the internal scan.
 
 ## Scope (in) — if someone picks this up later
 
