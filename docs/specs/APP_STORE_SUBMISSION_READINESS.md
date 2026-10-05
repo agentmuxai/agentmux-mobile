@@ -178,8 +178,14 @@ account or network.
       independently re-verified with the `pbxproj` library, not just
       asserted; see "None of this has ever been built by Xcode" above for
       what that verification does and doesn't cover). Declares
-      `NSPrivacyTracking = false`, no tracking domains, and email address
-      collected for App Functionality only. **Caveat, not fully closed:**
+      `NSPrivacyTracking = false`, no tracking domains, and three
+      `NSPrivacyCollectedDataType` entries, all for App Functionality only:
+      email address (account identity), User ID (the Cognito subject sent
+      as `mobile:$sub` in the `x-agent-id` header on every cloud
+      injection), and Other User Content (the injected message text itself,
+      sent in the request body). The latter two were added after the
+      original manifest — see the in-file comment for the PR that added
+      them. **Caveat, not fully closed:**
       this only covers what this repo's own Dart/Swift code does.
       `NSPrivacyAccessedAPITypes` is left empty at the app level because no
       first-party code calls a required-reason API directly — but plugins
