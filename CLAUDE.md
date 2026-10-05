@@ -78,11 +78,17 @@ desktop backend over LAN (mDNS / UDP-broadcast fallback / QR-code pairing — se
 `lib/core/discovery/`). Read-first: agent configuration, workspace, and tool execution stay on
 the desktop app.
 
+## Dependency vulnerability scanning
+
+`.github/workflows/dependency-scan.yml` runs Google's OSV-Scanner on the resolved Pub
+dependency tree: on PRs that touch `pubspec.yaml`/`pubspec.lock` (fails on any known
+vulnerability), weekly, and on demand (those two also upload SARIF to Security > Code
+scanning). `pubspec.lock` is gitignored, so the workflow resolves it with `flutter pub get`
+first. To check locally: `flutter pub get`, then
+`osv-scanner scan source --lockfile=./pubspec.lock`.
+
 ## Known coverage gaps
 
-- **Dependency security scanning doesn't cover this repo.** The internal security scan's
-  dependency check doesn't support Dart/Flutter (`pubspec.yaml`) yet. See
-  `docs/specs/SECURITY_SCANNING_COVERAGE_GAP.md`.
 - **mDNS itself is unreliable on the Android emulator** specifically (works on real devices) —
   its default networking (QEMU/SLIRP, `10.0.2.0/24`) is an isolated NAT that can't receive real
   multicast. See [issue #2](https://github.com/agentmuxai/agentmux-mobile/issues/2)'s reliability
