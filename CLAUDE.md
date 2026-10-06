@@ -83,8 +83,9 @@ the desktop app.
 `.github/workflows/dependency-scan.yml` runs Google's OSV-Scanner on the resolved Pub
 dependency tree: on PRs that touch `pubspec.yaml`/`pubspec.lock` (fails on any known
 vulnerability), weekly, and on demand (those two also upload SARIF to Security > Code
-scanning). `pubspec.lock` is gitignored, so the workflow resolves it with `flutter pub get`
-first. To check locally: `flutter pub get`, then
+scanning). It scans the committed `pubspec.lock`, the exact versions the app is built with.
+After changing `pubspec.yaml`, run `flutter pub get` and commit the updated lockfile: CI runs
+`flutter pub get --enforce-lockfile` and fails if they don't match. To check locally:
 `osv-scanner scan source --lockfile=./pubspec.lock`.
 
 ## Known coverage gaps

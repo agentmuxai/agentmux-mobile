@@ -4,11 +4,9 @@ name: Dependency scan
 # in the OSV database (osv.dev, which carries the GitHub advisories for the Pub
 # ecosystem), using Google's OSV-Scanner reusable workflow.
 #
-# pubspec.lock is gitignored in this repo, so there is no committed lockfile to
-# scan. The first job resolves one with the same Flutter version CI builds with
-# (`flutter pub get`, keep in sync with .fvmrc and ci.yml) and hands it to the
-# scan job as an artifact. If pubspec.lock is ever committed, pub get keeps it
-# as is, so this still scans exactly the committed versions.
+# It scans the committed pubspec.lock, which is exactly what the app is built
+# with: ci.yml's `flutter pub get --enforce-lockfile` fails a PR whose lockfile
+# doesn't match pubspec.yaml.
 #
 # On a pull request the job fails if any dependency has a known vulnerability;
 # the table of findings is in the "Run osv-scanner-reporter" step's log. The
@@ -28,36 +26,8 @@ on:
 permissions: {}
 
 jobs:
-  resolve:
-    name: Resolve pubspec.lock
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.38.9'
-          channel: stable
-          cache: true
-
-      - name: Resolve dependencies
-        run: flutter pub get
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: pubspec-lock
-          path: pubspec.lock
-          if-no-files-found: error
-          retention-days: 5
-
   scan:
     name: OSV-Scanner
-    needs: resolve
     # The reusable workflow's job asks for exactly these; a caller has to grant
     # at least what it asks for. security-events: write is only used by the
     # SARIF upload, which is off on pull requests.
@@ -67,7 +37,6 @@ jobs:
       security-events: write
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.6.0
     with:
-      download-artifact: pubspec-lock
       scan-args: |-
         --lockfile=./pubspec.lock
       upload-sarif: ${{ github.event_name != 'pull_request' }}
