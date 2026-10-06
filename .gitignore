@@ -21,10 +21,9 @@ build/
 .DS_Store
 Thumbs.db
 
-# Pub
+# Pub (pubspec.lock is committed: an app ships exactly the locked versions)
 .pub-cache/
 .pub/
-pubspec.lock
 
 # Android
 **/android/**/gradle-wrapper.jar
