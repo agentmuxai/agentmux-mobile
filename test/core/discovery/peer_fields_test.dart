@@ -82,4 +82,143 @@ void main() {
       expect(parseAgentKinds(many, maxEntries: 10), hasLength(10));
     });
   });
+
+  group('agent states', () {
+    test('each known state parses; anything else is no state', () {
+      expect(parseAgentState('working'), AgentState.working);
+      expect(parseAgentState('waiting'), AgentState.waiting);
+      expect(parseAgentState('idle'), AgentState.idle);
+      expect(parseAgentState('stopped'), AgentState.stopped);
+      expect(parseAgentState('error'), AgentState.error);
+      for (final bad in <Object?>[
+        null,
+        '',
+        'Working',
+        'busy',
+        'running',
+        ' idle',
+        1,
+        ['idle'],
+      ]) {
+        expect(parseAgentState(bad), isNull, reason: '$bad');
+      }
+    });
+
+    test('a Unix time is a positive integer', () {
+      expect(parseUnixMs(1791352494000), 1791352494000);
+      expect(parseUnixMs(0), isNull);
+      expect(parseUnixMs(-5), isNull);
+      expect(parseUnixMs(1791352494000.5), isNull);
+      expect(parseUnixMs('1791352494000'), isNull);
+      expect(parseUnixMs(null), isNull);
+    });
+
+    test('agent_status is keyed by lower-cased name', () {
+      final status = parseAgentStatus({
+        'AgentX': {'state': 'working', 'since_ms': 1000},
+        'Camper': {'state': 'idle'},
+      });
+      expect(status, {
+        'agentx': const ReportedAgentStatus(AgentState.working, sinceMs: 1000),
+        'camper': const ReportedAgentStatus(AgentState.idle),
+      });
+    });
+
+    test('a bad state drops the entry; a bad since_ms drops only the time',
+        () {
+      final status = parseAgentStatus({
+        'Unknown': {'state': 'thinking', 'since_ms': 1000},
+        'NoState': {'since_ms': 1000},
+        'NotAMap': 'working',
+        '': {'state': 'idle'},
+        'n' * 129: {'state': 'idle'},
+        'BadSince': {'state': 'waiting', 'since_ms': -1},
+        'TextSince': {'state': 'error', 'since_ms': '1000'},
+      });
+      expect(status, {
+        'badsince': const ReportedAgentStatus(AgentState.waiting),
+        'textsince': const ReportedAgentStatus(AgentState.error),
+      });
+    });
+
+    test('agent_status that is not a map is empty, and is bounded', () {
+      expect(parseAgentStatus(null), isEmpty);
+      expect(
+        parseAgentStatus([
+          {'state': 'idle'},
+        ]),
+        isEmpty,
+      );
+      final many = {
+        for (var i = 0; i < 50; i++) 'a$i': {'state': 'idle'},
+      };
+      expect(parseAgentStatus(many, maxEntries: 10), hasLength(10));
+    });
+  });
+
+  group('time in a state', () {
+    final receivedAt = DateTime(2026, 10, 7, 12);
+
+    test("comes from the desktop's own two times, never the device clock", () {
+      // The desktop's clock is a year ahead of this device's: only the
+      // difference between its own two times counts.
+      const desktopNow = 1823000000000;
+      final since = stateSinceFrom(
+        sinceMs: desktopNow - 3 * 60 * 1000,
+        nowMs: desktopNow,
+        receivedAt: receivedAt,
+      )!;
+      expect(since.elapsedAtReceipt, const Duration(minutes: 3));
+      expect(since.elapsed(receivedAt), const Duration(minutes: 3));
+      expect(
+        since.elapsed(receivedAt.add(const Duration(minutes: 2))),
+        const Duration(minutes: 5),
+      );
+    });
+
+    test('is unknown without now_ms or since_ms', () {
+      expect(
+        stateSinceFrom(sinceMs: 1000, nowMs: null, receivedAt: receivedAt),
+        isNull,
+      );
+      expect(
+        stateSinceFrom(sinceMs: null, nowMs: 1000, receivedAt: receivedAt),
+        isNull,
+      );
+    });
+
+    test('a since_ms after now_ms counts as just now', () {
+      final since =
+          stateSinceFrom(sinceMs: 5000, nowMs: 1000, receivedAt: receivedAt)!;
+      expect(since.elapsedAtReceipt, Duration.zero);
+    });
+
+    test('a device clock that steps back never shrinks it', () {
+      final since = StateSince(
+        elapsedAtReceipt: const Duration(minutes: 3),
+        receivedAt: receivedAt,
+      );
+      expect(
+        since.elapsed(receivedAt.subtract(const Duration(hours: 1))),
+        const Duration(minutes: 3),
+      );
+    });
+
+    test('lanAgentFrom applies kind, state and time', () {
+      final a = lanAgentFrom(
+        'AgentX',
+        kind: AgentKind.container,
+        status: const ReportedAgentStatus(AgentState.working, sinceMs: 1000),
+        nowMs: 61000,
+        receivedAt: receivedAt,
+      );
+      expect(a.kind, AgentKind.container);
+      expect(a.state, AgentState.working);
+      expect(a.stateSince!.elapsedAtReceipt, const Duration(minutes: 1));
+      expect(a.stateAsOf, isNull);
+      final none = lanAgentFrom('Old', receivedAt: receivedAt);
+      expect(none.state, isNull);
+      expect(none.stateSince, isNull);
+    });
+  });
 }

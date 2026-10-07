@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io' show HttpDate, HttpException;
 
+import 'package:clock/clock.dart';
 import 'package:dio/dio.dart';
 import 'package:mutex/mutex.dart';
 
@@ -47,12 +49,29 @@ class MuxbusClient {
   Future<List<CloudInstance>> getInstances() async {
     try {
       final res = await _dio.get<Object>('/wan-instances');
-      return CloudInstance.parseList(res.data);
+      return CloudInstance.parseList(
+        res.data,
+        relayNow: _relayDate(res.headers.value('date')),
+        fetchedAt: clock.now(),
+      );
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) {
         throw const CloudInstancesUnsupported();
       }
       rethrow;
+    }
+  }
+
+  /// The relay's clock from an HTTP `Date` header; null when absent or
+  /// unreadable.
+  static DateTime? _relayDate(String? header) {
+    if (header == null) return null;
+    try {
+      return HttpDate.parse(header);
+    } on FormatException {
+      return null;
+    } on HttpException {
+      return null;
     }
   }
 

@@ -5,6 +5,7 @@ import 'package:clock/clock.dart';
 import 'package:dio/dio.dart';
 
 import '../discovery/models/lan_instance.dart';
+import '../discovery/peer_fields.dart';
 import 'fleet_snapshot.dart';
 import 'fleet_transport.dart';
 
@@ -274,25 +275,37 @@ class ChannelSession {
     for (var i = 0; i < a.length; i++) {
       if (a[i].name != b[i].name ||
           a[i].channel != b[i].channel ||
-          a[i].kind != b[i].kind) {
+          a[i].kind != b[i].kind ||
+          a[i].state != b[i].state) {
         return false;
       }
     }
     return true;
   }
 
-  static SessionContact _contactFrom(FleetSnapshot s) => SessionContact(
-        agents: [
-          for (final n in s.agents)
-            LanAgent(name: n, kind: s.agentKinds[n.toLowerCase()]),
-        ],
-        epoch: s.epoch,
-        rev: s.rev,
-        hostname: s.hostname.isEmpty ? null : s.hostname,
-        channel: s.channel,
-        version: s.version.isEmpty ? null : s.version,
-        os: s.os,
-        installId: s.installId,
-        channelsRunning: s.channelsRunning,
-      );
+  /// The snapshot as a contact. Each agent's time in its state is anchored
+  /// at this device's clock now, when the snapshot arrived.
+  static SessionContact _contactFrom(FleetSnapshot s) {
+    final receivedAt = clock.now();
+    return SessionContact(
+      agents: [
+        for (final n in s.agents)
+          lanAgentFrom(
+            n,
+            kind: s.agentKinds[n.toLowerCase()],
+            status: s.agentStatus[n.toLowerCase()],
+            nowMs: s.nowMs,
+            receivedAt: receivedAt,
+          ),
+      ],
+      epoch: s.epoch,
+      rev: s.rev,
+      hostname: s.hostname.isEmpty ? null : s.hostname,
+      channel: s.channel,
+      version: s.version.isEmpty ? null : s.version,
+      os: s.os,
+      installId: s.installId,
+      channelsRunning: s.channelsRunning,
+    );
+  }
 }

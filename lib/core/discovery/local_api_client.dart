@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
@@ -107,17 +108,31 @@ class LocalApiClient {
   }
 
   /// Parses a `/agentmux/reactive/agent-names` body: `{"agents": ["name", ...]}`,
-  /// plus `agent_kinds` (`{"name": "host" | "container"}`) from a desktop
-  /// that sends it. Bounded like the fleet feed: a LAN peer is untrusted.
+  /// plus `agent_kinds` (`{"name": "host" | "container"}`) and `agent_status`
+  /// with `now_ms` from a desktop that sends them. Bounded like the fleet
+  /// feed: a LAN peer is untrusted. [receivedAt] (default: now) anchors how
+  /// long each agent has been in its state on this device's clock.
   @visibleForTesting
-  static List<LanAgent> parseAgentNames(Map<String, dynamic>? data) {
+  static List<LanAgent> parseAgentNames(
+    Map<String, dynamic>? data, {
+    DateTime? receivedAt,
+  }) {
     final raw = data?['agents'];
     final names = raw is List ? raw.whereType<String>() : const <String>[];
     final kinds = parseAgentKinds(data?['agent_kinds']);
+    final status = parseAgentStatus(data?['agent_status']);
+    final nowMs = parseUnixMs(data?['now_ms']);
+    final at = receivedAt ?? clock.now();
     return names
         .where((n) => n.isNotEmpty && n.length <= 128)
         .take(500)
-        .map((n) => LanAgent(name: n, kind: kinds[n.toLowerCase()]))
+        .map((n) => lanAgentFrom(
+              n,
+              kind: kinds[n.toLowerCase()],
+              status: status[n.toLowerCase()],
+              nowMs: nowMs,
+              receivedAt: at,
+            ))
         .toList();
   }
 

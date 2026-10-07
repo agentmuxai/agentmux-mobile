@@ -15,10 +15,14 @@ import '../models/message.dart';
 /// Sample hosts for the demo host tree: one of each platform and each route,
 /// one host running channels it does not share on the LAN, and both agent
 /// kinds, so every tag the real screen can show appears here
-/// (`docs/specs/SPEC_FLEET_HOST_TAGS_AND_CLOUD_HOSTS_2026_10_06.md`). The
+/// (`docs/specs/SPEC_FLEET_HOST_TAGS_AND_CLOUD_HOSTS_2026_10_06.md`), and an
+/// agent in each state, so every status chip does too
+/// (`docs/specs/SPEC_AGENT_STATUS_AND_LIVE_PANE_FEED_2026_10_07.md`). The
 /// addresses are documentation placeholders; nothing is ever contacted.
 List<HostNode> buildDemoHosts() {
   final now = DateTime.now();
+  StateSince since(Duration d) =>
+      StateSince(elapsedAtReceipt: d, receivedAt: now);
   FleetEntry entry(
     String hostname,
     String address, {
@@ -49,29 +53,65 @@ List<HostNode> buildDemoHosts() {
         os: 'windows',
         route: ChannelRoute.lan,
         channel: 'stable',
-        agents: const [
-          LanAgent(name: 'Nova', kind: AgentKind.host),
-          LanAgent(name: 'Piper', kind: AgentKind.host),
+        agents: [
+          LanAgent(
+            name: 'Nova',
+            kind: AgentKind.host,
+            state: AgentState.working,
+            stateSince: since(const Duration(minutes: 3)),
+          ),
+          LanAgent(
+            name: 'Piper',
+            kind: AgentKind.host,
+            state: AgentState.waiting,
+            stateSince: since(const Duration(minutes: 1)),
+          ),
         ]),
     entry('forge', '198.51.100.20',
         os: 'linux',
         route: ChannelRoute.lanAndCloud,
         channel: 'stable',
         channelsRunning: 3,
-        agents: const [
-          LanAgent(name: 'Ember', kind: AgentKind.container),
-          LanAgent(name: 'Relay', kind: AgentKind.host),
+        agents: [
+          LanAgent(
+            name: 'Ember',
+            kind: AgentKind.container,
+            state: AgentState.idle,
+            stateSince: since(const Duration(minutes: 12)),
+          ),
+          LanAgent(
+            name: 'Relay',
+            kind: AgentKind.host,
+            state: AgentState.error,
+            stateSince: since(const Duration(hours: 6)),
+          ),
         ]),
     entry('orbit', '',
         os: 'macos',
         route: ChannelRoute.cloud,
         channel: 'stable',
-        agents: const [LanAgent(name: 'Scout', kind: AgentKind.container)]),
+        agents: [
+          // A cloud record carries no duration; this one is a minute and a
+          // half old, so its chip says how old it is.
+          LanAgent(
+            name: 'Scout',
+            kind: AgentKind.container,
+            state: AgentState.working,
+            stateAsOf: now.subtract(const Duration(seconds: 90)),
+          ),
+        ]),
     entry('lab', '203.0.113.7',
         os: 'linux',
         route: ChannelRoute.direct,
         channel: 'stable',
-        agents: const [LanAgent(name: 'Quill', kind: AgentKind.host)]),
+        agents: [
+          LanAgent(
+            name: 'Quill',
+            kind: AgentKind.host,
+            state: AgentState.stopped,
+            stateSince: since(const Duration(hours: 2)),
+          ),
+        ]),
   ]);
 }
 

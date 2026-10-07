@@ -97,4 +97,49 @@ void main() {
       );
     });
   });
+
+  group('LocalApiClient agent-names status', () {
+    final receivedAt = DateTime(2026, 10, 7, 12);
+
+    test('parseAgentNames reads agent_status and now_ms', () {
+      final agents = LocalApiClient.parseAgentNames({
+        'agents': ['AgentX', 'Camper', 'Shell'],
+        'now_ms': 1791352494000,
+        'agent_status': {
+          'agentx': {'state': 'working', 'since_ms': 1791352374000},
+          'Camper': {'state': 'idle', 'since_ms': 1791352000000},
+        },
+      }, receivedAt: receivedAt);
+      expect(agents.map((a) => a.state),
+          [AgentState.working, AgentState.idle, null]);
+      expect(
+        agents.first.stateSince,
+        StateSince(
+          elapsedAtReceipt: const Duration(minutes: 2),
+          receivedAt: receivedAt,
+        ),
+      );
+      // An agent left out of the map has no state: no chip, not "idle".
+      expect(agents.last.stateSince, isNull);
+    });
+
+    test('without now_ms a state has no time', () {
+      final agents = LocalApiClient.parseAgentNames({
+        'agents': ['AgentX'],
+        'agent_status': {
+          'AgentX': {'state': 'working', 'since_ms': 1791352374000},
+        },
+      }, receivedAt: receivedAt);
+      expect(agents.single.state, AgentState.working);
+      expect(agents.single.stateSince, isNull);
+    });
+
+    test('an older desktop body gives no states', () {
+      final agents = LocalApiClient.parseAgentNames({
+        'agents': ['AgentX'],
+      });
+      expect(agents.single.state, isNull);
+      expect(agents.single.stateSince, isNull);
+    });
+  });
 }
