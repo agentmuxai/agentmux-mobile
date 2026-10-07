@@ -6,8 +6,74 @@
 // are computed relative to `DateTime.now()` at call time (not baked into fixed
 // ISO strings) so the "Active now" / "Xm ago" labels always look plausible no
 // matter when the screen is opened. No network call is ever made on this path.
+import '../discovery/host_tree.dart';
+import '../discovery/models/lan_instance.dart';
+import '../fleet/fleet_store.dart';
 import '../models/agent.dart';
 import '../models/message.dart';
+
+/// Sample hosts for the demo host tree: one of each platform and each route,
+/// one host running channels it does not share on the LAN, and both agent
+/// kinds, so every tag the real screen can show appears here
+/// (`docs/specs/SPEC_FLEET_HOST_TAGS_AND_CLOUD_HOSTS_2026_10_06.md`). The
+/// addresses are documentation placeholders; nothing is ever contacted.
+List<HostNode> buildDemoHosts() {
+  final now = DateTime.now();
+  FleetEntry entry(
+    String hostname,
+    String address, {
+    required String os,
+    required ChannelRoute route,
+    required String channel,
+    required List<LanAgent> agents,
+    int? channelsRunning,
+  }) =>
+      FleetEntry(
+        instance: LanInstance(
+          hostname: hostname,
+          version: '0.59.11',
+          address: address,
+          port: 29700,
+          authKey: '',
+          channel: channel,
+          os: os,
+          channelsRunning: channelsRunning,
+          agents: agents,
+        ),
+        route: route,
+        lastSeen: now,
+      );
+
+  return buildHostTrees([
+    entry('atlas', '198.51.100.10',
+        os: 'windows',
+        route: ChannelRoute.lan,
+        channel: 'stable',
+        agents: const [
+          LanAgent(name: 'Nova', kind: AgentKind.host),
+          LanAgent(name: 'Piper', kind: AgentKind.host),
+        ]),
+    entry('forge', '198.51.100.20',
+        os: 'linux',
+        route: ChannelRoute.lanAndCloud,
+        channel: 'stable',
+        channelsRunning: 3,
+        agents: const [
+          LanAgent(name: 'Ember', kind: AgentKind.container),
+          LanAgent(name: 'Relay', kind: AgentKind.host),
+        ]),
+    entry('orbit', '',
+        os: 'macos',
+        route: ChannelRoute.cloud,
+        channel: 'stable',
+        agents: const [LanAgent(name: 'Scout', kind: AgentKind.container)]),
+    entry('lab', '203.0.113.7',
+        os: 'linux',
+        route: ChannelRoute.direct,
+        channel: 'stable',
+        agents: const [LanAgent(name: 'Quill', kind: AgentKind.host)]),
+  ]);
+}
 
 List<Agent> buildDemoAgents() {
   final now = DateTime.now().toUtc();
@@ -60,6 +126,13 @@ List<Message> buildDemoMessages(String agentId) {
     'Piper' => [
         m(12, 'Piper', 'you', 'Docs draft ready for review.'),
         m(90, 'you', 'Piper', 'Ping me when the API reference section is done.'),
+      ],
+    'Ember' => [
+        m(2, 'Ember', 'you', 'Sandbox rebuilt from a clean image, tests pass.'),
+        m(30, 'you', 'Ember', 'Try the migration in the sandbox first.'),
+      ],
+    'Quill' => [
+        m(8, 'Quill', 'you', 'Release notes drafted for the next version.'),
       ],
     'Scout' => [
         m(3, 'Scout', 'you', 'Crawled 240 pages, 3 broken links found.',

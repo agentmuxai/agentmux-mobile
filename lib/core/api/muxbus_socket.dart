@@ -57,7 +57,7 @@ class MuxbusSocket with WidgetsBindingObserver {
   Future<void> _connect() async {
     if (_disposed || _channel != null) return;
     try {
-      final token = await _auth.getValidIdToken();
+      final token = await _auth.getValidAccessToken();
       // No path suffix -- the ApiMapping for muxbus-ws.agentmux.ai has no
       // apiMappingKey, so the client connects at the domain root (matches
       // the desktop client, fixed for the same reason in agentmux#1955; see

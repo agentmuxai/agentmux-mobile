@@ -99,6 +99,32 @@ void main() {
       updates = [];
     });
 
+    test('a fleet event carries kinds, platform, install id and count', () {
+      fakeAsync((async) {
+        session = make()..start();
+        async.flushMicrotasks();
+        t.streams.single.add(const FleetSnapshot(
+          epoch: 'e1',
+          rev: 1,
+          hostname: 'narko',
+          version: '0.59.11',
+          agents: ['AgentX', 'Camper', 'Lark'],
+          os: 'windows',
+          installId: 'mw3am46w5weex4a4fqrc3avnua',
+          channelsRunning: 3,
+          agentKinds: {'agentx': AgentKind.container, 'camper': AgentKind.host},
+        ));
+        async.flushMicrotasks();
+        final c = updates.whereType<SessionContact>().single;
+        expect(c.agents!.map((a) => a.kind),
+            [AgentKind.container, AgentKind.host, null]);
+        expect(c.os, 'windows');
+        expect(c.installId, 'mw3am46w5weex4a4fqrc3avnua');
+        expect(c.channelsRunning, 3);
+        session.stop();
+      });
+    });
+
     test('a stream event becomes a contact with agents; a heartbeat without',
         () {
       fakeAsync((async) {

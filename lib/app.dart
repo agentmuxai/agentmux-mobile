@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'core/auth/auth_provider.dart';
 import 'core/discovery/models/lan_instance.dart';
+import 'core/fleet/fleet_store.dart';
 import 'features/agent_detail/agent_detail_screen.dart';
 import 'features/agent_list/agent_list_screen.dart';
 import 'features/debug/debug_log_screen.dart';
@@ -76,9 +77,11 @@ GoRouter _buildRouter(AsyncValue<AuthStatus> authState) {
               extra['agent'] is! LanAgent) {
             return const DiscoveryScreen();
           }
+          final route = extra['route'];
           return LanAgentScreen(
             instance: extra['instance'] as LanInstance,
             agent: extra['agent'] as LanAgent,
+            route: route is ChannelRoute ? route : null,
           );
         },
       ),

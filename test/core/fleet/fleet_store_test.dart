@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:agentmux_mobile/core/discovery/models/lan_instance.dart';
 import 'package:agentmux_mobile/core/fleet/channel_session.dart';
+import 'package:agentmux_mobile/core/fleet/cloud_instances.dart';
 import 'package:agentmux_mobile/core/fleet/fleet_store.dart';
 
 final t0 = DateTime(2026, 10, 3, 12);
@@ -223,6 +224,129 @@ void main() {
       final (pruned, gone) = s.prune(t0);
       expect(gone, isEmpty);
       expect(pruned, same(s));
+    });
+  });
+
+  group('display fields', () {
+    test('a sighting and a contact carry os, install id and count', () {
+      var (s, id) = _add(const FleetStore(), _sight());
+      final (s2, _, _) = s.sight(
+        const Sighting(
+          hostname: 'narko',
+          address: '198.51.100.30',
+          port: 29704,
+          authKey: 'lan-k',
+          version: '0.59.11',
+          channel: 'local-main',
+          os: 'windows',
+          installId: 'mw3am46w5weex4a4fqrc3avnua',
+        ),
+        t0,
+        newId: () => 'x',
+      );
+      s = s2.apply(
+        id,
+        const SessionContact(epoch: 'e', rev: 1, channelsRunning: 3),
+        t0,
+      );
+      final i = s.records[id]!.toInstance();
+      expect(i.os, 'windows');
+      expect(i.installId, 'mw3am46w5weex4a4fqrc3avnua');
+      expect(i.channelsRunning, 3);
+    });
+
+    test('a stale rev does not change the channel count', () {
+      var (s, id) = _add(const FleetStore(), _sight());
+      s = s.apply(
+          id, const SessionContact(epoch: 'e', rev: 5, channelsRunning: 3), t0);
+      s = s.apply(
+          id, const SessionContact(epoch: 'e', rev: 4, channelsRunning: 1), t0);
+      expect(s.records[id]!.channelsRunning, 3);
+    });
+  });
+
+  group('route', () {
+    test('LAN discovery is LAN; a QR/manual entry is LAN only when private',
+        () {
+      final (s, lan) = _add(const FleetStore(), _sight());
+      expect(s.records[lan]!.route, ChannelRoute.lan);
+      final (s2, private) = _add(
+        s,
+        _sight(port: 2, channel: 'b', source: EndpointSource.manual),
+      );
+      expect(s2.records[private]!.route, ChannelRoute.lan);
+      final (s3, public) = _add(
+        s2,
+        _sight(
+          hostname: 'far',
+          address: '203.0.113.7',
+          port: 3,
+          channel: 'c',
+          source: EndpointSource.manual,
+        ),
+      );
+      expect(s3.records[public]!.route, ChannelRoute.direct);
+    });
+  });
+
+  group('cloud channels', () {
+    CloudInstance cloud(
+      String id, {
+      String hostname = 'area54',
+      String channel = 'stable',
+      DateTime? receivedAt,
+    }) =>
+        CloudInstance(
+          instanceId: id,
+          hostname: hostname,
+          channel: channel,
+          version: '0.59.11',
+          os: 'macos',
+          channelsRunning: 2,
+          agents: const [LanAgent(name: 'AgentA', kind: AgentKind.host)],
+          receivedAtMs: (receivedAt ?? t0).millisecondsSinceEpoch,
+        );
+
+    test('each install becomes one cloud record, keyed by its id', () {
+      final s = const FleetStore().syncCloud([cloud('aaaa'), cloud('bbbb')]);
+      final r = s.records[FleetStore.cloudRecordId('aaaa')]!;
+      expect(r.source, EndpointSource.cloud);
+      expect(r.route, ChannelRoute.cloud);
+      expect(r.installId, 'aaaa');
+      expect(r.os, 'macos');
+      expect(r.agents.single.kind, AgentKind.host);
+      expect(s.records, hasLength(2));
+    });
+
+    test('a refresh replaces the cloud records and leaves LAN ones alone', () {
+      var (s, lan) = _add(const FleetStore(), _sight());
+      s = s.syncCloud([cloud('aaaa'), cloud('bbbb')]);
+      s = s.syncCloud([cloud('bbbb')]);
+      expect(s.records.keys,
+          unorderedEquals([lan, FleetStore.cloudRecordId('bbbb')]));
+      s = s.clearCloud();
+      expect(s.records.keys, [lan]);
+    });
+
+    test('live while received in the last 3 minutes, then stale, never gone',
+        () {
+      final s = const FleetStore().syncCloud([cloud('aaaa')]);
+      final r = s.records[FleetStore.cloudRecordId('aaaa')]!;
+      expect(r.presence(t0.add(const Duration(minutes: 2))), Presence.live);
+      expect(r.presence(t0.add(const Duration(minutes: 3))), Presence.stale);
+      expect(r.presence(t0.add(const Duration(hours: 20))), Presence.stale);
+      final (pruned, gone) = s.prune(t0.add(const Duration(hours: 20)));
+      expect(gone, isEmpty);
+      expect(pruned.records, hasLength(1));
+    });
+
+    test('a LAN sighting never lands on a cloud record of the same name', () {
+      var s = const FleetStore()
+          .syncCloud([cloud('aaaa', hostname: 'narko', channel: 'local-main')]);
+      final (s2, id, effect) = s.sight(_sight(), t0, newId: () => 'lan0');
+      expect(effect, SightingEffect.added);
+      expect(id, 'lan0');
+      expect(s2.records, hasLength(2));
     });
   });
 }

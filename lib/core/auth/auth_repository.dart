@@ -72,20 +72,28 @@ class AuthRepository {
 
   // ── Token access ─────────────────────────────────────────────────────────
 
-  Future<String> getValidIdToken() async {
+  /// The bearer token for the relay: the Cognito **access** token. The relay
+  /// accepts only access tokens (an ID token is refused as unauthorised), so
+  /// every MuxBus call and the socket use this.
+  Future<String> getValidAccessToken() async {
     final expiry = await _storage.readExpiry();
-    final idToken = await _storage.readIdToken();
+    final accessToken = await _storage.readAccessToken();
 
-    if (idToken == null) throw AuthException('Not authenticated');
+    if (await _storage.readRefreshToken() == null) {
+      throw AuthException('Not authenticated');
+    }
 
-    // Refresh 60 seconds before actual expiry to avoid edge-case 401s.
-    final needsRefresh = expiry == null ||
+    // Refresh 60 seconds before actual expiry to avoid edge-case 401s. A
+    // session saved before the access token was stored has none: refresh.
+    final needsRefresh = accessToken == null ||
+        expiry == null ||
         DateTime.now().isAfter(expiry.subtract(const Duration(seconds: 60)));
 
     if (needsRefresh) return refreshTokens();
-    return idToken;
+    return accessToken;
   }
 
+  /// Refreshes the session and returns the new access token.
   Future<String> refreshTokens() async {
     final refreshToken = await _storage.readRefreshToken();
     if (refreshToken == null) throw AuthException('No refresh token');
@@ -107,7 +115,7 @@ class AuthRepository {
         // Cognito does not issue a new refresh token on refresh — reuse existing.
         existingRefreshToken: refreshToken);
 
-    return (await _storage.readIdToken())!;
+    return (await _storage.readAccessToken())!;
   }
 
   Future<String?> getUserSub() => _storage.readUserSub();
@@ -139,11 +147,12 @@ class AuthRepository {
     String? existingRefreshToken,
   }) async {
     final idToken = data['id_token'] as String?;
+    final accessToken = data['access_token'] as String?;
     final refreshToken =
         (data['refresh_token'] as String?) ?? existingRefreshToken;
     final expiresIn = data['expires_in'] as int? ?? 3600;
 
-    if (idToken == null || refreshToken == null) {
+    if (idToken == null || accessToken == null || refreshToken == null) {
       throw AuthException('Incomplete token response');
     }
 
@@ -152,6 +161,7 @@ class AuthRepository {
 
     await _storage.save(
       idToken: idToken,
+      accessToken: accessToken,
       refreshToken: refreshToken,
       expiry: expiry,
       userSub: sub,
