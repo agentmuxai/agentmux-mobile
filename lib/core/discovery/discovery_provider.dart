@@ -13,6 +13,8 @@ import '../fleet/cloud_instances.dart';
 import '../fleet/fleet_store.dart';
 import '../fleet/fleet_transport.dart';
 import '../logging/app_logger.dart';
+import '../viewer/paired_hosts_repository.dart';
+import '../viewer/paired_match.dart';
 import 'discovery_telemetry.dart';
 import 'host_tree.dart';
 import 'local_api_client.dart';
@@ -143,6 +145,8 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
   @override
   DiscoveryState build() {
     ref.onDispose(_dispose);
+    // Pairing or unpairing changes what the host cards show.
+    ref.listen(pairedHostsProvider, (_, __) => _scheduleEmit());
     if (ref.read(followAppLifecycleProvider)) {
       _lifecycle = AppLifecycleListener(onPause: _pause, onResume: _resume);
     }
@@ -488,11 +492,37 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
         route: r.route,
       ));
     }
+    final hosts = entries.isEmpty
+        ? const <HostNode>[]
+        : applyPairings(buildHostTrees(entries), ref.read(pairedHostsProvider));
+    _followMovedPairings(hosts);
     state = entries.isNotEmpty
-        ? DiscoveryResults(buildHostTrees(entries), cloud: _cloudStatus)
+        ? DiscoveryResults(hosts, cloud: _cloudStatus)
         : (_firstRoundDone
             ? DiscoveryEmpty(cloud: _cloudStatus)
             : const DiscoveryScanning());
+  }
+
+  /// Where each paired channel's viewer listener was last asked to move to,
+  /// so a move is stored once, not on every emit until the store catches up.
+  final _requestedMoves = <String, String>{};
+
+  /// Stores the address and `viewer_port` discovery reports for a paired
+  /// host that answers, so the pairing still works after the desktop changes
+  /// address or port, even before discovery finds it next time.
+  void _followMovedPairings(List<HostNode> hosts) {
+    for (final h in hosts) {
+      for (final c in h.channels) {
+        final m = c.pairing;
+        if (m == null || !m.moved || c.presence != Presence.live) continue;
+        final target = '${m.host}:${m.port}';
+        if (_requestedMoves[m.paired.id] == target) continue;
+        _requestedMoves[m.paired.id] = target;
+        unawaited(ref
+            .read(pairedHostsProvider.notifier)
+            .updateEndpoint(m.paired.id, m.host, m.port));
+      }
+    }
   }
 
   // ─── direct connections ────────────────────────────────────────────────────

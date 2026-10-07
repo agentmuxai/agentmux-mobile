@@ -2,6 +2,7 @@ import 'dart:math';
 
 import '../fleet/channel_session.dart';
 import '../fleet/fleet_store.dart';
+import '../viewer/paired_host.dart';
 import 'models/lan_instance.dart';
 
 /// One discovered channel as the view needs it: what it reports, plus how
@@ -57,6 +58,7 @@ class ChannelNode {
     this.lastSeen,
     this.route = ChannelRoute.lan,
     this.cloudOnly = false,
+    this.pairing,
     String? key,
   }) : key = key ?? name;
 
@@ -77,6 +79,24 @@ class ChannelNode {
   /// channel, `cloud:<instance id>` for a cloud-only one (two installs may
   /// share a channel name).
   final String key;
+
+  /// This device's pairing with the channel, when it has one: its agents'
+  /// live feeds can be watched (`SPEC_AGENT_STATUS_AND_LIVE_PANE_FEED_2026_10_07.md`
+  /// 13.4). Set by `applyPairings`, never by [buildHostTrees].
+  final PairingMatch? pairing;
+
+  ChannelNode withPairing(PairingMatch? pairing) => ChannelNode(
+        name: name,
+        via: via,
+        agents: agents,
+        presence: presence,
+        error: error,
+        lastSeen: lastSeen,
+        route: route,
+        cloudOnly: cloudOnly,
+        pairing: pairing,
+        key: key,
+      );
 }
 
 /// One machine and the channels running on it.
@@ -105,6 +125,14 @@ class HostNode {
   final String key;
 
   HostPlatform? get platform => platformFromOs(os);
+
+  HostNode withChannels(List<ChannelNode> channels) => HostNode(
+        name: name,
+        channels: channels,
+        os: os,
+        channelsRunning: channelsRunning,
+        key: key,
+      );
 
   /// The channel level is only worth showing when the machine runs more than
   /// one channel; a lone channel's agents hang directly off the host. What it
