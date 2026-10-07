@@ -17,12 +17,12 @@ void main() {
     test('reads os, install_id, channels_running and agent_kinds', () {
       final s = FleetSnapshot.tryParse(_body({
         'os': 'windows',
-        'install_id': 'pqkksqckrolze5wvcs6rqeic4e',
+        'install_id': 'mw3am46w5weex4a4fqrc3avnua',
         'channels_running': 3,
         'agent_kinds': {'AgentX': 'container', 'Camper': 'host'},
       }))!;
       expect(s.os, 'windows');
-      expect(s.installId, 'pqkksqckrolze5wvcs6rqeic4e');
+      expect(s.installId, 'mw3am46w5weex4a4fqrc3avnua');
       expect(s.channelsRunning, 3);
       expect(s.agentKinds,
           {'agentx': AgentKind.container, 'camper': AgentKind.host});

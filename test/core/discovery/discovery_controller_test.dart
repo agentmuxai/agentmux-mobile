@@ -395,7 +395,7 @@ void main() {
         cloud.signedIn = true;
         cloud.list = () => [
               _install(
-                'pqkksqckrolze5wvcs6rqeic4e',
+                'mw3am46w5weex4a4fqrc3avnua',
                 hostname: 'narko',
                 channel: 'local-main',
                 receivedAt: DateTime.now(),
@@ -403,7 +403,7 @@ void main() {
             ];
         udp.replies = [
           _reply(29704, 'local-main')
-              .copyWith(installId: 'pqkksqckrolze5wvcs6rqeic4e'),
+              .copyWith(installId: 'mw3am46w5weex4a4fqrc3avnua'),
         ];
         host.agents[29704] = ['Clamk'];
         container.read(discoveryProvider);

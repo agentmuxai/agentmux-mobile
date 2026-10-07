@@ -110,7 +110,7 @@ void main() {
           version: '0.59.11',
           agents: ['AgentX', 'Camper', 'Lark'],
           os: 'windows',
-          installId: 'pqkksqckrolze5wvcs6rqeic4e',
+          installId: 'mw3am46w5weex4a4fqrc3avnua',
           channelsRunning: 3,
           agentKinds: {'agentx': AgentKind.container, 'camper': AgentKind.host},
         ));
@@ -119,7 +119,7 @@ void main() {
         expect(c.agents!.map((a) => a.kind),
             [AgentKind.container, AgentKind.host, null]);
         expect(c.os, 'windows');
-        expect(c.installId, 'pqkksqckrolze5wvcs6rqeic4e');
+        expect(c.installId, 'mw3am46w5weex4a4fqrc3avnua');
         expect(c.channelsRunning, 3);
         session.stop();
       });

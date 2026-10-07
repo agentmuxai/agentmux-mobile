@@ -11,10 +11,10 @@ import 'package:agentmux_mobile/core/fleet/cloud_instances.dart';
 
 Map<String, Object?> _record([Map<String, Object?> extra = const {}]) => {
       'v': 1,
-      'instance_id': 'pqkksqckrolze5wvcs6rqeic4e',
+      'instance_id': 'mw3am46w5weex4a4fqrc3avnua',
       'instance_public_key': 'AAAA',
       'hostname': 'narko',
-      'channel': 'local-main-b28b7a-8bf515d4',
+      'channel': 'local-main-0a1b2c-5e6f7a8b',
       'os': 'windows',
       'version': '0.59.11',
       'channels_running': 3,
@@ -59,9 +59,9 @@ void main() {
   group('CloudInstance.tryParse', () {
     test('reads a record', () {
       final c = CloudInstance.tryParse(_record())!;
-      expect(c.instanceId, 'pqkksqckrolze5wvcs6rqeic4e');
+      expect(c.instanceId, 'mw3am46w5weex4a4fqrc3avnua');
       expect(c.hostname, 'narko');
-      expect(c.channel, 'local-main-b28b7a-8bf515d4');
+      expect(c.channel, 'local-main-0a1b2c-5e6f7a8b');
       expect(c.os, 'windows');
       expect(c.version, '0.59.11');
       expect(c.channelsRunning, 3);
@@ -136,7 +136,7 @@ void main() {
       });
       expect(list, hasLength(2));
       final narko = list.firstWhere(
-          (c) => c.instanceId == 'pqkksqckrolze5wvcs6rqeic4e');
+          (c) => c.instanceId == 'mw3am46w5weex4a4fqrc3avnua');
       expect(narko.version, '0.59.12');
     });
 

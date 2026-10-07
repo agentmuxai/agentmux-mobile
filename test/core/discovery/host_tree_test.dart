@@ -310,7 +310,7 @@ void main() {
   });
 
   group('buildHostTrees: LAN and cloud', () {
-    const id = 'pqkksqckrolze5wvcs6rqeic4e';
+    const id = 'mw3am46w5weex4a4fqrc3avnua';
 
     FleetEntry lan({
       String? installId = id,

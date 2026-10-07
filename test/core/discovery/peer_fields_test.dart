@@ -29,8 +29,8 @@ void main() {
 
   group('parseInstallId', () {
     test('accepts a base32 id and rejects junk', () {
-      expect(parseInstallId('pqkksqckrolze5wvcs6rqeic4e'),
-          'pqkksqckrolze5wvcs6rqeic4e');
+      expect(parseInstallId('mw3am46w5weex4a4fqrc3avnua'),
+          'mw3am46w5weex4a4fqrc3avnua');
       expect(parseInstallId(''), isNull);
       expect(parseInstallId('a b'), isNull);
       expect(parseInstallId('x' * 65), isNull);

@@ -239,7 +239,7 @@ void main() {
           version: '0.59.11',
           channel: 'local-main',
           os: 'windows',
-          installId: 'pqkksqckrolze5wvcs6rqeic4e',
+          installId: 'mw3am46w5weex4a4fqrc3avnua',
         ),
         t0,
         newId: () => 'x',
@@ -251,7 +251,7 @@ void main() {
       );
       final i = s.records[id]!.toInstance();
       expect(i.os, 'windows');
-      expect(i.installId, 'pqkksqckrolze5wvcs6rqeic4e');
+      expect(i.installId, 'mw3am46w5weex4a4fqrc3avnua');
       expect(i.channelsRunning, 3);
     });
 

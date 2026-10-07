@@ -167,7 +167,7 @@ void main() {
     final host = buildHostTrees([
       _entry(
         hostname: 'a-very-long-host-name-indeed',
-        channel: 'local-main-b28b7a-8bf515d4-and-more',
+        channel: 'local-main-0a1b2c-5e6f7a8b-and-more',
         channelsRunning: 3,
         route: ChannelRoute.lanAndCloud,
         agents: const [

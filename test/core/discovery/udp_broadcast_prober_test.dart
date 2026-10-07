@@ -197,11 +197,11 @@ void main() {
     test('reads os, install_id and channels_running', () {
       final i = UdpBroadcastProber.parseResponse(_datagram(jsonEncode(reply({
         'os': 'windows',
-        'install_id': 'pqkksqckrolze5wvcs6rqeic4e',
+        'install_id': 'mw3am46w5weex4a4fqrc3avnua',
         'channels_running': 3,
       }))))!;
       expect(i.os, 'windows');
-      expect(i.installId, 'pqkksqckrolze5wvcs6rqeic4e');
+      expect(i.installId, 'mw3am46w5weex4a4fqrc3avnua');
       expect(i.channelsRunning, 3);
     });
 

@@ -10,13 +10,13 @@ void main() {
         'hostname=narko',
         'channel=local-main',
         'os=windows',
-        'install_id=pqkksqckrolze5wvcs6rqeic4e',
+        'install_id=mw3am46w5weex4a4fqrc3avnua',
       ].join('\n'));
       expect(txt.authKey, 'lan-a');
       expect(txt.hostname, 'narko');
       expect(txt.channel, 'local-main');
       expect(txt.os, 'windows');
-      expect(txt.installId, 'pqkksqckrolze5wvcs6rqeic4e');
+      expect(txt.installId, 'mw3am46w5weex4a4fqrc3avnua');
     });
 
     test('an older desktop without them parses with nulls', () {
