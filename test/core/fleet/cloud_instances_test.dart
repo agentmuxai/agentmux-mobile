@@ -12,7 +12,6 @@ import 'package:agentmux_mobile/core/fleet/cloud_instances.dart';
 Map<String, Object?> _record([Map<String, Object?> extra = const {}]) => {
       'v': 1,
       'instance_id': 'testinstallidtestinstallid',
-      'instance_public_key': 'AAAA',
       'hostname': 'narko',
       'channel': 'local-main-0a1b2c-5e6f7a8b',
       'os': 'windows',
@@ -23,7 +22,6 @@ Map<String, Object?> _record([Map<String, Object?> extra = const {}]) => {
         {'name': 'Camper', 'kind': 'host'},
       ],
       'published_at_ms': 1791352493388,
-      'sig': 'BBBB',
       'received_at_ms': 1791352494000,
       ...extra,
     };
