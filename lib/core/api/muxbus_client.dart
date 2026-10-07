@@ -130,7 +130,7 @@ class _AuthInterceptor extends Interceptor {
     RequestInterceptorHandler handler,
   ) async {
     try {
-      final token = await _auth.getValidIdToken();
+      final token = await _auth.getValidAccessToken();
       options.headers['Authorization'] = 'Bearer $token';
     } catch (_) {
       // No token yet — let the request proceed; server will 401.
