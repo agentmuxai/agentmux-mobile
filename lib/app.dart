@@ -205,7 +205,7 @@ class _CloudShell extends ConsumerWidget {
     // both auth-gated by the router's own redirect and would just bounce
     // straight to /login with no explanation if tapped. Showing all three
     // tabs as if they were live options is misleading in that state (a real
-    // finding from Codex/ReAgent review on #28: an unauthenticated user
+    // finding from Codex/muxreview review on #28: an unauthenticated user
     // reaching Settings via Discovery's new menu item could tap Agents/Usage
     // and get silently redirected). Settings' own AppBar already has an
     // explicit back button for this case, so dropping the tab bar entirely

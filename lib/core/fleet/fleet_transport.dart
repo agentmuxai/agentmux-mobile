@@ -130,7 +130,7 @@ class HttpFleetTransport implements FleetTransport {
               events = parser.add(text);
             } on FormatException catch (e, st) {
               // An over-long line from a misbehaving peer: a lost stream, not
-              // proof of life (ReAgent P2 on #34).
+              // proof of life (muxreview P2 on #34).
               fail(e, st);
               return;
             }
