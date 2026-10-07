@@ -5,7 +5,11 @@ import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../api/api_provider.dart';
+import '../auth/auth_provider.dart';
 import '../fleet/channel_session.dart';
+import '../fleet/cloud_instance_source.dart';
+import '../fleet/cloud_instances.dart';
 import '../fleet/fleet_store.dart';
 import '../fleet/fleet_transport.dart';
 import '../logging/app_logger.dart';
@@ -34,13 +38,17 @@ class DiscoveryScanning extends DiscoveryState {
 }
 
 class DiscoveryResults extends DiscoveryState {
-  const DiscoveryResults(this.hosts);
+  const DiscoveryResults(this.hosts, {this.cloud = CloudListStatus.pending});
   final List<HostNode> hosts;
+
+  /// What the cloud host list says, for the note under the list.
+  final CloudListStatus cloud;
 }
 
 /// A round finished and no channel is known.
 class DiscoveryEmpty extends DiscoveryState {
-  const DiscoveryEmpty();
+  const DiscoveryEmpty({this.cloud = CloudListStatus.pending});
+  final CloudListStatus cloud;
 }
 
 // ─── providers ───────────────────────────────────────────────────────────────
@@ -65,6 +73,17 @@ final fleetTransportFactoryProvider = Provider<FleetTransportFactory>(
 final networkSnapshotProvider =
     Provider<Future<NetworkSnapshot> Function()>((_) => captureNetworkSnapshot);
 
+/// Whether the phone is signed in to the cloud; overridden in tests.
+final cloudSignedInProvider = Provider<Future<bool> Function()>(
+  (ref) => ref.watch(authRepositoryProvider).isAuthenticated,
+);
+
+/// Reads the account's cloud install list; overridden in tests.
+final cloudInstancesFetchProvider =
+    Provider<Future<List<CloudInstance>> Function()>(
+  (ref) => ref.watch(muxbusClientProvider).getInstances,
+);
+
 /// Whether discovery pauses in the background (spec P10). Off in unit tests
 /// that run without a widgets binding.
 final followAppLifecycleProvider = Provider<bool>((_) => true);
@@ -82,6 +101,11 @@ final discoveryProvider =
 /// keeps its agents current (push stream, else polling). A [FleetStore] holds
 /// the merged truth, and the tree is rebuilt from it at most every 150 ms. In
 /// the background everything stops; on return it resyncs at once.
+///
+/// When signed in, a [CloudInstanceSource] feeds the account's installs into
+/// the same store as cloud channels
+/// (`SPEC_FLEET_HOST_TAGS_AND_CLOUD_HOSTS_2026_10_06.md` section 5); the
+/// tree joins a cloud channel to a LAN one only by install id.
 class DiscoveryNotifier extends Notifier<DiscoveryState> {
   static const mdnsWindow = Duration(seconds: 4);
   static const udpWindow = Duration(seconds: 2);
@@ -99,6 +123,8 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
   FleetStore _store = const FleetStore();
   final _sessions = <String, ChannelSession>{};
   int _nextId = 0;
+  CloudInstanceSource? _cloud;
+  CloudListStatus _cloudStatus = CloudListStatus.pending;
 
   Timer? _roundTimer;
   Timer? _tickTimer;
@@ -131,8 +157,12 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
     for (final s in _sessions.values) {
       s.resync();
     }
-    return _round();
+    return Future.wait([_round(), refreshCloud()]);
   }
+
+  /// Reads the cloud install list now (pull-to-refresh, or after signing in
+  /// or out).
+  Future<void> refreshCloud() => _cloud?.refresh() ?? Future.value();
 
   /// Connect to an instance by address/port/key without discovery (QR or
   /// manual entry). Throws if the instance cannot be read, for the caller to
@@ -147,6 +177,7 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
     if (_disposed) return;
     _burstUntil = clock.now().add(burstLength);
     _tickTimer = Timer.periodic(tickInterval, (_) => _tick());
+    _startCloud();
     await _maybeAutoConnect();
     unawaited(_round());
   }
@@ -168,6 +199,8 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
       s.stop();
     }
     _sessions.clear();
+    _cloud?.stop();
+    _cloud = null;
   }
 
   void _resume() {
@@ -180,6 +213,7 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
     for (final id in _store.records.keys) {
       _startSession(id);
     }
+    _startCloud();
     unawaited(_round());
   }
 
@@ -192,6 +226,8 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
       s.stop();
     }
     _sessions.clear();
+    _cloud?.stop();
+    _cloud = null;
     _lifecycle?.dispose();
   }
 
@@ -346,12 +382,47 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
     return id;
   }
 
+  // ─── cloud ─────────────────────────────────────────────────────────────────
+
+  void _startCloud() {
+    if (_paused || _disposed || _cloud != null) return;
+    late final CloudInstanceSource source;
+    source = CloudInstanceSource(
+      isSignedIn: ref.read(cloudSignedInProvider),
+      fetch: ref.read(cloudInstancesFetchProvider),
+      onUpdate: (u) {
+        if (_disposed || _cloud != source) return;
+        _onCloud(u);
+      },
+    );
+    _cloud = source;
+    source.start();
+  }
+
+  void _onCloud(CloudUpdate u) {
+    switch (u) {
+      case CloudSignedOut():
+        _store = _store.clearCloud();
+        _cloudStatus = CloudListStatus.signedOut;
+      case CloudFetched(:final instances):
+        _store = _store.syncCloud(instances);
+        _cloudStatus = CloudListStatus.ok;
+      case CloudUnavailable():
+        // What was listed stays, dimming by its own age (spec 3.5).
+        _cloudStatus = CloudListStatus.unavailable;
+      case CloudUnsupported():
+        _cloudStatus = CloudListStatus.unsupported;
+    }
+    _scheduleEmit();
+  }
+
   // ─── sessions ──────────────────────────────────────────────────────────────
 
   void _startSession(String id) {
     if (_paused || _disposed || _sessions.containsKey(id)) return;
     final r = _store.records[id];
-    if (r == null) return;
+    // A cloud channel has no endpoint to hold a session with.
+    if (r == null || r.source == EndpointSource.cloud) return;
     late final ChannelSession session;
     session = ChannelSession(
       transport: ref.read(fleetTransportFactoryProvider)(
@@ -414,11 +485,14 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
         presence: presence,
         error: r.visibleError(now),
         lastSeen: r.lastAlive,
+        route: r.route,
       ));
     }
     state = entries.isNotEmpty
-        ? DiscoveryResults(buildHostTrees(entries))
-        : (_firstRoundDone ? const DiscoveryEmpty() : const DiscoveryScanning());
+        ? DiscoveryResults(buildHostTrees(entries), cloud: _cloudStatus)
+        : (_firstRoundDone
+            ? DiscoveryEmpty(cloud: _cloudStatus)
+            : const DiscoveryScanning());
   }
 
   // ─── direct connections ────────────────────────────────────────────────────

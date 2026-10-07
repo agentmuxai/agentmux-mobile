@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import 'models/lan_instance.dart';
+import 'peer_fields.dart';
 
 class LocalApiClient {
   LocalApiClient(LanInstance instance)
@@ -105,12 +106,19 @@ class LocalApiClient {
     );
   }
 
-  /// Parses a `/agentmux/reactive/agent-names` body: `{"agents": ["name", ...]}`.
+  /// Parses a `/agentmux/reactive/agent-names` body: `{"agents": ["name", ...]}`,
+  /// plus `agent_kinds` (`{"name": "host" | "container"}`) from a desktop
+  /// that sends it. Bounded like the fleet feed: a LAN peer is untrusted.
   @visibleForTesting
   static List<LanAgent> parseAgentNames(Map<String, dynamic>? data) {
     final raw = data?['agents'];
     final names = raw is List ? raw.whereType<String>() : const <String>[];
-    return names.map((n) => LanAgent(name: n)).toList();
+    final kinds = parseAgentKinds(data?['agent_kinds']);
+    return names
+        .where((n) => n.isNotEmpty && n.length <= 128)
+        .take(500)
+        .map((n) => LanAgent(name: n, kind: kinds[n.toLowerCase()]))
+        .toList();
   }
 
   /// POST /agentmux/reactive/inject — send a message to an agent on this instance.

@@ -182,6 +182,74 @@ void main() {
     });
   });
 
+  group('UdpBroadcastProber.parseResponse display fields', () {
+    Map<String, Object?> reply([Map<String, Object?> extra = const {}]) => {
+          'type': 'agentmux_discover_response',
+          'v': 1,
+          'hostname': 'narko',
+          'version': '0.59.11',
+          'port': 29702,
+          'auth_key': 'lan-a',
+          'channel': 'local-main',
+          ...extra,
+        };
+
+    test('reads os, install_id and channels_running', () {
+      final i = UdpBroadcastProber.parseResponse(_datagram(jsonEncode(reply({
+        'os': 'windows',
+        'install_id': 'testinstallidtestinstallid',
+        'channels_running': 3,
+      }))))!;
+      expect(i.os, 'windows');
+      expect(i.installId, 'testinstallidtestinstallid');
+      expect(i.channelsRunning, 3);
+    });
+
+    test('an older desktop without them still parses, with nulls', () {
+      final i =
+          UdpBroadcastProber.parseResponse(_datagram(jsonEncode(reply())))!;
+      expect(i.os, isNull);
+      expect(i.installId, isNull);
+      expect(i.channelsRunning, isNull);
+      expect(i.channel, 'local-main');
+    });
+
+    test('malformed values are dropped, the reply kept', () {
+      final i = UdpBroadcastProber.parseResponse(_datagram(jsonEncode(reply({
+        'os': 'Windows 11',
+        'install_id': 'not an id',
+        'channels_running': 'three',
+      }))))!;
+      expect(i.os, isNull);
+      expect(i.installId, isNull);
+      expect(i.channelsRunning, isNull);
+      expect(i.hostname, 'narko');
+    });
+
+    test('channels_running is clamped', () {
+      final i = UdpBroadcastProber.parseResponse(
+          _datagram(jsonEncode(reply({'channels_running': 500}))))!;
+      expect(i.channelsRunning, 99);
+    });
+
+    test('siblings share the machine platform and count, not the install id',
+        () {
+      final all = UdpBroadcastProber.parseResponseWithSiblings(
+          _datagram(jsonEncode(reply({
+        'os': 'linux',
+        'install_id': 'aaaaaaaaaaaaaaaaaaaaaaaaaa',
+        'channels_running': 2,
+        'siblings': [
+          {'channel': 'stable', 'port': 29700, 'auth_key': 'lan-b'},
+        ],
+      }))));
+      final sib = all[1];
+      expect(sib.os, 'linux');
+      expect(sib.channelsRunning, 2);
+      expect(sib.installId, isNull);
+    });
+  });
+
   group('UdpBroadcastProber.probe', () {
     test('completes and closes cleanly within its internal window', () async {
       final prober = UdpBroadcastProber();

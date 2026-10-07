@@ -157,6 +157,33 @@ String? lanNetworkSignature(List<String> interfaces) {
   return (prefixes.toList()..sort()).join(',');
 }
 
+/// Whether [address] (as typed or scanned: an IP or a host name) is on a
+/// local network rather than the internet: RFC 1918, loopback and
+/// link-local IPv4; loopback, link-local and unique-local IPv6; and a
+/// single-label or `.local` host name. Anything else, including a public IP
+/// and a VPN/CGNAT address, is not. Used only for the route badge.
+bool isPrivateAddress(String address) {
+  final a = address.trim().toLowerCase();
+  if (a.isEmpty) return false;
+  if (_ipv4ToInt(a) != null) {
+    return [..._privateCidrs, '127.0.0.0/8', '169.254.0.0/16']
+        .any((c) => _inCidr(a, c));
+  }
+  if (a.contains(':')) {
+    final v6 = a.startsWith('[') && a.endsWith(']')
+        ? a.substring(1, a.length - 1)
+        : a;
+    return v6 == '::1' ||
+        v6.startsWith('fe8') ||
+        v6.startsWith('fe9') ||
+        v6.startsWith('fea') ||
+        v6.startsWith('feb') ||
+        v6.startsWith('fc') ||
+        v6.startsWith('fd');
+  }
+  return a == 'localhost' || !a.contains('.') || a.endsWith('.local');
+}
+
 int? _ipv4ToInt(String ip) {
   final parts = ip.split('.');
   if (parts.length != 4) return null;

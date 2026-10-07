@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import '../logging/app_logger.dart';
 import 'discovery_telemetry.dart';
 import 'models/lan_instance.dart';
+import 'peer_fields.dart';
 
 /// LAN-discovery Layer 2 fallback: a UDP broadcast probe/response, used when
 /// mDNS multicast is filtered (corporate/guest WiFi, client isolation).
@@ -17,6 +18,8 @@ import 'models/lan_instance.dart';
 ///  - Response (unicast): {"type":"agentmux_discover_response","v":1,
 ///        "instance_id":"...","hostname":"...","version":"...",
 ///        "port":12345,"auth_key":"..."}
+///    plus optional fields newer desktops add: `channel`, `siblings`, `os`,
+///    `install_id`, `channels_running`.
 const probePort = 47891;
 const _probeMessage = '{"type":"agentmux_discover","v":1}';
 const _defaultProbeWindow = Duration(seconds: 2);
@@ -228,6 +231,11 @@ class UdpBroadcastProber {
         authKey: authKey,
         instanceId: instanceId is String ? instanceId : null,
         channel: channel is String && channel.isNotEmpty ? channel : null,
+        // Display fields, absent from older desktops; each is validated and
+        // dropped (never fatal) when malformed.
+        os: parseOs(decoded['os']),
+        installId: parseInstallId(decoded['install_id']),
+        channelsRunning: parseChannelsRunning(decoded['channels_running']),
       );
     } catch (_) {
       return null;
@@ -273,6 +281,11 @@ class UdpBroadcastProber {
           channel: channel is String && channel.isNotEmpty && channel.length <= 128
               ? channel
               : null,
+          // Same machine as the responder, so the same platform and channel
+          // count; its install id is its own, when the entry carries one.
+          os: primary.os,
+          channelsRunning: primary.channelsRunning,
+          installId: parseInstallId(s['install_id']),
         ));
       }
     } catch (_) {

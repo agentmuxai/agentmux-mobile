@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:agentmux_mobile/core/discovery/local_api_client.dart';
+import 'package:agentmux_mobile/core/discovery/models/lan_instance.dart';
 
 DioException _dioWithStatus(int status) {
   final req = RequestOptions(path: '/agentmux/discovery');
@@ -51,6 +52,22 @@ void main() {
       });
       expect(agents.map((a) => a.name), ['Clare', 'AgentO']);
       expect(agents.every((a) => a.channel == null), isTrue);
+    });
+
+    test('parseAgentNames reads agent_kinds when the desktop sends them', () {
+      final agents = LocalApiClient.parseAgentNames({
+        'agents': ['AgentX', 'Camper', 'Old'],
+        'agent_kinds': {'agentx': 'container', 'Camper': 'host', 'Old': 'vm'},
+      });
+      expect(agents.map((a) => a.kind),
+          [AgentKind.container, AgentKind.host, null]);
+    });
+
+    test('parseAgentNames without agent_kinds gives no kinds', () {
+      final agents = LocalApiClient.parseAgentNames({
+        'agents': ['AgentX'],
+      });
+      expect(agents.single.kind, isNull);
     });
 
     test('parseAgentNames returns nothing for a missing or malformed body', () {
