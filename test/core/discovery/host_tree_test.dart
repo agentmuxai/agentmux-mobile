@@ -434,8 +434,8 @@ void main() {
       expect(atlas.channels.single.cloudOnly, isTrue);
     });
 
-    test('a cloud-only agent opens the cloud screen; a merged one the LAN '
-        'screen', () {
+    test('a cloud-only agent opens the cloud screen; an unpaired merged one '
+        'the pair prompt', () {
       final cloudOnly = buildHostTrees([cloud()]).single.channels.single;
       expect(agentLocation(cloudOnly, cloudOnly.agents.first),
           '/agents/AgentX');
@@ -443,7 +443,7 @@ void main() {
           buildHostTrees([lan(), cloud()]).single.channels.single;
       expect(agentLocation(merged, merged.agents.single),
           '/instance/${Uri.encodeComponent('198.51.100.30:29702')}'
-          '/agent/Camper');
+          '/agent/Camper/unpaired');
     });
 
     test('a merged channel whose LAN side went quiet opens the cloud screen',
