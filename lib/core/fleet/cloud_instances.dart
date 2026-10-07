@@ -6,6 +6,10 @@ import '../discovery/peer_fields.dart';
 /// `docs/specs/SPEC_FLEET_HOST_TAGS_AND_CLOUD_HOSTS_2026_10_06.md` section 5.
 ///
 /// Every field is bounded: it is display data that came off another machine.
+///
+/// A `v: 2` record's agents may carry `state`
+/// (`SPEC_AGENT_STATUS_AND_LIVE_PANE_FEED_2026_10_07.md` section 13.1); a v1
+/// record has none, and a `state` on one is ignored.
 class CloudInstance {
   const CloudInstance({
     required this.instanceId,
@@ -31,8 +35,9 @@ class CloudInstance {
   final int? channelsRunning;
   final List<LanAgent> agents;
 
-  /// When the relay last received this install's record, by the relay's
-  /// clock. Presence is judged from it.
+  /// When the relay last received this install's record, moved onto this
+  /// device's clock (see [parseList]). Presence and the "as of" age are
+  /// judged from it.
   final int receivedAtMs;
 
   static String? _text(Object? v, int max) =>
@@ -42,7 +47,10 @@ class CloudInstance {
 
   /// Parses one record, or returns null when a required field is missing or
   /// out of bounds. Optional fields that are malformed are dropped.
-  static CloudInstance? tryParse(Object? json) {
+  ///
+  /// [clockOffsetMs] is added to the relay's `received_at_ms` to put it on
+  /// this device's clock.
+  static CloudInstance? tryParse(Object? json, {int clockOffsetMs = 0}) {
     if (json is! Map) return null;
     final instanceId = parseInstallId(json['instance_id']);
     final hostname = _text(json['hostname'], maxNameLength);
@@ -55,6 +63,9 @@ class CloudInstance {
         received <= 0) {
       return null;
     }
+    final receivedLocal = received + clockOffsetMs;
+    final version = json['v'];
+    final hasStates = version is int && version >= 2;
     final rawAgents = json['agents'];
     final agents = <LanAgent>[];
     if (rawAgents is List) {
@@ -64,7 +75,16 @@ class CloudInstance {
         if (name == null) continue;
         final lower = name.toLowerCase();
         if (agents.any((x) => x.name.toLowerCase() == lower)) continue;
-        agents.add(LanAgent(name: name, kind: parseAgentKind(a['kind'])));
+        final state = hasStates ? parseAgentState(a['state']) : null;
+        agents.add(LanAgent(
+          name: name,
+          kind: parseAgentKind(a['kind']),
+          state: state,
+          // No since time in the cloud: the chip says how old the record is.
+          stateAsOf: state == null
+              ? null
+              : DateTime.fromMillisecondsSinceEpoch(receivedLocal),
+        ));
       }
     }
     return CloudInstance(
@@ -75,19 +95,33 @@ class CloudInstance {
       os: parseOs(json['os']),
       channelsRunning: parseChannelsRunning(json['channels_running']),
       agents: agents,
-      receivedAtMs: received,
+      receivedAtMs: receivedLocal,
     );
   }
 
   /// Parses a `GET /wan-instances` body (`{"instances": [...]}`): bad
   /// records are skipped, and an install listed twice keeps its newest record.
-  static List<CloudInstance> parseList(Object? body) {
+  ///
+  /// The relay's times are moved onto this device's clock by the difference
+  /// between [fetchedAt] (this device's clock when the answer arrived) and
+  /// [relayNow] (the relay's clock then, from the response's `Date` header),
+  /// so a device clock that runs ahead of or behind the relay's never makes a
+  /// fresh record look old or an old one fresh. Without [relayNow] the times
+  /// are used as given.
+  static List<CloudInstance> parseList(
+    Object? body, {
+    DateTime? relayNow,
+    DateTime? fetchedAt,
+  }) {
+    final offsetMs = relayNow != null && fetchedAt != null
+        ? fetchedAt.millisecondsSinceEpoch - relayNow.millisecondsSinceEpoch
+        : 0;
     if (body is! Map) return const [];
     final raw = body['instances'];
     if (raw is! List) return const [];
     final byId = <String, CloudInstance>{};
     for (final r in raw.take(maxInstances)) {
-      final c = tryParse(r);
+      final c = tryParse(r, clockOffsetMs: offsetMs);
       if (c == null) continue;
       final seen = byId[c.instanceId];
       if (seen == null || c.receivedAtMs > seen.receivedAtMs) {

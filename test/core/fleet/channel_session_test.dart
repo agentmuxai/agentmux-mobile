@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:clock/clock.dart';
 import 'package:dio/dio.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:agentmux_mobile/core/discovery/models/lan_instance.dart';
+import 'package:agentmux_mobile/core/discovery/peer_fields.dart';
 import 'package:agentmux_mobile/core/fleet/channel_session.dart';
 import 'package:agentmux_mobile/core/fleet/fleet_snapshot.dart';
 import 'package:agentmux_mobile/core/fleet/fleet_transport.dart';
@@ -121,6 +123,44 @@ void main() {
         expect(c.os, 'windows');
         expect(c.installId, 'testinstallidtestinstallid');
         expect(c.channelsRunning, 3);
+        session.stop();
+      });
+    });
+
+    test('a fleet event carries states, timed by the desktop clock alone', () {
+      fakeAsync((async) {
+        session = make()..start();
+        async.flushMicrotasks();
+        final receivedAt = clock.now();
+        // The desktop's clock is about a year ahead of this device's; only
+        // the difference between its own two times may count.
+        const desktopNow = 1823000000000;
+        t.streams.single.add(const FleetSnapshot(
+          epoch: 'e1',
+          rev: 1,
+          hostname: 'narko',
+          version: '0.59.11',
+          agents: ['AgentX', 'Camper', 'Lark'],
+          nowMs: desktopNow,
+          agentStatus: {
+            'agentx': ReportedAgentStatus(
+              AgentState.working,
+              sinceMs: desktopNow - 3 * 60 * 1000,
+            ),
+            'camper': ReportedAgentStatus(AgentState.waiting),
+          },
+        ));
+        async.flushMicrotasks();
+        final agents = updates.whereType<SessionContact>().single.agents!;
+        expect(agents.map((a) => a.state),
+            [AgentState.working, AgentState.waiting, null]);
+        final since = agents.first.stateSince!;
+        expect(since.receivedAt, receivedAt);
+        expect(since.elapsed(clock.now()), const Duration(minutes: 3));
+        async.elapse(const Duration(minutes: 2));
+        expect(since.elapsed(clock.now()), const Duration(minutes: 5));
+        // No since_ms: a state, but no time.
+        expect(agents[1].stateSince, isNull);
         session.stop();
       });
     });

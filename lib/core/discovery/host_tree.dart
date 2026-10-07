@@ -256,6 +256,11 @@ List<_Resolved> _mergeByInstallId(List<FleetEntry> entries) {
 /// endpoint (a message goes over the LAN); its agents are the LAN list while
 /// the LAN answers, the cloud list when only the cloud is current, with
 /// kinds taken from whichever source has them.
+///
+/// Agent states come only from the list in use: the LAN's while the LAN is
+/// live (live, and how long), the cloud's only when the LAN is not. A state
+/// the LAN leaves out is unknown, never filled from an older cloud record
+/// (`SPEC_AGENT_STATUS_AND_LIVE_PANE_FEED_2026_10_07.md` section 3).
 FleetEntry _mergeChannel(FleetEntry lan, FleetEntry cloud) {
   final lanLive = lan.presence == Presence.live;
   final cloudLive = cloud.presence == Presence.live;
@@ -266,6 +271,8 @@ FleetEntry _mergeChannel(FleetEntry lan, FleetEntry cloud) {
     for (final a in other)
       if (a.kind != null) a.name.toLowerCase(): a.kind,
   };
+  // `copyWith` keeps each agent's own state: a state is never taken from
+  // [other].
   final agents = [
     for (final a in primary)
       a.kind != null ? a : a.copyWith(kind: otherKinds[a.name.toLowerCase()]),
