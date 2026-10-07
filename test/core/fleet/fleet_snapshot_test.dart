@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:agentmux_mobile/core/discovery/models/lan_instance.dart';
+import 'package:agentmux_mobile/core/discovery/peer_fields.dart';
 import 'package:agentmux_mobile/core/fleet/fleet_snapshot.dart';
 
 Map<String, Object?> _body([Map<String, Object?> extra = const {}]) => {
@@ -64,6 +65,54 @@ void main() {
       }))!;
       expect(s.agents, hasLength(FleetSnapshot.maxAgents));
       expect(s.agentKinds.length, lessThanOrEqualTo(FleetSnapshot.maxAgents));
+    });
+  });
+
+  group('FleetSnapshot.tryParse agent status', () {
+    test('reads agent_status and now_ms', () {
+      final s = FleetSnapshot.tryParse(_body({
+        'now_ms': 1791352494000,
+        'agent_status': {
+          'AgentX': {'state': 'working', 'since_ms': 1791352314000},
+          'Camper': {'state': 'waiting', 'since_ms': 1791352490000},
+        },
+      }))!;
+      expect(s.nowMs, 1791352494000);
+      expect(s.agentStatus, {
+        'agentx': const ReportedAgentStatus(
+          AgentState.working,
+          sinceMs: 1791352314000,
+        ),
+        'camper': const ReportedAgentStatus(
+          AgentState.waiting,
+          sinceMs: 1791352490000,
+        ),
+      });
+    });
+
+    test('an older desktop body has no status', () {
+      final s = FleetSnapshot.tryParse(_body())!;
+      expect(s.agentStatus, isEmpty);
+      expect(s.nowMs, isNull);
+    });
+
+    test('malformed status fields are dropped, never fatal', () {
+      final s = FleetSnapshot.tryParse(_body({
+        'now_ms': 'later',
+        'agent_status': {
+          'AgentX': {'state': 'sleeping'},
+          'Camper': {'state': 'idle', 'since_ms': 0},
+        },
+      }))!;
+      expect(s.nowMs, isNull);
+      expect(
+        s.agentStatus,
+        {'camper': const ReportedAgentStatus(AgentState.idle)},
+      );
+      expect(
+        FleetSnapshot.tryParse(_body({'agent_status': 'working'}))!.agentStatus,
+        isEmpty,
+      );
     });
   });
 }

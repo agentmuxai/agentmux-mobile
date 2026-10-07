@@ -349,4 +349,85 @@ void main() {
       expect(s2.records, hasLength(2));
     });
   });
+
+  group('agent states', () {
+    final since = StateSince(
+      elapsedAtReceipt: const Duration(minutes: 3),
+      receivedAt: t0,
+    );
+
+    test('a contact carries states; a stale rev does not change them', () {
+      var (s, id) = _add(const FleetStore(), _sight());
+      s = s.apply(
+        id,
+        SessionContact(
+          agents: [
+            LanAgent(
+              name: 'A',
+              state: AgentState.working,
+              stateSince: since,
+            ),
+          ],
+          epoch: 'e',
+          rev: 5,
+        ),
+        t0,
+      );
+      s = s.apply(
+        id,
+        const SessionContact(
+          agents: [LanAgent(name: 'A', state: AgentState.idle)],
+          epoch: 'e',
+          rev: 4,
+        ),
+        t0,
+      );
+      final a = s.records[id]!.toInstance().agents.single;
+      expect(a.state, AgentState.working);
+      expect(a.stateSince, since);
+    });
+
+    test('a newer rev replaces the state', () {
+      var (s, id) = _add(const FleetStore(), _sight());
+      s = s.apply(
+        id,
+        const SessionContact(
+          agents: [LanAgent(name: 'A', state: AgentState.working)],
+          epoch: 'e',
+          rev: 1,
+        ),
+        t0,
+      );
+      s = s.apply(
+        id,
+        const SessionContact(
+          agents: [LanAgent(name: 'A', state: AgentState.idle)],
+          epoch: 'e',
+          rev: 2,
+        ),
+        t0,
+      );
+      expect(s.records[id]!.agents.single.state, AgentState.idle);
+    });
+
+    test('a cloud record keeps its agents\' states', () {
+      final asOf = DateTime.fromMillisecondsSinceEpoch(
+          t0.millisecondsSinceEpoch);
+      final s = const FleetStore().syncCloud([
+        CloudInstance(
+          instanceId: 'aaaa',
+          hostname: 'atlas',
+          channel: 'stable',
+          version: '0.59.11',
+          agents: [
+            LanAgent(name: 'A', state: AgentState.waiting, stateAsOf: asOf),
+          ],
+          receivedAtMs: t0.millisecondsSinceEpoch,
+        ),
+      ]);
+      final a = s.records[FleetStore.cloudRecordId('aaaa')]!.agents.single;
+      expect(a.state, AgentState.waiting);
+      expect(a.stateAsOf, asOf);
+    });
+  });
 }

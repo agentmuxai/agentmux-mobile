@@ -10,7 +10,8 @@ import '../theme/app_theme.dart';
 /// section 3). One widget so every tag on the screen reads alike.
 ///
 /// [filled] tints the background instead of drawing a border, as the
-/// desktop's HOST/SANDBOX tag does.
+/// desktop's HOST/SANDBOX tag does. [leading] (a status dot, say) sits before
+/// the label.
 class TagChip extends StatelessWidget {
   const TagChip({
     super.key,
@@ -18,12 +19,14 @@ class TagChip extends StatelessWidget {
     this.color = AppColors.textSecondary,
     this.filled = false,
     this.tooltip,
+    this.leading,
   });
 
   final String label;
   final Color color;
   final bool filled;
   final String? tooltip;
+  final Widget? leading;
 
   /// `Windows` / `macOS` / `Linux`.
   factory TagChip.platform(HostPlatform platform, {Key? key}) => TagChip(
@@ -71,18 +74,29 @@ class TagChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
         border: filled ? null : Border.all(color: color.withValues(alpha: 0.5)),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.3,
-        ),
-      ),
+      child: _content(),
     );
     final tip = tooltip;
     return tip == null ? chip : Tooltip(message: tip, child: chip);
+  }
+
+  Widget _content() {
+    final text = Text(
+      label,
+      style: TextStyle(
+        color: color,
+        fontSize: 10,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.3,
+      ),
+    );
+    final lead = leading;
+    if (lead == null) return text;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      // The label wraps rather than overflow when the chip is squeezed.
+      children: [lead, const SizedBox(width: 4), Flexible(child: text)],
+    );
   }
 }
 

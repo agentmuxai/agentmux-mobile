@@ -10,8 +10,10 @@ an account's installs it reads from the cloud.
 **Builds on:** `SPEC_LIVE_FLEET_TOPOLOGY_2026_10_03.md` (the host -> channel -> agent tree, the store,
 presence). In `agentmux`: `SPEC_SWARM_OTHER_HOSTS_AND_CHANNELS_2026_10_02.md` and
 `SPEC_SWARM_REMOTE_AGENTS_PLATFORM_TAG_AND_SELECTION_2026_10_03.md`, which ask for the same tags on the
-desktop Swarm. The phone reads the same as the Swarm, so labels, the naming rule and the field names are
+desktop Swarm. The app reads the same as the Swarm, so labels, the naming rule and the field names are
 taken from those.
+
+**Device** means the device running AgentMux Mobile (a phone or a tablet).
 
 ---
 
@@ -19,9 +21,9 @@ taken from those.
 
 | Ask | Answer | Section |
 |-----|--------|---------|
-| A host on another network never appears | The phone only discovered hosts on its own LAN, and the cloud had no list of an account's installs to read. Cloud hosts now come from that list while signed in. | 2, 5 |
-| Platform per host | Desktops already advertise `os`. The phone shows `Windows` / `macOS` / `Linux`. | 3.1 |
-| Channel name, only when more than one | The phone hid a lone channel's name, but counted only the channels it could see. A machine now reports how many it runs. | 3.2 |
+| A host on another network never appears | The device only discovered hosts on its own LAN, and the cloud had no list of an account's installs to read. Cloud hosts now come from that list while signed in. | 2, 5 |
+| Platform per host | Desktops already advertise `os`. The device shows `Windows` / `macOS` / `Linux`. | 3.1 |
+| Channel name, only when more than one | The device hid a lone channel's name, but counted only the channels it could see. A machine now reports how many it runs. | 3.2 |
 | LAN or cloud | A route badge on each host or channel. | 3.3 |
 | HOST / SANDBOX per agent | Desktops report each agent's kind. | 3.4 |
 
@@ -30,7 +32,7 @@ taken from those.
 ## 2. Why a host on another network was missing
 
 - Discovery is LAN-only: mDNS, a UDP probe, QR and manual entry (`lib/core/discovery/`). A host that is
-  not on the phone's network, or has LAN discovery off, is silent, and silence looks the same in both
+  not on the device's network, or has LAN discovery off, is silent, and silence looks the same in both
   cases.
 - The app's cloud code read a flat list of the account's agents (`id`, `last_seen`, `messages_sent`)
   with no host, channel or platform, on a separate signed-in screen, so it could not build a host card.
@@ -134,7 +136,7 @@ All optional; a desktop that does not send one behaves as before.
 
 ## 5. The account's install list (cloud)
 
-While signed in, the phone reads `GET /wan-instances` with the account's Cognito access token:
+While signed in, the device reads `GET /wan-instances` with the account's Cognito access token:
 
 ```json
 { "instances": [ {
@@ -145,10 +147,10 @@ While signed in, the phone reads `GET /wan-instances` with the account's Cognito
 } ] }
 ```
 
-(Each entry carries more fields than the phone reads.) Only the signed-in account's installs are listed,
+(Each entry carries more fields than the device reads.) Only the signed-in account's installs are listed,
 those heard from in the last day.
 
-On the phone:
+On the device:
 
 - `CloudInstanceSource` fetches on start, every 30 s in the foreground, on pull-to-refresh, and at once
   after signing in or out; stopped in the background, like LAN discovery.
@@ -189,8 +191,8 @@ socket, refreshing a session saved before this change.
 - **Tree:** platform per host and the split by platform; channel rows with `channels_running` 1, 3 and
   absent; the `+N` text; routes; merge by install id; the same hostname with different ids stays two
   channels under one host; which screen an agent opens.
-- **Widgets:** each tag, the notes, a 320 dp wide phone.
-- **Live:** the emulator against real LAN desktops through the discovery relay; a signed-in phone
+- **Widgets:** each tag, the notes, a 320 dp wide screen.
+- **Live:** the emulator against real LAN desktops through the discovery relay; a signed-in device
   against a cloud-only host once the desktops and the cloud side are released.
 
 ---
@@ -218,6 +220,6 @@ Taken by the owner on 2026-10-06 ("lets build it all"):
 
 ## 10. Not in this work
 
-- Agent status (running / idle) or any content on the phone.
+- Agent status (running / idle) or any content on the device.
 - Acting on agents of other machines (stop, broadcast).
 - A user-set alias for a host name.

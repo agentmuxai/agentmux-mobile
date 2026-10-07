@@ -6,6 +6,10 @@ import '../discovery/peer_fields.dart';
 /// `docs/specs/SPEC_FLEET_HOST_TAGS_AND_CLOUD_HOSTS_2026_10_06.md` section 5.
 ///
 /// Every field is bounded: it is display data that came off another machine.
+///
+/// A `v: 2` record's agents may carry `state`
+/// (`SPEC_AGENT_STATUS_AND_LIVE_PANE_FEED_2026_10_07.md` section 13.1); a v1
+/// record has none, and a `state` on one is ignored.
 class CloudInstance {
   const CloudInstance({
     required this.instanceId,
@@ -55,6 +59,8 @@ class CloudInstance {
         received <= 0) {
       return null;
     }
+    final version = json['v'];
+    final hasStates = version is int && version >= 2;
     final rawAgents = json['agents'];
     final agents = <LanAgent>[];
     if (rawAgents is List) {
@@ -64,7 +70,16 @@ class CloudInstance {
         if (name == null) continue;
         final lower = name.toLowerCase();
         if (agents.any((x) => x.name.toLowerCase() == lower)) continue;
-        agents.add(LanAgent(name: name, kind: parseAgentKind(a['kind'])));
+        final state = hasStates ? parseAgentState(a['state']) : null;
+        agents.add(LanAgent(
+          name: name,
+          kind: parseAgentKind(a['kind']),
+          state: state,
+          // No since time in the cloud: the chip says how old the record is.
+          stateAsOf: state == null
+              ? null
+              : DateTime.fromMillisecondsSinceEpoch(received),
+        ));
       }
     }
     return CloudInstance(

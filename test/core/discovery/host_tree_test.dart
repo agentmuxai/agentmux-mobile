@@ -455,4 +455,111 @@ void main() {
       expect(agentLocation(c, c.agents.first), '/agents/AgentX');
     });
   });
+
+  group('buildHostTrees: agent states, LAN and cloud', () {
+    const id = 'testinstallidtestinstallid';
+    final cloudAt = DateTime(2026, 10, 7, 12);
+    final lanSince = StateSince(
+      elapsedAtReceipt: const Duration(minutes: 3),
+      receivedAt: DateTime(2026, 10, 7, 12, 1),
+    );
+
+    FleetEntry lan(List<LanAgent> agents, {Presence presence = Presence.live}) =>
+        FleetEntry(
+          instance: LanInstance(
+            hostname: 'narko',
+            version: '0.59.11',
+            address: '198.51.100.30',
+            port: 29702,
+            authKey: 'k',
+            channel: 'local-main',
+            installId: id,
+            agents: agents,
+          ),
+          presence: presence,
+        );
+
+    FleetEntry cloud(List<LanAgent> agents, {Presence presence = Presence.live}) =>
+        FleetEntry(
+          instance: LanInstance(
+            hostname: 'narko',
+            version: '0.59.11',
+            address: '',
+            port: 0,
+            authKey: '',
+            channel: 'local-main',
+            installId: id,
+            agents: agents,
+          ),
+          route: ChannelRoute.cloud,
+          presence: presence,
+        );
+
+    LanAgent fromCloud(String name, AgentState state) =>
+        LanAgent(name: name, state: state, stateAsOf: cloudAt);
+
+    test('while the LAN is live its state wins, with its time', () {
+      final c = buildHostTrees([
+        lan([
+          LanAgent(
+            name: 'Camper',
+            state: AgentState.working,
+            stateSince: lanSince,
+          ),
+        ]),
+        cloud([fromCloud('Camper', AgentState.idle)]),
+      ]).single.channels.single;
+      final a = c.agents.single;
+      expect(a.state, AgentState.working);
+      expect(a.stateSince, lanSince);
+      expect(a.stateAsOf, isNull);
+    });
+
+    test('a state the live LAN leaves out is never filled from the cloud', () {
+      final c = buildHostTrees([
+        lan(const [LanAgent(name: 'Camper')]),
+        cloud([fromCloud('Camper', AgentState.working)]),
+      ]).single.channels.single;
+      expect(c.agents.single.state, isNull);
+    });
+
+    test('when only the cloud is current, its states are used', () {
+      final c = buildHostTrees([
+        lan(
+          [
+            LanAgent(
+              name: 'Camper',
+              state: AgentState.working,
+              stateSince: lanSince,
+            ),
+          ],
+          presence: Presence.stale,
+        ),
+        cloud([fromCloud('Camper', AgentState.idle)]),
+      ]).single.channels.single;
+      final a = c.agents.single;
+      expect(a.state, AgentState.idle);
+      expect(a.stateAsOf, cloudAt);
+      expect(a.stateSince, isNull);
+    });
+
+    test('a cloud-only channel shows its own states', () {
+      final c = buildHostTrees([
+        cloud([fromCloud('Scout', AgentState.waiting)]),
+      ]).single.channels.single;
+      expect(c.cloudOnly, isTrue);
+      expect(c.agents.single.state, AgentState.waiting);
+    });
+
+    test('agents stay sorted by name whatever their state', () {
+      final c = buildHostTrees([
+        lan(const [
+          LanAgent(name: 'Zed', state: AgentState.waiting),
+          LanAgent(name: 'alpha', state: AgentState.idle),
+          LanAgent(name: 'Mid', state: AgentState.working),
+        ]),
+      ]).single.channels.single;
+      expect(c.agents.map((a) => a.name), ['alpha', 'Mid', 'Zed']);
+    });
+  });
 }

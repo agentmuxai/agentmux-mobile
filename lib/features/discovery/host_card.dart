@@ -9,6 +9,7 @@ import '../../core/discovery/models/lan_instance.dart';
 import '../../core/fleet/channel_session.dart';
 import '../../core/fleet/cloud_instance_source.dart';
 import '../../core/fleet/fleet_store.dart';
+import '../../shared/widgets/agent_state_chip.dart';
 import '../../shared/widgets/tag_chip.dart';
 
 /// What happens when an agent row is tapped; the demo screen replaces the
@@ -299,6 +300,12 @@ class _AgentRow extends StatelessWidget {
         ? _isRecent(lastSeen)
         : channel.presence == Presence.live;
     final kind = agent.kind;
+    // After HOST / SANDBOX, what the agent is doing (spec 6.3). Rows keep
+    // their order whatever the state.
+    final state = AgentStateChip.forAgent(
+      agent,
+      live: channel.presence == Presence.live,
+    );
 
     return ListTile(
       dense: true,
@@ -308,15 +315,20 @@ class _AgentRow extends StatelessWidget {
         size: 10,
         color: isActive ? Colors.greenAccent : Colors.white24,
       ),
-      title: Text(agent.name),
+      title: _NameAndTags(
+        name: agent.name,
+        // No tag when the kind or state is not reported: never a guess.
+        tags: [
+          if (kind != null) TagChip.agentKind(kind),
+          if (state != null) state,
+        ],
+      ),
       subtitle: lastSeen != null
           ? Text(
               _formatLastSeen(lastSeen),
               style: const TextStyle(fontSize: 11, color: Colors.white38),
             )
           : null,
-      // No tag when the kind is not reported: never a guess.
-      trailing: kind == null ? null : TagChip.agentKind(kind),
       onTap: () => (onTap ?? openAgent)(context, channel, agent),
     );
   }
@@ -332,6 +344,48 @@ class _AgentRow extends StatelessWidget {
     if (diff.inSeconds < 60) return 'just now';
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     return '${diff.inHours}h ago';
+  }
+}
+
+/// An agent's name with its tags (HOST / SANDBOX, then its state) at the
+/// right. The tags never take the whole row: the name keeps [_minName], or
+/// 40% of a narrower row, and tags past the rest wrap onto another line, so
+/// a long name keeps room on a narrow device and nothing overflows.
+class _NameAndTags extends StatelessWidget {
+  const _NameAndTags({required this.name, required this.tags});
+  final String name;
+  final List<Widget> tags;
+
+  static const _minName = 96.0;
+  static const _gap = 8.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = Text(name);
+    if (tags.isEmpty) return title;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final tagShare =
+            max(0.0, width - _gap - min(_minName, width * 0.4));
+        return Row(
+          children: [
+            Expanded(child: title),
+            const SizedBox(width: _gap),
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: tagShare),
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 6,
+                runSpacing: 4,
+                children: tags,
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
 

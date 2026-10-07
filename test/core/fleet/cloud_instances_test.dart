@@ -174,4 +174,64 @@ void main() {
       await expectLater(client.getInstances(), throwsA(isA<DioException>()));
     });
   });
+
+  group('CloudInstance.tryParse agent states', () {
+    Map<String, Object?> v2(List<Object?> agents) =>
+        _record({'v': 2, 'agents': agents});
+
+    test('a v2 record carries each state, as of its receive time', () {
+      final c = CloudInstance.tryParse(v2([
+        {'name': 'A', 'kind': 'host', 'state': 'working'},
+        {'name': 'B', 'kind': 'host', 'state': 'waiting'},
+        {'name': 'C', 'kind': 'host', 'state': 'idle'},
+        {'name': 'D', 'kind': 'host', 'state': 'stopped'},
+        {'name': 'E', 'kind': 'host', 'state': 'error'},
+      ]))!;
+      expect(c.agents.map((a) => a.state), [
+        AgentState.working,
+        AgentState.waiting,
+        AgentState.idle,
+        AgentState.stopped,
+        AgentState.error,
+      ]);
+      for (final a in c.agents) {
+        expect(a.stateAsOf,
+            DateTime.fromMillisecondsSinceEpoch(1791352494000));
+        // The cloud sends no since time.
+        expect(a.stateSince, isNull);
+      }
+    });
+
+    test('a v2 agent without a state, or with a bad one, has none', () {
+      final c = CloudInstance.tryParse(v2([
+        {'name': 'A', 'kind': 'host'},
+        {'name': 'B', 'kind': 'host', 'state': 'busy'},
+        {'name': 'C', 'kind': 'host', 'state': 7},
+        {'name': 'D', 'kind': 'host', 'state': ''},
+      ]))!;
+      expect(c.agents.map((a) => a.name), ['A', 'B', 'C', 'D']);
+      for (final a in c.agents) {
+        expect(a.state, isNull, reason: a.name);
+        expect(a.stateAsOf, isNull, reason: a.name);
+      }
+    });
+
+    test('a v1 record has no states, even if one is present', () {
+      final c = CloudInstance.tryParse(_record({
+        'agents': [
+          {'name': 'AgentX', 'kind': 'container', 'state': 'working'},
+        ],
+      }))!;
+      expect(c.agents.single.kind, AgentKind.container);
+      expect(c.agents.single.state, isNull);
+      // A record with no `v` at all reads like v1.
+      final none = CloudInstance.tryParse(_record({
+        'v': null,
+        'agents': [
+          {'name': 'AgentX', 'state': 'working'},
+        ],
+      }))!;
+      expect(none.agents.single.state, isNull);
+    });
+  });
 }
