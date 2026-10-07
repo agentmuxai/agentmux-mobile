@@ -66,8 +66,9 @@ Flutter and `platform-tools` on `PATH` and runs `bash scripts/dev-full.sh`.
 
 **When launching the emulator or `flutter run` from a Bash *tool call* anyway,
 never append a shell `&`** — use the Bash tool's own `run_in_background: true`
-(with no `&`) instead, and expect the time limit above. This is harness-level behavior, not repo-specific: a tool call
-returns as soon as the backgrounded command is spawned, so the tracked process
+(with no `&`) instead, and expect the time limit above. This is harness-level
+behavior, not repo-specific: a tool call returns as soon as the backgrounded
+command is spawned, so the tracked process
 is the launcher shell that exits in milliseconds, and the real long-running
 process is killed out from under you. It fails *silently* — the emulator simply
 vanishes from `tasklist` with nothing in its log, and `adb devices` keeps

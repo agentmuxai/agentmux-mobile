@@ -73,7 +73,7 @@ All **[verified]** on 2026-10-06, narko, desktop `main` and a live probe.
 | G1 | `os` is already on the wire. | mDNS TXT carries `os`; the UDP identity reply sets `response["os"]`. The 47891 reply the phone reads is that identity reply plus `siblings`. A live probe of narko returned `"os":"windows"` next to `channel`. The phone's `LanInstance` has no `os` field, so it is dropped. |
 | G2 | `os` is not in the fleet feed. | `GET /agentmux/fleet` has `epoch, rev, hostname, channel, version, agents` only. |
 | G3 | `os` is a plain lowercase token, sanitized on receipt. | `host_os.rs`: `^[a-z0-9_-]{1,16}$`; self-reported, display only. |
-| G4 | Narko runs three channels and shares one. | Three srv processes listen (ports 29702, 29704, 29706). Only 29702 binds a LAN address and has a LAN instance file; the other two listen on loopback only. The probe reply's `siblings` is `[]`. The phone therefore sees one channel, and one channel means no channel name. |
+| G4 | Narko runs three channels and shares one. | Three srv processes listen. Only one binds a LAN address and has a LAN instance file; the other two listen on loopback only. The probe reply's `siblings` is `[]`. The phone therefore sees one channel, and one channel means no channel name. |
 | G5 | The HOST / SANDBOX distinction exists on the desktop and not on the wire. | Block meta `agentMode` is `"host"` or `"container"`; `RuntimeBadge` shows `HOST` / `SANDBOX`; `operator_config_seed::agent_kind` maps it. The registry entry (`AgentEntry`) and the fleet feed carry no mode. |
 | G6 | The LAN `instance_id` is the version string, not an install id. | Comment in `lan_discovery.rs`: "`instance_id` is the *version*". So a LAN record cannot be matched to a cloud install today. |
 
@@ -113,7 +113,7 @@ On narko today this would read:
 
 ```
 narko   [Windows] [LAN]
-  local-main-b28b7a-8bf515d4          LAN
+  stable                             LAN
      Camper   HOST
      AgentX   HOST
   +2 channels not shared on LAN
@@ -173,7 +173,7 @@ AgentMux
 │   Opaz      HOST                              │
 ├──────────────────────────────────────────────┤
 │ narko     [Windows] [LAN]       v0.59.11      │
-│   local-main-b28b7a-8bf515d4                  │
+│   stable                                     │
 │     Camper   HOST                             │
 │     AgentX   SANDBOX                          │
 │   +2 channels not shared on LAN               │
@@ -199,10 +199,10 @@ All additive; every older phone and desktop ignores unknown fields.
 ```json
 {
   "epoch": "9f2c41d07a6b3e58", "rev": 12,
-  "hostname": "narko", "channel": "local-main-b28b7a-8bf515d4", "version": "0.59.11",
+  "hostname": "narko", "channel": "stable", "version": "0.59.11",
   "agents": ["AgentX", "Camper"],
   "os": "windows",
-  "install_id": "pqkksqckrolze5wvcs6rqeic4e",
+  "install_id": "mw3am46w5weex4a4fqrc3avnua",
   "channels_running": 3,
   "agent_kinds": { "AgentX": "container", "Camper": "host" }
 }
@@ -249,10 +249,10 @@ One record per install (one AgentMux instance: a channel on a machine), publishe
 ```json
 {
   "v": 1,
-  "instance_id": "pqkksqckrolze5wvcs6rqeic4e",
+  "instance_id": "mw3am46w5weex4a4fqrc3avnua",
   "instance_public_key": "<standard base64, 32 bytes>",
   "hostname": "narko",
-  "channel": "local-main-b28b7a-8bf515d4",
+  "channel": "stable",
   "os": "windows",
   "version": "0.59.11",
   "channels_running": 3,
