@@ -39,7 +39,7 @@
 		  Cognito subject as `mobile:$sub` in the `x-agent-id` header
 		  (muxbus_client.dart's postInjection), and the message text itself in
 		  the request body — both go to AgentMux Corp's MuxBus relay, not just
-		  the user's own desktop instance. Declared per ReAgent/Codex review on
+		  the user's own desktop instance. Declared per muxreview/Codex review on
 		  PR #27, which the original manifest missed.
 		-->
 		<dict>

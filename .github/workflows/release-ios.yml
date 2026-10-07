@@ -159,7 +159,7 @@ jobs:
           # `plutil -lint` rejects the naively-interpolated form with
           # "Encountered unknown ampersand-escape sequence", while
           # PlistBuddy's own writer escapes it correctly (round-trips back to
-          # the exact original string). (ReAgent P1, PR #19.)
+          # the exact original string). (muxreview P1, PR #19.)
           /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:com.agentmux.agentmuxMobile string ${PROFILE_NAME}" ios/ExportOptions.plist
 
       - name: Build release IPA
