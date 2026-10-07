@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:agentmux_mobile/features/discovery/host_card.dart';
 import 'package:agentmux_mobile/core/discovery/host_tree.dart';
 import 'package:agentmux_mobile/core/discovery/models/lan_instance.dart';
 import 'package:agentmux_mobile/core/fleet/channel_session.dart';
@@ -169,6 +170,289 @@ void main() {
         ),
       ]);
       expect(trees.single.presence, Presence.live);
+    });
+  });
+
+  group('buildHostTrees: platform, channel count, route', () {
+    FleetEntry entry({
+      String hostname = 'narko',
+      int port = 29702,
+      String? channel = 'local-main',
+      String? os,
+      int? channelsRunning,
+      String? installId,
+      List<LanAgent> agents = const [],
+      ChannelRoute route = ChannelRoute.lan,
+      Presence presence = Presence.live,
+      String version = '0.59.11',
+    }) =>
+        FleetEntry(
+          instance: LanInstance(
+            hostname: hostname,
+            version: version,
+            address: route == ChannelRoute.cloud ? '' : '198.51.100.30',
+            port: route == ChannelRoute.cloud ? 0 : port,
+            authKey: route == ChannelRoute.cloud ? '' : 'k',
+            channel: channel,
+            os: os,
+            channelsRunning: channelsRunning,
+            installId: installId,
+            agents: agents,
+          ),
+          route: route,
+          presence: presence,
+        );
+
+    test('the platform comes from os, and only three values get one', () {
+      final trees = buildHostTrees([
+        entry(hostname: 'a', os: 'windows'),
+        entry(hostname: 'b', os: 'macos'),
+        entry(hostname: 'c', os: 'linux'),
+        entry(hostname: 'd', os: 'freebsd'),
+        entry(hostname: 'e'),
+      ]);
+      expect(trees.map((t) => t.platform), [
+        HostPlatform.windows,
+        HostPlatform.macos,
+        HostPlatform.linux,
+        null,
+        null,
+      ]);
+      expect(trees[3].os, 'freebsd');
+    });
+
+    test('channels of one name that disagree on os become one host per os',
+        () {
+      final trees = buildHostTrees([
+        entry(port: 1, channel: 'win', os: 'windows'),
+        entry(port: 2, channel: 'wsl', os: 'linux'),
+        entry(port: 3, channel: 'old'),
+      ]);
+      expect(trees, hasLength(3));
+      expect(trees.every((t) => t.name == 'narko'), isTrue);
+      expect(trees.map((t) => t.key).toSet(), hasLength(3));
+      final win = trees.firstWhere((t) => t.platform == HostPlatform.windows);
+      expect(win.channels.single.name, 'win');
+      final linux = trees.firstWhere((t) => t.platform == HostPlatform.linux);
+      expect(linux.channels.single.name, 'wsl');
+      final unknown = trees.firstWhere((t) => t.os == null);
+      expect(unknown.channels.single.name, 'old');
+    });
+
+    test('a channel without os joins its host when the others agree', () {
+      final trees = buildHostTrees([
+        entry(port: 1, channel: 'a', os: 'windows'),
+        entry(port: 2, channel: 'b'),
+      ]);
+      expect(trees.single.platform, HostPlatform.windows);
+      expect(trees.single.channels, hasLength(2));
+      expect(trees.single.key, 'host:narko');
+    });
+
+    test('showChannels follows channels_running: 1, 3 and absent', () {
+      HostNode host(int? running) =>
+          buildHostTrees([entry(channelsRunning: running)]).single;
+
+      expect(host(1).showChannels, isFalse);
+      expect(host(1).hiddenChannels, 0);
+      expect(host(null).showChannels, isFalse);
+      expect(host(null).hiddenChannels, 0);
+      final three = host(3);
+      expect(three.showChannels, isTrue);
+      expect(three.hiddenChannels, 2);
+    });
+
+    test('absent channels_running keeps the visible-count rule', () {
+      final trees = buildHostTrees([
+        entry(port: 1, channel: 'a'),
+        entry(port: 2, channel: 'b'),
+      ]);
+      expect(trees.single.showChannels, isTrue);
+      expect(trees.single.hiddenChannels, 0);
+    });
+
+    test("a host's channel count is the largest any channel reports", () {
+      final trees = buildHostTrees([
+        entry(port: 1, channel: 'a', channelsRunning: 2),
+        entry(port: 2, channel: 'b', channelsRunning: 4),
+      ]);
+      expect(trees.single.channelsRunning, 4);
+      expect(trees.single.hiddenChannels, 2);
+    });
+
+    test('route per channel; the host shows one only when they agree', () {
+      final same = buildHostTrees([
+        entry(port: 1, channel: 'a'),
+        entry(port: 2, channel: 'b'),
+      ]).single;
+      expect(same.route, ChannelRoute.lan);
+
+      final mixed = buildHostTrees([
+        entry(port: 1, channel: 'a'),
+        entry(channel: 'b', route: ChannelRoute.cloud, installId: 'cccc'),
+      ]).single;
+      expect(mixed.route, isNull);
+      expect(
+        {for (final c in mixed.channels) c.name: c.route},
+        {'a': ChannelRoute.lan, 'b': ChannelRoute.cloud},
+      );
+    });
+
+    test('the host version is shown only when every channel agrees', () {
+      expect(buildHostTrees([entry()]).single.version, '0.59.11');
+      expect(buildHostTrees([entry(version: 'unknown')]).single.version, isNull);
+      final differ = buildHostTrees([
+        entry(port: 1, channel: 'a', version: '0.59.11'),
+        entry(port: 2, channel: 'b', version: '0.59.4'),
+      ]).single;
+      expect(differ.version, isNull);
+    });
+  });
+
+  group('buildHostTrees: LAN and cloud', () {
+    const id = 'pqkksqckrolze5wvcs6rqeic4e';
+
+    FleetEntry lan({
+      String? installId = id,
+      List<LanAgent> agents = const [LanAgent(name: 'Camper')],
+      Presence presence = Presence.live,
+      String hostname = 'narko',
+      String channel = 'local-main',
+    }) =>
+        FleetEntry(
+          instance: LanInstance(
+            hostname: hostname,
+            version: '0.59.11',
+            address: '198.51.100.30',
+            port: 29702,
+            authKey: 'k',
+            channel: channel,
+            installId: installId,
+            agents: agents,
+          ),
+          presence: presence,
+          lastSeen: DateTime(2026, 10, 6, 12),
+        );
+
+    FleetEntry cloud({
+      String instanceId = id,
+      String hostname = 'narko',
+      String channel = 'local-main',
+      List<LanAgent> agents = const [
+        LanAgent(name: 'Camper', kind: AgentKind.host),
+        LanAgent(name: 'AgentX', kind: AgentKind.container),
+      ],
+      Presence presence = Presence.live,
+      String? os = 'windows',
+      int? channelsRunning = 3,
+    }) =>
+        FleetEntry(
+          instance: LanInstance(
+            hostname: hostname,
+            version: '0.59.11',
+            address: '',
+            port: 0,
+            authKey: '',
+            channel: channel,
+            os: os,
+            channelsRunning: channelsRunning,
+            installId: instanceId,
+            agents: agents,
+          ),
+          route: ChannelRoute.cloud,
+          presence: presence,
+          lastSeen: DateTime(2026, 10, 6, 12, 1),
+        );
+
+    test('the same install id is one channel, LAN + Cloud, reached over LAN',
+        () {
+      final host = buildHostTrees([lan(), cloud()]).single;
+      final c = host.channels.single;
+      expect(c.route, ChannelRoute.lanAndCloud);
+      expect(c.cloudOnly, isFalse);
+      expect(c.via.address, '198.51.100.30');
+      expect(c.via.port, 29702);
+      // The LAN list wins while it answers; kinds come from the cloud.
+      expect(c.agents.map((a) => a.name), ['Camper']);
+      expect(c.agents.single.kind, AgentKind.host);
+      // Platform and count come from whichever source has them.
+      expect(host.platform, HostPlatform.windows);
+      expect(host.channelsRunning, 3);
+      expect(c.lastSeen, DateTime(2026, 10, 6, 12, 1));
+    });
+
+    test('when only the cloud is current, its agent list is used', () {
+      final c = buildHostTrees([
+        lan(presence: Presence.stale),
+        cloud(),
+      ]).single.channels.single;
+      expect(c.agents.map((a) => a.name), ['AgentX', 'Camper']);
+      expect(c.route, ChannelRoute.cloud);
+      expect(c.presence, Presence.live);
+      expect(c.cloudOnly, isFalse, reason: 'it still has its LAN endpoint');
+    });
+
+    test('a hostname match alone never merges: two channels, one host', () {
+      final host = buildHostTrees([
+        lan(installId: 'aaaaaaaaaaaaaaaaaaaaaaaaaa'),
+        cloud(),
+      ]).single;
+      expect(host.name, 'narko');
+      expect(host.channels, hasLength(2));
+      expect(host.channels.map((c) => c.route).toSet(),
+          {ChannelRoute.lan, ChannelRoute.cloud});
+      expect(host.channels.map((c) => c.key).toSet(), hasLength(2));
+      expect(host.route, isNull);
+    });
+
+    test('a LAN record without an install id never merges', () {
+      final host = buildHostTrees([lan(installId: null), cloud()]).single;
+      expect(host.channels, hasLength(2));
+    });
+
+    test('only the first LAN channel claiming an install id takes the cloud '
+        'one', () {
+      final host = buildHostTrees([
+        lan(channel: 'a'),
+        lan(channel: 'b'),
+        cloud(),
+      ]).single;
+      expect(host.channels.map((c) => c.route),
+          [ChannelRoute.lanAndCloud, ChannelRoute.lan]);
+    });
+
+    test('a cloud-only host groups by name like a LAN one', () {
+      final trees = buildHostTrees([
+        lan(hostname: 'charlie', installId: null),
+        cloud(hostname: 'Area54', os: 'macos', channelsRunning: 1),
+      ]);
+      expect(trees.map((t) => t.name), ['Area54', 'charlie']);
+      final area54 = trees.first;
+      expect(area54.route, ChannelRoute.cloud);
+      expect(area54.platform, HostPlatform.macos);
+      expect(area54.showChannels, isFalse);
+      expect(area54.channels.single.cloudOnly, isTrue);
+    });
+
+    test('a cloud-only agent opens the cloud screen; a merged one the LAN '
+        'screen', () {
+      final cloudOnly = buildHostTrees([cloud()]).single.channels.single;
+      expect(agentLocation(cloudOnly, cloudOnly.agents.first),
+          '/agents/AgentX');
+      final merged =
+          buildHostTrees([lan(), cloud()]).single.channels.single;
+      expect(agentLocation(merged, merged.agents.single),
+          '/instance/${Uri.encodeComponent('198.51.100.30:29702')}'
+          '/agent/Camper');
+    });
+
+    test('a merged channel whose LAN side went quiet opens the cloud screen',
+        () {
+      final c = buildHostTrees([
+        lan(presence: Presence.stale),
+        cloud(),
+      ]).single.channels.single;
+      expect(agentLocation(c, c.agents.first), '/agents/AgentX');
     });
   });
 }

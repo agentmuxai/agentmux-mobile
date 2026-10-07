@@ -1,8 +1,14 @@
+import '../discovery/models/lan_instance.dart';
+import '../discovery/peer_fields.dart';
+
 /// One channel's state as `GET /agentmux/fleet` and the `fleet` event of
 /// `/agentmux/fleet/events` report it: agent names only, plus the instance
 /// metadata a LAN peer can already see in the mDNS record.
 ///
-/// See `docs/specs/SPEC_LIVE_FLEET_TOPOLOGY_2026_10_03.md` section 4.1.
+/// See `docs/specs/SPEC_LIVE_FLEET_TOPOLOGY_2026_10_03.md` section 4.1, and
+/// `SPEC_FLEET_HOST_TAGS_AND_CLOUD_HOSTS_2026_10_06.md` section 5.1 for the
+/// display fields (`os`, `install_id`, `channels_running`, `agent_kinds`)
+/// newer desktops add. Those are optional: an older desktop leaves them out.
 class FleetSnapshot {
   const FleetSnapshot({
     required this.epoch,
@@ -11,6 +17,10 @@ class FleetSnapshot {
     required this.version,
     required this.agents,
     this.channel,
+    this.os,
+    this.installId,
+    this.channelsRunning,
+    this.agentKinds = const {},
   });
 
   /// Bounds on peer-supplied data: a LAN peer is unauthenticated, so nothing
@@ -28,6 +38,14 @@ class FleetSnapshot {
   final String version;
   final String? channel;
   final List<String> agents;
+
+  /// Validated platform token, see `parseOs`.
+  final String? os;
+  final String? installId;
+  final int? channelsRunning;
+
+  /// Kind per agent, keyed by lower-cased name; agents left out have none.
+  final Map<String, AgentKind> agentKinds;
 
   /// The SSE `id` / ETag body for this state.
   String get eventId => '$epoch:$rev';
@@ -59,6 +77,10 @@ class FleetSnapshot {
           .where((n) => n.isNotEmpty && n.length <= maxNameLength)
           .take(maxAgents)
           .toList(),
+      os: parseOs(json['os']),
+      installId: parseInstallId(json['install_id']),
+      channelsRunning: parseChannelsRunning(json['channels_running']),
+      agentKinds: parseAgentKinds(json['agent_kinds'], maxEntries: maxAgents),
     );
   }
 }

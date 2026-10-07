@@ -1,10 +1,30 @@
 import '../discovery/models/lan_instance.dart';
+import '../discovery/network_environment.dart';
 import 'channel_session.dart';
+import 'cloud_instances.dart';
 
 /// How a channel was found. LAN channels come and go on their own; channels
 /// the user added (QR, manual) or the dev bootstrap are never hidden
-/// automatically.
-enum EndpointSource { lan, manual, dev }
+/// automatically. A cloud channel comes from the account's install list
+/// (`SPEC_FLEET_HOST_TAGS_AND_CLOUD_HOSTS_2026_10_06.md` section 6.4): it has
+/// no LAN endpoint and no session, and leaves when the list stops naming it.
+enum EndpointSource { lan, manual, dev, cloud }
+
+/// How the phone reaches a channel, for the route badge (spec section 4.3).
+/// Display only: a message always goes by the channel's own endpoint.
+enum ChannelRoute {
+  /// Found on this network (mDNS, UDP, or a QR/manual private address).
+  lan,
+
+  /// Known only from the account's cloud install list.
+  cloud,
+
+  /// The same install seen both ways; reached over the LAN.
+  lanAndCloud,
+
+  /// A QR or manual entry whose address is not private.
+  direct,
+}
 
 /// Spec P6, thresholds aligned with the desktop Swarm
 /// (`SPEC_SWARM_OTHER_HOSTS_AND_CHANNELS_2026_10_02.md` section 4).
@@ -12,6 +32,10 @@ enum Presence { live, stale, gone }
 
 const staleAfter = Duration(seconds: 60);
 const goneAfter = Duration(seconds: 300);
+
+/// A cloud install publishes every 60 s; three missed intervals dims it
+/// (spec section 6.4). It is hidden only when the relay stops listing it.
+const cloudStaleAfter = Duration(minutes: 3);
 
 /// One channel endpoint and everything known about it.
 class ChannelRecord {
@@ -31,6 +55,9 @@ class ChannelRecord {
     this.lastContact,
     this.error,
     this.errorAt,
+    this.os,
+    this.installId,
+    this.channelsRunning,
   });
 
   /// Stable for the record's lifetime; sessions and UI state key on it.
@@ -53,6 +80,9 @@ class ChannelRecord {
   final DateTime lastSighting;
   final ChannelError? error;
   final DateTime? errorAt;
+  final String? os;
+  final String? installId;
+  final int? channelsRunning;
 
   ChannelRecord copyWith({
     String? hostname,
@@ -70,6 +100,9 @@ class ChannelRecord {
     ChannelError? error,
     DateTime? errorAt,
     bool clearError = false,
+    String? os,
+    String? installId,
+    int? channelsRunning,
   }) {
     return ChannelRecord(
       id: id,
@@ -87,6 +120,9 @@ class ChannelRecord {
       lastSighting: lastSighting ?? this.lastSighting,
       error: clearError ? null : (error ?? this.error),
       errorAt: clearError ? null : (errorAt ?? this.errorAt),
+      os: os ?? this.os,
+      installId: installId ?? this.installId,
+      channelsRunning: channelsRunning ?? this.channelsRunning,
     );
   }
 
@@ -98,6 +134,9 @@ class ChannelRecord {
 
   Presence presence(DateTime now) {
     final age = now.difference(lastAlive);
+    if (source == EndpointSource.cloud) {
+      return age < cloudStaleAfter ? Presence.live : Presence.stale;
+    }
     if (age < staleAfter) return Presence.live;
     if (source != EndpointSource.lan || age < goneAfter) return Presence.stale;
     return Presence.gone;
@@ -113,6 +152,16 @@ class ChannelRecord {
     return error;
   }
 
+  /// The route badge for this endpoint alone; the tree turns a LAN channel
+  /// and a cloud channel with the same install id into
+  /// [ChannelRoute.lanAndCloud].
+  ChannelRoute get route => switch (source) {
+        EndpointSource.lan => ChannelRoute.lan,
+        EndpointSource.cloud => ChannelRoute.cloud,
+        EndpointSource.manual || EndpointSource.dev =>
+          isPrivateAddress(address) ? ChannelRoute.lan : ChannelRoute.direct,
+      };
+
   LanInstance toInstance() => LanInstance(
         hostname: hostname,
         version: version,
@@ -120,6 +169,9 @@ class ChannelRecord {
         port: port,
         authKey: authKey,
         channel: channel,
+        os: os,
+        installId: installId,
+        channelsRunning: channelsRunning,
         agents: agents,
       );
 }
@@ -135,6 +187,9 @@ class Sighting {
     this.channel,
     this.source = EndpointSource.lan,
     this.agents,
+    this.os,
+    this.installId,
+    this.channelsRunning,
   });
 
   factory Sighting.fromInstance(
@@ -150,6 +205,9 @@ class Sighting {
         channel: i.channel,
         source: source,
         agents: i.agents.isEmpty ? null : i.agents,
+        os: i.os,
+        installId: i.installId,
+        channelsRunning: i.channelsRunning,
       );
 
   final String hostname;
@@ -160,6 +218,9 @@ class Sighting {
   final String? channel;
   final EndpointSource source;
   final List<LanAgent>? agents;
+  final String? os;
+  final String? installId;
+  final int? channelsRunning;
 }
 
 /// Whether two descriptions name the same channel (spec section 3).
@@ -200,6 +261,9 @@ class FleetStore {
 
   ChannelRecord? _match(Sighting s) {
     for (final r in records.values) {
+      // A cloud channel is never matched by name: only the tree joins it to a
+      // LAN channel, and only by install id (spec section 7).
+      if (r.source == EndpointSource.cloud) continue;
       if (sameChannel(
         hostnameA: r.hostname,
         channelA: r.channel,
@@ -237,6 +301,9 @@ class FleetStore {
         channel: s.channel,
         agents: s.agents ?? const [],
         lastSighting: now,
+        os: s.os,
+        installId: s.installId,
+        channelsRunning: s.channelsRunning,
       );
       return (_with(record), id, SightingEffect.added);
     }
@@ -262,6 +329,9 @@ class FleetStore {
       authKey: relocate ? s.authKey : null,
       source: keepLocator ? null : s.source,
       clearError: relocate,
+      os: s.os,
+      installId: s.installId,
+      channelsRunning: s.channelsRunning,
     );
     return (
       _with(updated),
@@ -294,6 +364,11 @@ class FleetStore {
           hostname: u.hostname,
           channel: u.channel,
           version: u.version,
+          os: u.os,
+          installId: u.installId,
+          // A count change bumps `rev` like a name change, so it follows the
+          // same rule as the agent list.
+          channelsRunning: staleRev ? null : u.channelsRunning,
           clearError: true,
         ));
     }
@@ -311,6 +386,46 @@ class FleetStore {
       ..removeWhere((k, _) => gone.contains(k));
     return (FleetStore(next), gone);
   }
+
+  /// Replaces every cloud channel with [instances], the account's current
+  /// install list: one record per install, keyed by its instance id so the
+  /// record (and the UI state keyed on it) survives every refresh. An install
+  /// the list no longer names is dropped (the relay stops listing it after
+  /// 24 hours). LAN records are untouched.
+  FleetStore syncCloud(List<CloudInstance> instances) {
+    final next = Map<String, ChannelRecord>.of(records)
+      ..removeWhere((_, r) => r.source == EndpointSource.cloud);
+    for (final c in instances) {
+      final id = cloudRecordId(c.instanceId);
+      next[id] = ChannelRecord(
+        id: id,
+        hostname: c.hostname,
+        address: '',
+        port: 0,
+        authKey: '',
+        version: c.version,
+        source: EndpointSource.cloud,
+        channel: c.channel,
+        agents: c.agents,
+        // The relay's receive time is the install's last proof of life.
+        lastSighting: DateTime.fromMillisecondsSinceEpoch(c.receivedAtMs),
+        os: c.os,
+        installId: c.instanceId,
+        channelsRunning: c.channelsRunning,
+      );
+    }
+    return FleetStore(next);
+  }
+
+  /// Drops every cloud channel (signed out).
+  FleetStore clearCloud() {
+    if (!records.values.any((r) => r.source == EndpointSource.cloud)) {
+      return this;
+    }
+    return syncCloud(const []);
+  }
+
+  static String cloudRecordId(String instanceId) => 'cloud:$instanceId';
 
   FleetStore remove(Iterable<String> ids) {
     final next = Map<String, ChannelRecord>.of(records)

@@ -2,16 +2,23 @@ import 'package:flutter/material.dart';
 
 import '../../core/discovery/local_api_client.dart';
 import '../../core/discovery/models/lan_instance.dart';
+import '../../core/fleet/fleet_store.dart';
+import '../../shared/widgets/tag_chip.dart';
 
 class LanAgentScreen extends StatefulWidget {
   const LanAgentScreen({
     super.key,
     required this.instance,
     required this.agent,
+    this.route,
   });
 
   final LanInstance instance;
   final LanAgent agent;
+
+  /// How this channel is reached, which is the way a message goes; null when
+  /// the caller did not say.
+  final ChannelRoute? route;
 
   @override
   State<LanAgentScreen> createState() => _LanAgentScreenState();
@@ -72,9 +79,22 @@ class _LanAgentScreenState extends State<LanAgentScreen> {
                 Text(widget.agent.name),
               ],
             ),
-            Text(
-              widget.instance.hostname,
-              style: const TextStyle(fontSize: 12, color: Colors.white54),
+            Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    // The address lives here, not on the host row.
+                    '${widget.instance.hostname}  •  '
+                    '${widget.instance.address}:${widget.instance.port}',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, color: Colors.white54),
+                  ),
+                ),
+                if (widget.route != null) ...[
+                  const SizedBox(width: 6),
+                  TagChip.route(widget.route!),
+                ],
+              ],
             ),
           ],
         ),

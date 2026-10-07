@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:mutex/mutex.dart';
 
 import '../auth/auth_repository.dart';
+import '../fleet/cloud_instances.dart';
 import '../models/agent.dart';
 import '../models/injection.dart';
 import '../models/message.dart';
@@ -15,12 +16,14 @@ const _apiBase = String.fromEnvironment(
 );
 
 class MuxbusClient {
-  MuxbusClient(this._auth) {
+  /// [httpClientAdapter] replaces the network in tests.
+  MuxbusClient(this._auth, {HttpClientAdapter? httpClientAdapter}) {
     _dio = Dio(BaseOptions(
       baseUrl: _apiBase,
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 20),
     ));
+    if (httpClientAdapter != null) _dio.httpClientAdapter = httpClientAdapter;
     _dio.interceptors.add(_AuthInterceptor(_auth, _dio, _refreshMutex));
   }
 
@@ -34,6 +37,23 @@ class MuxbusClient {
     final res = await _dio.get<Map<String, dynamic>>('/api/agents');
     final list = (res.data!['agents'] as List).cast<Map<String, dynamic>>();
     return list.map(Agent.fromJson).toList();
+  }
+
+  // ── Installs (cloud host list) ───────────────────────────────────────────
+
+  /// This account's AgentMux installs, for the host tree (`GET /wan-instances`,
+  /// `SPEC_FLEET_HOST_TAGS_AND_CLOUD_HOSTS_2026_10_06.md` section 6.2). Throws
+  /// [CloudInstancesUnsupported] when the relay predates the route (404).
+  Future<List<CloudInstance>> getInstances() async {
+    try {
+      final res = await _dio.get<Object>('/wan-instances');
+      return CloudInstance.parseList(res.data);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        throw const CloudInstancesUnsupported();
+      }
+      rethrow;
+    }
   }
 
   // ── Messages ─────────────────────────────────────────────────────────────

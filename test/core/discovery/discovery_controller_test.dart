@@ -9,6 +9,9 @@ import 'package:agentmux_mobile/core/discovery/mdns_scanner.dart';
 import 'package:agentmux_mobile/core/discovery/models/lan_instance.dart';
 import 'package:agentmux_mobile/core/discovery/network_environment.dart';
 import 'package:agentmux_mobile/core/discovery/udp_broadcast_prober.dart';
+import 'package:agentmux_mobile/core/discovery/host_tree.dart';
+import 'package:agentmux_mobile/core/fleet/cloud_instance_source.dart';
+import 'package:agentmux_mobile/core/fleet/cloud_instances.dart';
 import 'package:agentmux_mobile/core/fleet/fleet_snapshot.dart';
 import 'package:agentmux_mobile/core/fleet/fleet_store.dart';
 import 'package:agentmux_mobile/core/fleet/fleet_transport.dart';
@@ -93,17 +96,54 @@ LanInstance _reply(int port, String channel) => LanInstance(
       channel: channel,
     );
 
+/// The account's install list as the fake relay serves it.
+class _FakeCloud {
+  var signedIn = false;
+  var fetches = 0;
+  Object? failure;
+  List<CloudInstance> Function() list = () => const [];
+
+  Future<bool> isSignedIn() async => signedIn;
+
+  Future<List<CloudInstance>> fetch() async {
+    fetches++;
+    final f = failure;
+    if (f != null) throw f;
+    return list();
+  }
+}
+
+CloudInstance _install(
+  String id, {
+  String hostname = 'area54',
+  String channel = 'stable',
+  required DateTime receivedAt,
+}) =>
+    CloudInstance(
+      instanceId: id,
+      hostname: hostname,
+      channel: channel,
+      version: '0.59.11',
+      os: 'macos',
+      agents: const [LanAgent(name: 'AgentA', kind: AgentKind.host)],
+      receivedAtMs: receivedAt.millisecondsSinceEpoch,
+    );
+
 void main() {
   late _FakeUdp udp;
   late _FakeHost host;
+  late _FakeCloud cloud;
   late List<String> interfaces;
   late ProviderContainer container;
 
   setUp(() {
     udp = _FakeUdp();
     host = _FakeHost();
+    cloud = _FakeCloud();
     interfaces = ['wlan0=192.168.1.50'];
     container = ProviderContainer(overrides: [
+      cloudSignedInProvider.overrideWithValue(cloud.isSignedIn),
+      cloudInstancesFetchProvider.overrideWithValue(cloud.fetch),
       mdnsScannerProvider.overrideWithValue(_FakeMdns()),
       udpBroadcastProberProvider.overrideWithValue(udp),
       fleetTransportFactoryProvider.overrideWithValue(host.transport),
@@ -277,6 +317,172 @@ void main() {
       expect(async.pendingTimers, isEmpty);
       // tearDown disposes again; make that a no-op.
       container = ProviderContainer();
+    });
+  });
+
+  group('cloud hosts', () {
+    List<ChannelNode> channels(DiscoveryState s) => switch (s) {
+          DiscoveryResults(:final hosts) => [
+              for (final h in hosts) ...h.channels,
+            ],
+          _ => const [],
+        };
+
+    test('signed out: nothing is fetched and the note says so', () {
+      fakeAsync((async) {
+        udp.replies = [_reply(29704, 'local-main')];
+        container.read(discoveryProvider);
+        async.elapse(const Duration(seconds: 1));
+        expect(cloud.fetches, 0);
+        final s = container.read(discoveryProvider) as DiscoveryResults;
+        expect(s.cloud, CloudListStatus.signedOut);
+      });
+    });
+
+    test('signed out with nothing on the LAN: the empty view carries the note',
+        () {
+      fakeAsync((async) {
+        container.read(discoveryProvider);
+        async.elapse(const Duration(seconds: 3));
+        final s = container.read(discoveryProvider) as DiscoveryEmpty;
+        expect(s.cloud, CloudListStatus.signedOut);
+      });
+    });
+
+    test('signed in: a cloud-only install shows as a cloud channel', () {
+      fakeAsync((async) {
+        cloud.signedIn = true;
+        final t0 = DateTime.now();
+        cloud.list = () => [_install('aaaa', receivedAt: t0)];
+        container.read(discoveryProvider);
+        async.elapse(const Duration(seconds: 1));
+        final s = container.read(discoveryProvider) as DiscoveryResults;
+        expect(s.cloud, CloudListStatus.ok);
+        final area54 = s.hosts.single;
+        expect(area54.name, 'area54');
+        expect(area54.platform, HostPlatform.macos);
+        expect(area54.route, ChannelRoute.cloud);
+        expect(area54.channels.single.cloudOnly, isTrue);
+        expect(area54.channels.single.agents.single.kind, AgentKind.host);
+      });
+    });
+
+    test('presence follows received_at_ms: live under 3 min, then dimmed', () {
+      fakeAsync((async) {
+        cloud.signedIn = true;
+        // The install stopped publishing: the relay keeps returning the
+        // same record with the same receive time.
+        final received = DateTime.now();
+        cloud.list = () => [_install('aaaa', receivedAt: received)];
+        container.read(discoveryProvider);
+        async.elapse(const Duration(seconds: 1));
+        expect(channels(container.read(discoveryProvider)).single.presence,
+            Presence.live);
+        async.elapse(const Duration(minutes: 3));
+        final c = channels(container.read(discoveryProvider)).single;
+        expect(c.presence, Presence.stale);
+        // Still shown long after: only the relay dropping it hides it.
+        async.elapse(const Duration(minutes: 20));
+        expect(channels(container.read(discoveryProvider)), hasLength(1));
+        cloud.list = () => const [];
+        async.elapse(const Duration(seconds: 31));
+        expect(container.read(discoveryProvider), isA<DiscoveryEmpty>());
+      });
+    });
+
+    test('a LAN channel and its cloud record merge by install id', () {
+      fakeAsync((async) {
+        cloud.signedIn = true;
+        cloud.list = () => [
+              _install(
+                'pqkksqckrolze5wvcs6rqeic4e',
+                hostname: 'narko',
+                channel: 'local-main',
+                receivedAt: DateTime.now(),
+              ),
+            ];
+        udp.replies = [
+          _reply(29704, 'local-main')
+              .copyWith(installId: 'pqkksqckrolze5wvcs6rqeic4e'),
+        ];
+        host.agents[29704] = ['Clamk'];
+        container.read(discoveryProvider);
+        async.elapse(const Duration(seconds: 1));
+        final c = channels(container.read(discoveryProvider)).single;
+        expect(c.route, ChannelRoute.lanAndCloud);
+        expect(c.via.port, 29704);
+        expect(c.agents.map((a) => a.name), ['Clamk']);
+      });
+    });
+
+    test('a failed list keeps what was shown and says unavailable', () {
+      fakeAsync((async) {
+        cloud.signedIn = true;
+        cloud.list = () => [_install('aaaa', receivedAt: DateTime.now())];
+        container.read(discoveryProvider);
+        async.elapse(const Duration(seconds: 1));
+        cloud.failure = DioException(
+          requestOptions: RequestOptions(path: '/wan-instances'),
+          type: DioExceptionType.connectionError,
+        );
+        async.elapse(const Duration(seconds: 31));
+        final s = container.read(discoveryProvider) as DiscoveryResults;
+        expect(s.cloud, CloudListStatus.unavailable);
+        expect(channels(s), hasLength(1));
+      });
+    });
+
+    test('an older relay (404) is not a note', () {
+      fakeAsync((async) {
+        cloud.signedIn = true;
+        cloud.failure = const CloudInstancesUnsupported();
+        udp.replies = [_reply(29704, 'local-main')];
+        container.read(discoveryProvider);
+        async.elapse(const Duration(seconds: 1));
+        final s = container.read(discoveryProvider) as DiscoveryResults;
+        expect(s.cloud, CloudListStatus.unsupported);
+      });
+    });
+
+    test('signing out removes cloud channels', () {
+      fakeAsync((async) {
+        cloud.signedIn = true;
+        cloud.list = () => [_install('aaaa', receivedAt: DateTime.now())];
+        container.read(discoveryProvider);
+        async.elapse(const Duration(seconds: 1));
+        cloud.signedIn = false;
+        container.read(discoveryProvider.notifier).refreshCloud();
+        async.elapse(const Duration(seconds: 1));
+        expect(container.read(discoveryProvider), isA<DiscoveryEmpty>());
+      });
+    });
+
+    test('the cloud list stops in the background and resumes in front', () {
+      fakeAsync((async) {
+        cloud.signedIn = true;
+        final notifier = container.read(discoveryProvider.notifier);
+        container.read(discoveryProvider);
+        async.elapse(const Duration(seconds: 1));
+        expect(cloud.fetches, 1);
+        notifier.handlePause();
+        async.elapse(const Duration(minutes: 5));
+        expect(cloud.fetches, 1);
+        notifier.handleResume();
+        async.elapse(const Duration(seconds: 1));
+        expect(cloud.fetches, 2);
+      });
+    });
+
+    test('pull-to-refresh asks the cloud too', () {
+      fakeAsync((async) {
+        cloud.signedIn = true;
+        final notifier = container.read(discoveryProvider.notifier);
+        container.read(discoveryProvider);
+        async.elapse(const Duration(seconds: 1));
+        notifier.refresh();
+        async.elapse(const Duration(seconds: 3));
+        expect(cloud.fetches, 2);
+      });
     });
   });
 }

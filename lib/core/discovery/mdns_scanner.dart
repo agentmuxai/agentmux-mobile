@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:multicast_dns/multicast_dns.dart';
 
 import '../logging/app_logger.dart';
 import 'android_multicast_lock.dart';
 import 'discovery_telemetry.dart';
 import 'models/lan_instance.dart';
+import 'peer_fields.dart';
 
 const _serviceType = '_agentmux._tcp.local';
 
@@ -121,11 +123,6 @@ class MdnsScanner {
       MDnsClient client, String serviceName) async {
     String? host;
     int? port;
-    String? authKey;
-    String? version;
-    String? hostname;
-    String? instanceId;
-    String? channel;
 
     // SRV → host + port
     await for (final srv in client.lookup<SrvResourceRecord>(
@@ -139,28 +136,13 @@ class MdnsScanner {
     }
 
     // TXT → metadata
-    await for (final txt in client.lookup<TxtResourceRecord>(
+    var txt = parseTxt('');
+    await for (final record in client.lookup<TxtResourceRecord>(
         ResourceRecordQuery.text(serviceName))) {
-      for (final kv in txt.text.split('\n')) {
-        final idx = kv.indexOf('=');
-        if (idx < 0) continue;
-        final k = kv.substring(0, idx).trim();
-        final v = kv.substring(idx + 1).trim();
-        switch (k) {
-          case 'auth_key':
-            authKey = v;
-          case 'version':
-            version = v;
-          case 'hostname':
-            hostname = v;
-          case 'instance_id':
-            instanceId = v;
-          case 'channel':
-            channel = v.isEmpty ? null : v;
-        }
-      }
+      txt = parseTxt(record.text);
       break;
     }
+    final authKey = txt.authKey;
     if (authKey == null) {
       return const _ResolveOutcome.discarded('missing auth_key TXT field');
     }
@@ -185,13 +167,69 @@ class MdnsScanner {
     }
 
     return _ResolveOutcome.success(LanInstance(
-      hostname: hostname ?? host.split('.').first,
-      version: version ?? '?',
+      hostname: txt.hostname ?? host.split('.').first,
+      version: txt.version ?? '?',
       address: address,
       port: port,
       authKey: authKey,
+      instanceId: txt.instanceId,
+      channel: txt.channel,
+      // `channels_running` is not in TXT (it changes); the fleet feed has it.
+      os: txt.os,
+      installId: txt.installId,
+    ));
+  }
+
+  /// Reads the `key=value` lines of an `_agentmux._tcp` TXT record. Unknown
+  /// keys are ignored; `os` and `install_id` are validated and dropped when
+  /// malformed (an older desktop sends neither).
+  @visibleForTesting
+  static ({
+    String? authKey,
+    String? version,
+    String? hostname,
+    String? instanceId,
+    String? channel,
+    String? os,
+    String? installId,
+  }) parseTxt(String text) {
+    String? authKey;
+    String? version;
+    String? hostname;
+    String? instanceId;
+    String? channel;
+    String? os;
+    String? installId;
+    for (final kv in text.split('\n')) {
+      final idx = kv.indexOf('=');
+      if (idx < 0) continue;
+      final k = kv.substring(0, idx).trim();
+      final v = kv.substring(idx + 1).trim();
+      switch (k) {
+        case 'auth_key':
+          authKey = v;
+        case 'version':
+          version = v;
+        case 'hostname':
+          hostname = v;
+        case 'instance_id':
+          instanceId = v;
+        case 'channel':
+          channel = v.isEmpty ? null : v;
+        case 'os':
+          os = parseOs(v);
+        case 'install_id':
+          installId = parseInstallId(v);
+      }
+    }
+    return (
+      authKey: authKey,
+      version: version,
+      hostname: hostname,
       instanceId: instanceId,
       channel: channel,
-    ));
+      os: os,
+      installId: installId,
+    );
   }
 }
