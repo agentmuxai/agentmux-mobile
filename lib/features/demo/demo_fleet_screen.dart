@@ -6,6 +6,7 @@ import '../../core/models/agent.dart';
 import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/demo_banner.dart';
 import '../../shared/widgets/status_badge.dart';
+import '../discovery/host_card.dart';
 
 /// A static, no-network preview of what the agent list looks like with a
 /// real fleet connected. Reachable without login or a LAN instance — see
@@ -16,18 +17,46 @@ class DemoFleetScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final agents = buildDemoAgents();
+    final hosts = buildDemoHosts();
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Demo Fleet'),
         bottom: const DemoBanner(),
       ),
-      body: ListView.separated(
+      body: ListView(
         padding: const EdgeInsets.all(12),
-        itemCount: agents.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder: (ctx, i) => _DemoAgentCard(agent: agents[i]),
+        children: [
+          const _SectionTitle('Hosts'),
+          // The same card the discovery screen shows; taps open the demo
+          // agent screen instead of contacting anything.
+          for (final host in hosts)
+            HostCard(
+              key: ValueKey(host.key),
+              host: host,
+              onAgentTap: (context, _, agent) =>
+                  context.push('/demo/agent/${agent.name}'),
+            ),
+          const _SectionTitle('Cloud agents'),
+          for (final agent in agents) ...[
+            _DemoAgentCard(agent: agent),
+            const SizedBox(height: 8),
+          ],
+        ],
       ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+      child: Text(text, style: Theme.of(context).textTheme.labelSmall),
     );
   }
 }

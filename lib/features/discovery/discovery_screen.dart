@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/auth_provider.dart';
 import '../../core/discovery/discovery_provider.dart';
 import '../../core/discovery/discovery_telemetry.dart';
 import '../../core/discovery/host_tree.dart';
+import '../../core/fleet/cloud_instance_source.dart';
 import 'host_card.dart';
 import 'manual_add_sheet.dart';
 import 'qr_scan_screen.dart';
@@ -15,6 +17,13 @@ class DiscoveryScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(discoveryProvider);
+    // Signing in or out changes what the cloud list may show; ask again now
+    // rather than at its next 30 s tick.
+    ref.listen(authProvider, (prev, next) {
+      if (prev?.valueOrNull != next.valueOrNull) {
+        ref.read(discoveryProvider.notifier).refreshCloud();
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -85,8 +94,9 @@ class DiscoveryScreen extends ConsumerWidget {
       ),
       body: switch (state) {
         DiscoveryScanning() => const _ScanningView(),
-        DiscoveryEmpty() => const _EmptyView(),
-        DiscoveryResults(:final hosts) => _ResultsView(hosts: hosts),
+        DiscoveryEmpty(:final cloud) => _EmptyView(cloud: cloud),
+        DiscoveryResults(:final hosts, :final cloud) =>
+          _ResultsView(hosts: hosts, cloud: cloud),
       },
     );
   }
@@ -117,7 +127,8 @@ class _ScanningView extends StatelessWidget {
 }
 
 class _EmptyView extends StatelessWidget {
-  const _EmptyView();
+  const _EmptyView({required this.cloud});
+  final CloudListStatus cloud;
 
   @override
   Widget build(BuildContext context) {
@@ -130,6 +141,7 @@ class _EmptyView extends StatelessWidget {
     // check didn't find anything obviously wrong. See
     // docs/specs/DISCOVERY_DIAGNOSTICS_TELEMETRY.md.
     final hint = DiscoveryTelemetry.lastNetworkSnapshot?.hint;
+    final note = cloudNoteText(cloud);
 
     return Center(
       child: Column(
@@ -165,6 +177,7 @@ class _EmptyView extends StatelessWidget {
               ),
             ),
           ],
+          if (note != null) CloudNote(text: note),
           const SizedBox(height: 32),
           OutlinedButton.icon(
             icon: const Icon(Icons.qr_code_scanner),
@@ -196,22 +209,24 @@ class _EmptyView extends StatelessWidget {
 }
 
 class _ResultsView extends ConsumerWidget {
-  const _ResultsView({required this.hosts});
+  const _ResultsView({required this.hosts, required this.cloud});
   final List<HostNode> hosts;
+  final CloudListStatus cloud;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // The list never implies it is everything (spec section 3.5).
+    final note = cloudNoteText(cloud);
     return RefreshIndicator(
       onRefresh: () => ref.read(discoveryProvider.notifier).refresh(),
       child: ListView.builder(
         padding: const EdgeInsets.all(12),
-        itemCount: hosts.length,
+        itemCount: hosts.length + (note == null ? 0 : 1),
         // Keyed by host so an update never hands one host's expanded state
         // to another.
-        itemBuilder: (_, i) => HostCard(
-          key: ValueKey('host:${hosts[i].name.toLowerCase()}'),
-          host: hosts[i],
-        ),
+        itemBuilder: (_, i) => i < hosts.length
+            ? HostCard(key: ValueKey(hosts[i].key), host: hosts[i])
+            : CloudNote(key: const ValueKey('cloud-note'), text: note!),
       ),
     );
   }

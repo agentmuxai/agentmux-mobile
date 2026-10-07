@@ -40,6 +40,9 @@ class SessionContact extends SessionUpdate {
     this.hostname,
     this.channel,
     this.version,
+    this.os,
+    this.installId,
+    this.channelsRunning,
   });
 
   final List<LanAgent>? agents;
@@ -48,6 +51,9 @@ class SessionContact extends SessionUpdate {
   final String? hostname;
   final String? channel;
   final String? version;
+  final String? os;
+  final String? installId;
+  final int? channelsRunning;
 }
 
 class SessionFailure extends SessionUpdate {
@@ -266,17 +272,27 @@ class ChannelSession {
   static bool _sameAgents(List<LanAgent> a, List<LanAgent> b) {
     if (a.length != b.length) return false;
     for (var i = 0; i < a.length; i++) {
-      if (a[i].name != b[i].name || a[i].channel != b[i].channel) return false;
+      if (a[i].name != b[i].name ||
+          a[i].channel != b[i].channel ||
+          a[i].kind != b[i].kind) {
+        return false;
+      }
     }
     return true;
   }
 
   static SessionContact _contactFrom(FleetSnapshot s) => SessionContact(
-        agents: [for (final n in s.agents) LanAgent(name: n)],
+        agents: [
+          for (final n in s.agents)
+            LanAgent(name: n, kind: s.agentKinds[n.toLowerCase()]),
+        ],
         epoch: s.epoch,
         rev: s.rev,
         hostname: s.hostname.isEmpty ? null : s.hostname,
         channel: s.channel,
         version: s.version.isEmpty ? null : s.version,
+        os: s.os,
+        installId: s.installId,
+        channelsRunning: s.channelsRunning,
       );
 }

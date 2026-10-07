@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 const _kIdToken = 'muxbus_id_token';
+const _kAccessToken = 'muxbus_access_token';
 const _kRefreshToken = 'muxbus_refresh_token';
 const _kTokenExpiry = 'muxbus_token_expiry';
 const _kUserSub = 'muxbus_user_sub';
@@ -14,12 +15,14 @@ class TokenStorage {
 
   Future<void> save({
     required String idToken,
+    required String accessToken,
     required String refreshToken,
     required DateTime expiry,
     required String userSub,
   }) async {
     await Future.wait([
       _store.write(key: _kIdToken, value: idToken),
+      _store.write(key: _kAccessToken, value: accessToken),
       _store.write(key: _kRefreshToken, value: refreshToken),
       _store.write(key: _kTokenExpiry, value: expiry.millisecondsSinceEpoch.toString()),
       _store.write(key: _kUserSub, value: userSub),
@@ -27,6 +30,7 @@ class TokenStorage {
   }
 
   Future<String?> readIdToken() => _store.read(key: _kIdToken);
+  Future<String?> readAccessToken() => _store.read(key: _kAccessToken);
   Future<String?> readRefreshToken() => _store.read(key: _kRefreshToken);
   Future<String?> readUserSub() => _store.read(key: _kUserSub);
 
@@ -64,6 +68,7 @@ class TokenStorage {
   Future<void> clear() async {
     await Future.wait([
       _store.delete(key: _kIdToken),
+      _store.delete(key: _kAccessToken),
       _store.delete(key: _kRefreshToken),
       _store.delete(key: _kTokenExpiry),
       _store.delete(key: _kUserSub),
