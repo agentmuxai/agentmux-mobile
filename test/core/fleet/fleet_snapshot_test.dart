@@ -29,6 +29,14 @@ void main() {
           {'agentx': AgentKind.container, 'camper': AgentKind.host});
     });
 
+    test('reads viewer_port; an invalid one is dropped', () {
+      expect(FleetSnapshot.tryParse(_body({'viewer_port': 29811}))!.viewerPort,
+          29811);
+      expect(FleetSnapshot.tryParse(_body({'viewer_port': 70000}))!.viewerPort,
+          isNull);
+      expect(FleetSnapshot.tryParse(_body())!.viewerPort, isNull);
+    });
+
     test('an older desktop body parses as before', () {
       final s = FleetSnapshot.tryParse(_body())!;
       expect(s.agents, ['AgentX', 'Camper']);

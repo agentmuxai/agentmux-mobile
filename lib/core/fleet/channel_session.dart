@@ -44,6 +44,7 @@ class SessionContact extends SessionUpdate {
     this.os,
     this.installId,
     this.channelsRunning,
+    this.viewerPort,
   });
 
   final List<LanAgent>? agents;
@@ -55,6 +56,7 @@ class SessionContact extends SessionUpdate {
   final String? os;
   final String? installId;
   final int? channelsRunning;
+  final int? viewerPort;
 }
 
 class SessionFailure extends SessionUpdate {
@@ -306,6 +308,7 @@ class ChannelSession {
       os: s.os,
       installId: s.installId,
       channelsRunning: s.channelsRunning,
+      viewerPort: s.viewerPort,
     );
   }
 }

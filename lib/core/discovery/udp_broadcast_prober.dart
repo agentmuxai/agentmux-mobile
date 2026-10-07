@@ -19,7 +19,7 @@ import 'peer_fields.dart';
 ///        "instance_id":"...","hostname":"...","version":"...",
 ///        "port":12345,"auth_key":"..."}
 ///    plus optional fields newer desktops add: `channel`, `siblings`, `os`,
-///    `install_id`, `channels_running`.
+///    `install_id`, `channels_running`, `viewer_port`.
 const probePort = 47891;
 const _probeMessage = '{"type":"agentmux_discover","v":1}';
 const _defaultProbeWindow = Duration(seconds: 2);
@@ -236,6 +236,7 @@ class UdpBroadcastProber {
         os: parseOs(decoded['os']),
         installId: parseInstallId(decoded['install_id']),
         channelsRunning: parseChannelsRunning(decoded['channels_running']),
+        viewerPort: parsePort(decoded['viewer_port']),
       );
     } catch (_) {
       return null;
@@ -286,6 +287,7 @@ class UdpBroadcastProber {
           os: primary.os,
           channelsRunning: primary.channelsRunning,
           installId: parseInstallId(s['install_id']),
+          viewerPort: parsePort(s['viewer_port']),
         ));
       }
     } catch (_) {

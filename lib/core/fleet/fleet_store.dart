@@ -58,6 +58,7 @@ class ChannelRecord {
     this.os,
     this.installId,
     this.channelsRunning,
+    this.viewerPort,
   });
 
   /// Stable for the record's lifetime; sessions and UI state key on it.
@@ -83,6 +84,7 @@ class ChannelRecord {
   final String? os;
   final String? installId;
   final int? channelsRunning;
+  final int? viewerPort;
 
   ChannelRecord copyWith({
     String? hostname,
@@ -103,6 +105,7 @@ class ChannelRecord {
     String? os,
     String? installId,
     int? channelsRunning,
+    int? viewerPort,
   }) {
     return ChannelRecord(
       id: id,
@@ -123,6 +126,7 @@ class ChannelRecord {
       os: os ?? this.os,
       installId: installId ?? this.installId,
       channelsRunning: channelsRunning ?? this.channelsRunning,
+      viewerPort: viewerPort ?? this.viewerPort,
     );
   }
 
@@ -172,6 +176,7 @@ class ChannelRecord {
         os: os,
         installId: installId,
         channelsRunning: channelsRunning,
+        viewerPort: viewerPort,
         agents: agents,
       );
 }
@@ -190,6 +195,7 @@ class Sighting {
     this.os,
     this.installId,
     this.channelsRunning,
+    this.viewerPort,
   });
 
   factory Sighting.fromInstance(
@@ -208,6 +214,7 @@ class Sighting {
         os: i.os,
         installId: i.installId,
         channelsRunning: i.channelsRunning,
+        viewerPort: i.viewerPort,
       );
 
   final String hostname;
@@ -221,6 +228,7 @@ class Sighting {
   final String? os;
   final String? installId;
   final int? channelsRunning;
+  final int? viewerPort;
 }
 
 /// Whether two descriptions name the same channel (spec section 3).
@@ -304,6 +312,7 @@ class FleetStore {
         os: s.os,
         installId: s.installId,
         channelsRunning: s.channelsRunning,
+        viewerPort: s.viewerPort,
       );
       return (_with(record), id, SightingEffect.added);
     }
@@ -332,6 +341,7 @@ class FleetStore {
       os: s.os,
       installId: s.installId,
       channelsRunning: s.channelsRunning,
+      viewerPort: s.viewerPort,
     );
     return (
       _with(updated),
@@ -369,6 +379,7 @@ class FleetStore {
           // A count change bumps `rev` like a name change, so it follows the
           // same rule as the agent list.
           channelsRunning: staleRev ? null : u.channelsRunning,
+          viewerPort: u.viewerPort,
           clearError: true,
         ));
     }
