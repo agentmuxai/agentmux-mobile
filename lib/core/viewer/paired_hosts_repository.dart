@@ -28,7 +28,18 @@ class PairedHostsRepository {
       return const [];
     }
     if (decoded is! List) return const [];
-    return decoded.map(PairedHost.fromJson).whereType<PairedHost>().toList();
+    final hosts = <PairedHost>[];
+    for (final record in decoded) {
+      // One bad record must not take the others with it: a load that
+      // fails reads as empty, and the next save would then overwrite them.
+      try {
+        final host = PairedHost.fromJson(record);
+        if (host != null) hosts.add(host);
+      } on Object {
+        continue;
+      }
+    }
+    return hosts;
   }
 
   Future<void> save(List<PairedHost> hosts) async {

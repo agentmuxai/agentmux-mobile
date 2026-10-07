@@ -60,6 +60,11 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
   bool _follow = true;
   final _expanded = <int>{};
 
+  /// The transcript [_expanded] belongs to. A snapshot or reset makes a new
+  /// transcript whose item keys start again at 0, so expansions are dropped
+  /// with the old one rather than opening unrelated tool calls.
+  Transcript? _expandedFor;
+
   @override
   void initState() {
     super.initState();
@@ -250,6 +255,10 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
             : 'Connecting…',
         detail: null,
       );
+    }
+    if (!identical(transcript, _expandedFor)) {
+      _expanded.clear();
+      _expandedFor = transcript;
     }
     final items = transcript.items;
     if (items.isEmpty) {

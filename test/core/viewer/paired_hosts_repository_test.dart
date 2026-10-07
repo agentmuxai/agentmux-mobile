@@ -38,6 +38,18 @@ void main() {
       expect(loaded.map((h) => h.id), ['ok']);
     });
 
+    test('a record with a wrongly typed field is dropped, the rest kept',
+        () async {
+      final bad = testPairedHost(id: 'bad').toJson()..['fp'] = 123;
+      final store = InMemorySecureStore()
+        ..values[PairedHostsRepository.storageKey] = jsonEncode([
+          bad,
+          testPairedHost(id: 'ok').toJson(),
+        ]);
+      final loaded = await PairedHostsRepository(store).load();
+      expect(loaded.map((h) => h.id), ['ok']);
+    });
+
     test('unreadable storage reads as empty', () async {
       final store = InMemorySecureStore()
         ..values[PairedHostsRepository.storageKey] = '{not json';

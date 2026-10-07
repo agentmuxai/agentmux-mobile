@@ -147,6 +147,35 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('a reset forgets which tool calls were open', (tester) async {
+    final snapshot = _sse('snapshot', {
+      'provider': 'claude',
+      'gen': 1,
+      'from_line': 0,
+      'next_line': claudeTurn.length,
+      'lines': claudeTurn,
+    }, id: '1:${claudeTurn.length}');
+    adapter = FakeAdapter([
+      FakeResponse(200, keepOpen: true, chunks: [snapshot]),
+    ]);
+    await pumpFeed(tester, testPairedHost());
+
+    await tester.tap(find.text('git status'));
+    await tester.pump();
+    expect(find.textContaining('On branch main'), findsOneWidget);
+
+    // The desktop replaces the transcript: its item keys start again at 0.
+    adapter.open.last
+      ..add(Uint8List.fromList(utf8.encode(_sse('reset', {'reason': 'replaced'}))))
+      ..add(Uint8List.fromList(utf8.encode(snapshot)));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('git status'), findsOneWidget);
+    expect(find.textContaining('On branch main'), findsNothing);
+
+    await unmount(tester);
+  });
+
   testWidgets('status chip: the host list state, then the feed state',
       (tester) async {
     adapter = FakeAdapter([

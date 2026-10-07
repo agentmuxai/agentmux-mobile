@@ -109,7 +109,8 @@ class PairedHost {
     if (json is! Map) return null;
     final id = json['id'];
     final token = json['token'];
-    final fp = normalizeFingerprint(json['fp'] as String?);
+    final rawFp = json['fp'];
+    final fp = rawFp is String ? normalizeFingerprint(rawFp) : null;
     final host = json['host'];
     final port = json['port'];
     final hostname = json['hostname'];
