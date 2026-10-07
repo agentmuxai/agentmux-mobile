@@ -9,6 +9,8 @@ import '../../core/discovery/models/lan_instance.dart';
 import '../../core/fleet/channel_session.dart';
 import '../../core/fleet/cloud_instance_source.dart';
 import '../../core/fleet/fleet_store.dart';
+import '../../core/viewer/paired_host.dart';
+import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/agent_state_chip.dart';
 import '../../shared/widgets/tag_chip.dart';
 
@@ -16,6 +18,9 @@ import '../../shared/widgets/tag_chip.dart';
 /// default navigation with its own.
 typedef AgentTap = void Function(
     BuildContext context, ChannelNode channel, LanAgent agent);
+
+/// Forget a pairing on this device (the host card's long-press menu).
+typedef UnpairCallback = void Function(PairedHost host);
 
 /// A machine and what runs on it, as a tree: host -> channel -> agents.
 ///
@@ -26,10 +31,20 @@ typedef AgentTap = void Function(
 /// directly off the host. A host or channel that has gone quiet is dimmed
 /// with its last-seen age, and a channel that cannot be read says why
 /// instead of showing an empty list.
+///
+/// A channel this device has paired with carries a "Paired" tag, on the host
+/// row when the channel level is not shown; long-pressing the card offers to
+/// unpair it ([onUnpair]).
 class HostCard extends StatelessWidget {
-  const HostCard({super.key, required this.host, this.onAgentTap});
+  const HostCard({
+    super.key,
+    required this.host,
+    this.onAgentTap,
+    this.onUnpair,
+  });
   final HostNode host;
   final AgentTap? onAgentTap;
+  final UnpairCallback? onUnpair;
 
   @override
   Widget build(BuildContext context) {
@@ -41,71 +56,129 @@ class HostCard extends StatelessWidget {
     final version = host.version;
     final subtitle = _hostSubtitle(host, only);
     final hidden = host.hiddenChannels;
+    final paired = [
+      for (final c in channels)
+        if (c.pairing != null) c,
+    ];
+    final unpair = onUnpair;
     return Opacity(
       opacity: live ? 1 : 0.5,
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 12),
-        child: ExpansionTile(
-          // The tile's expanded state follows the host, not its position.
-          key: PageStorageKey(host.key),
-          leading: Icon(
-            Icons.computer,
-            color: live ? Colors.greenAccent : Colors.white38,
-          ),
-          title: Row(
-            children: [
-              // The tags follow the name and wrap under it on a narrow
-              // screen rather than overflow.
-              Expanded(
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text(
-                      host.name,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    if (platform != null) TagChip.platform(platform),
-                    // Channels that mix routes carry their own badges instead.
-                    if (route != null) TagChip.route(route),
-                  ],
-                ),
-              ),
-              if (version != null)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: Text(
-                    'v$version',
-                    style: const TextStyle(fontSize: 12, color: Colors.white54),
+      child: GestureDetector(
+        onLongPress: paired.isEmpty || unpair == null
+            ? null
+            : () => _showUnpairSheet(context, host, paired, unpair),
+        child: Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: ExpansionTile(
+            // The tile's expanded state follows the host, not its position.
+            key: PageStorageKey(host.key),
+            leading: Icon(
+              Icons.computer,
+              color: live ? Colors.greenAccent : Colors.white38,
+            ),
+            title: Row(
+              children: [
+                // The tags follow the name and wrap under it on a narrow
+                // screen rather than overflow.
+                Expanded(
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        host.name,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      if (platform != null) TagChip.platform(platform),
+                      // Channels that mix routes carry their own badges instead.
+                      if (route != null) TagChip.route(route),
+                      if (!host.showChannels && only.pairing != null)
+                        pairedTag(only.pairing!.paired),
+                    ],
                   ),
                 ),
-            ],
-          ),
-          subtitle: subtitle == null
-              ? null
-              : Text(
-                  subtitle,
-                  style: const TextStyle(fontSize: 12, color: Colors.white54),
-                ),
-          initiallyExpanded: true,
-          children: host.showChannels
-              ? [
-                  for (final c in channels)
-                    _ChannelTile(
-                      key: PageStorageKey('channel:${host.key}/${c.key}'),
-                      channel: c,
-                      showVersion: version == null,
-                      onAgentTap: onAgentTap,
+                if (version != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Text(
+                      'v$version',
+                      style: const TextStyle(fontSize: 12, color: Colors.white54),
                     ),
-                  if (hidden > 0) _HiddenChannelsLine(count: hidden),
-                ]
-              : _agentRows(only, indent: 20, onAgentTap: onAgentTap),
+                  ),
+              ],
+            ),
+            subtitle: subtitle == null
+                ? null
+                : Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 12, color: Colors.white54),
+                  ),
+            initiallyExpanded: true,
+            children: host.showChannels
+                ? [
+                    for (final c in channels)
+                      _ChannelTile(
+                        key: PageStorageKey('channel:${host.key}/${c.key}'),
+                        channel: c,
+                        showVersion: version == null,
+                        onAgentTap: onAgentTap,
+                      ),
+                    if (hidden > 0) _HiddenChannelsLine(count: hidden),
+                  ]
+                : _agentRows(only, indent: 20, onAgentTap: onAgentTap),
+          ),
         ),
       ),
     );
   }
+}
+
+/// "Paired", or "Pair again" once the computer has refused this device.
+Widget pairedTag(PairedHost paired) => paired.invalid
+    ? const TagChip(
+        label: 'Pair again',
+        color: AppColors.warning,
+        tooltip: 'This device was unpaired on the computer',
+      )
+    : const TagChip(
+        label: 'Paired',
+        color: AppColors.primary,
+        tooltip: 'This device can watch these agents live',
+      );
+
+void _showUnpairSheet(
+  BuildContext context,
+  HostNode host,
+  List<ChannelNode> paired,
+  UnpairCallback onUnpair,
+) {
+  showModalBottomSheet<void>(
+    context: context,
+    builder: (sheetContext) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final c in paired)
+            ListTile(
+              leading: const Icon(Icons.link_off),
+              title: Text(host.showChannels
+                  ? 'Unpair ${c.name}'
+                  : 'Unpair ${host.name}'),
+              subtitle: const Text(
+                'This device stops watching its agents. Revoke it in '
+                'AgentMux on the computer too.',
+              ),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                onUnpair(c.pairing!.paired);
+              },
+            ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _ChannelTile extends StatelessWidget {
@@ -143,6 +216,10 @@ class _ChannelTile extends StatelessWidget {
             ),
             const SizedBox(width: 6),
             TagChip.route(channel.route),
+            if (channel.pairing != null) ...[
+              const SizedBox(width: 6),
+              pairedTag(channel.pairing!.paired),
+            ],
           ],
         ),
         subtitle: status == null
@@ -389,24 +466,34 @@ class _NameAndTags extends StatelessWidget {
   }
 }
 
-/// Where an agent row leads (spec section 5): an agent reached through the
-/// cloud (a channel known only from the cloud list, or a merged one whose LAN
-/// endpoint has gone quiet) opens the cloud agent screen; otherwise the LAN
-/// screen, which sends over its own channel's LAN endpoint.
-@visibleForTesting
+/// Where an agent row leads. An agent reached only through the cloud (a
+/// channel known only from the cloud list) opens the cloud agent screen, as
+/// before (`SPEC_FLEET_HOST_TAGS_AND_CLOUD_HOSTS_2026_10_06.md` section 5).
+/// Otherwise tapping an agent opens its live feed
+/// (`SPEC_AGENT_STATUS_AND_LIVE_PANE_FEED_2026_10_07.md` 6.1) when this
+/// device has paired with its channel; when it has not, a screen that says so
+/// and offers to pair, unless the channel is only current through the cloud
+/// (a merged channel whose LAN endpoint has gone quiet), which keeps the
+/// cloud screen.
 String agentLocation(ChannelNode channel, LanAgent agent) {
-  if (_viaCloud(channel)) return '/agents/${Uri.encodeComponent(agent.name)}';
-  final i = channel.via;
-  return '/instance/${Uri.encodeComponent('${i.address}:${i.port}')}'
-      '/agent/${Uri.encodeComponent(agent.name)}';
+  final name = Uri.encodeComponent(agent.name);
+  if (channel.cloudOnly) return '/agents/$name';
+  final pairing = channel.pairing;
+  if (pairing != null) {
+    return '/viewer/${Uri.encodeComponent(pairing.paired.id)}/agent/$name';
+  }
+  if (channel.route == ChannelRoute.cloud) return '/agents/$name';
+  return '${messageLocation(channel.via, agent)}/unpaired';
 }
 
-bool _viaCloud(ChannelNode channel) =>
-    channel.cloudOnly || channel.route == ChannelRoute.cloud;
+/// Today's "send a message" screen for [agent] of [instance].
+String messageLocation(LanInstance instance, LanAgent agent) =>
+    '/instance/${Uri.encodeComponent('${instance.address}:${instance.port}')}'
+    '/agent/${Uri.encodeComponent(agent.name)}';
 
 void openAgent(BuildContext context, ChannelNode channel, LanAgent agent) {
   final location = agentLocation(channel, agent);
-  if (_viaCloud(channel)) {
+  if (location.startsWith('/agents/')) {
     context.push(location);
     return;
   }
@@ -414,5 +501,21 @@ void openAgent(BuildContext context, ChannelNode channel, LanAgent agent) {
     'instance': channel.via,
     'agent': agent,
     'route': channel.route,
+    'channel': channel.name,
+    if (channel.pairing != null) 'pairing': channel.pairing,
+  });
+}
+
+/// Opens the "send a message" screen (the feed screen's menu).
+void openMessageScreen(
+  BuildContext context,
+  LanInstance instance,
+  LanAgent agent, {
+  ChannelRoute? route,
+}) {
+  context.push(messageLocation(instance, agent), extra: {
+    'instance': instance,
+    'agent': agent,
+    'route': route,
   });
 }

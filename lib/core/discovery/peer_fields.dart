@@ -24,6 +24,10 @@ int? parseChannelsRunning(Object? value) {
   return value.toInt().clamp(1, 99);
 }
 
+/// A TCP port (1 to 65535), e.g. `viewer_port`; null when absent or invalid.
+int? parsePort(Object? value) =>
+    value is int && value > 0 && value <= 65535 ? value : null;
+
 AgentKind? parseAgentKind(Object? value) => switch (value) {
       'host' => AgentKind.host,
       'container' => AgentKind.container,

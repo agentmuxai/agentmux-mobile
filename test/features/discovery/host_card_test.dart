@@ -7,9 +7,13 @@ import 'package:agentmux_mobile/core/discovery/host_tree.dart';
 import 'package:agentmux_mobile/core/discovery/models/lan_instance.dart';
 import 'package:agentmux_mobile/core/fleet/cloud_instance_source.dart';
 import 'package:agentmux_mobile/core/fleet/fleet_store.dart';
+import 'package:agentmux_mobile/core/viewer/paired_host.dart';
+import 'package:agentmux_mobile/core/viewer/paired_match.dart';
 import 'package:agentmux_mobile/features/discovery/host_card.dart';
 import 'package:agentmux_mobile/shared/widgets/agent_state_chip.dart';
 import 'package:agentmux_mobile/shared/widgets/tag_chip.dart';
+
+import '../../core/viewer/viewer_fakes.dart';
 
 FleetEntry _entry({
   String hostname = 'narko',
@@ -336,6 +340,118 @@ void main() {
             .opacity,
         0.55,
       );
+    });
+  });
+
+  group('paired channels', () {
+    HostNode pairedHost({bool invalid = false}) => applyPairings(
+          buildHostTrees([
+            _entry(
+              hostname: 'host-a',
+              channel: 'stable',
+              installId: testInstallId,
+            ),
+          ]),
+          [testPairedHost(invalid: invalid)],
+        ).single;
+
+    /// Every place an agent row can lead, as a line of text.
+    GoRouter router(HostNode host, {UnpairCallback? onUnpair}) =>
+        GoRouter(routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, __) => Scaffold(
+              body: SingleChildScrollView(
+                child: HostCard(host: host, onUnpair: onUnpair),
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/viewer/:pairId/agent/:name',
+            builder: (_, state) {
+              final extra = state.extra! as Map<String, dynamic>;
+              final pairing = extra['pairing'] as PairingMatch;
+              return Text('feed ${state.pathParameters['name']} '
+                  'via ${pairing.host}:${pairing.port}');
+            },
+          ),
+          GoRoute(
+            path: '/instance/:addr/agent/:name/unpaired',
+            builder: (_, state) =>
+                Text('pair prompt ${state.pathParameters['name']}'),
+          ),
+          GoRoute(
+            path: '/agents/:id',
+            builder: (_, state) =>
+                Text('cloud agent ${state.pathParameters['id']}'),
+          ),
+        ]);
+
+    testWidgets('a paired host says so', (tester) async {
+      await tester.pumpWidget(_app(HostCard(host: pairedHost())));
+      expect(find.text('Paired'), findsOneWidget);
+    });
+
+    testWidgets('a pairing the computer refused asks to pair again',
+        (tester) async {
+      await tester.pumpWidget(_app(HostCard(host: pairedHost(invalid: true))));
+      expect(find.text('Pair again'), findsOneWidget);
+      expect(find.text('Paired'), findsNothing);
+    });
+
+    testWidgets('an unpaired host has no tag', (tester) async {
+      await tester.pumpWidget(_app(HostCard(host: buildHostTrees([_entry()]).single)));
+      expect(find.text('Paired'), findsNothing);
+    });
+
+    testWidgets('tapping an agent of a paired channel opens its feed',
+        (tester) async {
+      await tester.pumpWidget(
+          MaterialApp.router(routerConfig: router(pairedHost())));
+      await tester.tap(find.text('Camper'));
+      await tester.pumpAndSettle();
+      // Discovery's address, the stored port (no viewer_port reported).
+      expect(find.text('feed Camper via 198.51.100.30:29800'), findsOneWidget);
+    });
+
+    testWidgets('tapping an agent of an unpaired channel opens the pair prompt',
+        (tester) async {
+      final host = buildHostTrees([_entry()]).single;
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router(host)));
+      await tester.tap(find.text('Camper'));
+      await tester.pumpAndSettle();
+      expect(find.text('pair prompt Camper'), findsOneWidget);
+    });
+
+    testWidgets('a cloud-only agent still opens the cloud screen, even with '
+        'a pairing for its install', (tester) async {
+      final host = applyPairings(
+        buildHostTrees([
+          _entry(
+            hostname: 'host-a',
+            route: ChannelRoute.cloud,
+            installId: testInstallId,
+            agents: const [LanAgent(name: 'AgentA')],
+          ),
+        ]),
+        [testPairedHost()],
+      ).single;
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router(host)));
+      await tester.tap(find.text('AgentA'));
+      await tester.pumpAndSettle();
+      expect(find.text('cloud agent AgentA'), findsOneWidget);
+    });
+
+    testWidgets('long-press offers Unpair', (tester) async {
+      PairedHost? unpaired;
+      await tester.pumpWidget(MaterialApp.router(
+        routerConfig: router(pairedHost(), onUnpair: (p) => unpaired = p),
+      ));
+      await tester.longPress(find.text('host-a'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Unpair host-a'));
+      await tester.pumpAndSettle();
+      expect(unpaired?.id, 'p1');
     });
   });
 }

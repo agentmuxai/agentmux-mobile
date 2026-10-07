@@ -10,7 +10,10 @@ import 'features/agent_list/agent_list_screen.dart';
 import 'features/debug/debug_log_screen.dart';
 import 'features/demo/demo_agent_detail_screen.dart';
 import 'features/demo/demo_fleet_screen.dart';
+import 'core/viewer/paired_host.dart';
 import 'features/discovery/discovery_screen.dart';
+import 'features/feed/agent_feed_screen.dart';
+import 'features/feed/unpaired_agent_screen.dart';
 import 'features/lan_agent/lan_agent_screen.dart';
 import 'features/login/login_screen.dart';
 import 'features/settings/settings_screen.dart';
@@ -81,6 +84,50 @@ GoRouter _buildRouter(AsyncValue<AuthStatus> authState) {
           return LanAgentScreen(
             instance: extra['instance'] as LanInstance,
             agent: extra['agent'] as LanAgent,
+            route: route is ChannelRoute ? route : null,
+          );
+        },
+      ),
+
+      // ── LAN agent of a computer this device has not paired with ────────
+      GoRoute(
+        path: '/instance/:addr/agent/:name/unpaired',
+        builder: (_, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          if (extra == null ||
+              extra['instance'] is! LanInstance ||
+              extra['agent'] is! LanAgent) {
+            return const DiscoveryScreen();
+          }
+          final route = extra['route'];
+          final channel = extra['channel'];
+          return UnpairedAgentScreen(
+            instance: extra['instance'] as LanInstance,
+            agent: extra['agent'] as LanAgent,
+            channel: channel is String ? channel : null,
+            route: route is ChannelRoute ? route : null,
+          );
+        },
+      ),
+
+      // ── Live feed of an agent of a paired computer (no auth required) ──
+      GoRoute(
+        path: '/viewer/:pairId/agent/:name',
+        builder: (_, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          if (extra == null ||
+              extra['pairing'] is! PairingMatch ||
+              extra['instance'] is! LanInstance ||
+              extra['agent'] is! LanAgent) {
+            return const DiscoveryScreen();
+          }
+          final route = extra['route'];
+          final channel = extra['channel'];
+          return AgentFeedScreen(
+            pairing: extra['pairing'] as PairingMatch,
+            instance: extra['instance'] as LanInstance,
+            agent: extra['agent'] as LanAgent,
+            channel: channel is String ? channel : null,
             route: route is ChannelRoute ? route : null,
           );
         },

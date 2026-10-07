@@ -129,6 +129,10 @@ class LanInstance with _$LanInstance {
     /// This install's WAN instance id, the key the cloud list uses. The LAN
     /// `instance_id` above is the version string, not this.
     @JsonKey(name: 'install_id') String? installId,
+
+    /// The port of this channel's TLS viewer listener (the live feed), when
+    /// the desktop advertises one. Null for a desktop without it.
+    @JsonKey(name: 'viewer_port') int? viewerPort,
     @Default([]) List<LanAgent> agents,
   }) = _LanInstance;
 

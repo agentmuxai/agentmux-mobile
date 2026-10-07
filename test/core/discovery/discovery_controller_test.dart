@@ -15,6 +15,9 @@ import 'package:agentmux_mobile/core/fleet/cloud_instances.dart';
 import 'package:agentmux_mobile/core/fleet/fleet_snapshot.dart';
 import 'package:agentmux_mobile/core/fleet/fleet_store.dart';
 import 'package:agentmux_mobile/core/fleet/fleet_transport.dart';
+import 'package:agentmux_mobile/core/viewer/paired_hosts_repository.dart';
+
+import '../viewer/viewer_fakes.dart';
 
 class _FakeMdns extends MdnsScanner {
   @override
@@ -482,6 +485,76 @@ void main() {
         notifier.refresh();
         async.elapse(const Duration(seconds: 3));
         expect(cloud.fetches, 2);
+      });
+    });
+  });
+
+  group('paired hosts', () {
+    late InMemorySecureStore store;
+
+    setUp(() {
+      store = InMemorySecureStore();
+      container.dispose();
+      container = ProviderContainer(overrides: [
+        cloudSignedInProvider.overrideWithValue(cloud.isSignedIn),
+        cloudInstancesFetchProvider.overrideWithValue(cloud.fetch),
+        mdnsScannerProvider.overrideWithValue(_FakeMdns()),
+        udpBroadcastProberProvider.overrideWithValue(udp),
+        fleetTransportFactoryProvider.overrideWithValue(host.transport),
+        networkSnapshotProvider.overrideWithValue(
+          () async => NetworkSnapshot(interfaces: interfaces, hint: null),
+        ),
+        followAppLifecycleProvider.overrideWithValue(false),
+        secureStoreProvider.overrideWithValue(store),
+      ]);
+    });
+
+    LanInstance reply({int? viewerPort}) => LanInstance(
+          hostname: 'host-a',
+          version: '0.60.0',
+          address: '198.51.100.44',
+          port: 29704,
+          authKey: 'lan-k',
+          channel: 'stable',
+          installId: testInstallId,
+          viewerPort: viewerPort,
+        );
+
+    test('a discovered channel carries its pairing, at its new address', () {
+      fakeAsync((async) {
+        PairedHostsRepository(store).save([testPairedHost()]);
+        async.flushMicrotasks();
+        udp.replies = [reply(viewerPort: 29811)];
+        host.agents[29704] = ['AgentA'];
+        container.read(discoveryProvider);
+        async.elapse(const Duration(seconds: 1));
+
+        final s = container.read(discoveryProvider) as DiscoveryResults;
+        final m = s.hosts.single.channels.single.pairing!;
+        expect(m.paired.id, 'p1');
+        expect((m.host, m.port), ('198.51.100.44', 29811));
+        // The move is stored, once.
+        async.elapse(const Duration(seconds: 1));
+        final stored = container.read(pairedHostsProvider).single;
+        expect((stored.host, stored.port), ('198.51.100.44', 29811));
+        final writes = store.writes;
+        async.elapse(const Duration(seconds: 30));
+        expect(store.writes, writes);
+      });
+    });
+
+    test('unpairing takes the pairing off the channel', () {
+      fakeAsync((async) {
+        PairedHostsRepository(store).save([testPairedHost()]);
+        async.flushMicrotasks();
+        udp.replies = [reply()];
+        host.agents[29704] = ['AgentA'];
+        container.read(discoveryProvider);
+        async.elapse(const Duration(seconds: 1));
+        container.read(pairedHostsProvider.notifier).remove('p1');
+        async.elapse(const Duration(seconds: 1));
+        final s = container.read(discoveryProvider) as DiscoveryResults;
+        expect(s.hosts.single.channels.single.pairing, isNull);
       });
     });
   });

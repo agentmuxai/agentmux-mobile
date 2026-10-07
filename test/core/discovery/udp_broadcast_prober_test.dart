@@ -226,6 +226,21 @@ void main() {
       expect(i.hostname, 'narko');
     });
 
+    test('viewer_port is read for the responder and its siblings', () {
+      final all = UdpBroadcastProber.parseResponseWithSiblings(
+          _datagram(jsonEncode(reply({
+        'viewer_port': 29811,
+        'siblings': [
+          {'channel': 'stable', 'port': 29700, 'auth_key': 'k', 'viewer_port': 29812},
+          {'channel': 'dev', 'port': 29701, 'auth_key': 'k', 'viewer_port': 0},
+        ],
+      })), ip: '198.51.100.20'));
+      expect(all.map((i) => i.viewerPort), [29811, 29812, null]);
+      final older =
+          UdpBroadcastProber.parseResponse(_datagram(jsonEncode(reply())))!;
+      expect(older.viewerPort, isNull);
+    });
+
     test('channels_running is clamped', () {
       final i = UdpBroadcastProber.parseResponse(
           _datagram(jsonEncode(reply({'channels_running': 500}))))!;

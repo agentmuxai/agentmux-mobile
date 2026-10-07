@@ -7,6 +7,7 @@ import '../../core/discovery/discovery_provider.dart';
 import '../../core/discovery/discovery_telemetry.dart';
 import '../../core/discovery/host_tree.dart';
 import '../../core/fleet/cloud_instance_source.dart';
+import '../../core/viewer/paired_hosts_repository.dart';
 import 'host_card.dart';
 import 'manual_add_sheet.dart';
 import 'qr_scan_screen.dart';
@@ -225,7 +226,16 @@ class _ResultsView extends ConsumerWidget {
         // Keyed by host so an update never hands one host's expanded state
         // to another.
         itemBuilder: (_, i) => i < hosts.length
-            ? HostCard(key: ValueKey(hosts[i].key), host: hosts[i])
+            ? HostCard(
+                key: ValueKey(hosts[i].key),
+                host: hosts[i],
+                onUnpair: (paired) {
+                  ref.read(pairedHostsProvider.notifier).remove(paired.id);
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text('Unpaired ${paired.hostname}'),
+                  ));
+                },
+              )
             : CloudNote(key: const ValueKey('cloud-note'), text: note!),
       ),
     );

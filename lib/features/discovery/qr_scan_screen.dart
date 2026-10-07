@@ -3,14 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../core/discovery/discovery_provider.dart';
+import '../../core/viewer/paired_host.dart';
+import '../../core/viewer/pairing_service.dart';
+import '../../core/viewer/scanned_code.dart';
+import '../../core/viewer/viewer_client.dart';
 import '../../shared/theme/app_theme.dart';
 
-/// Scans a QR code encoding `agentmux://connect?host=<ip>&port=<port>&token=<key>`
-/// and connects to the LAN instance it describes.
+/// Scans an AgentMux QR code and acts on it:
 ///
-/// This is the QR-code fallback for [ManualAddSheet] pairing: same
-/// `addManual` call, same loading/error handling pattern, just fed by a
-/// camera scan instead of typed text fields.
+/// - `agentmux://pair?v=1&...` pairs this device with the computer that shows
+///   it (`SPEC_AGENT_STATUS_AND_LIVE_PANE_FEED_2026_10_07.md` 13.2), over TLS
+///   pinned to the code's fingerprint, and pops with the new [PairedHost].
+/// - `agentmux://connect?host=<ip>&port=<port>&token=<key>` connects to the
+///   LAN instance it describes: the QR-code fallback for [ManualAddSheet],
+///   same `addManual` call.
 class QrScanScreen extends ConsumerStatefulWidget {
   const QrScanScreen({super.key});
 
@@ -42,7 +48,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
         .firstWhere((v) => v != null && v.isNotEmpty, orElse: () => null);
     if (raw == null) return;
 
-    final parsed = _parseConnectUri(raw);
+    final parsed = parseScannedCode(raw);
     if (parsed == null) {
       setState(() {
         _error = 'That QR code isn\'t a valid AgentMux pairing code.';
@@ -57,38 +63,31 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
     await _controller.stop();
 
     try {
-      await ref
-          .read(discoveryProvider.notifier)
-          .addManual(parsed.host, parsed.port, parsed.token);
-      if (mounted) Navigator.of(context).pop();
-    } catch (_) {
+      switch (parsed) {
+        case PairCode():
+          final paired = await ref.read(pairingServiceProvider).pair(parsed);
+          if (!mounted) return;
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            SnackBar(content: Text('Paired with ${paired.hostname}')),
+          );
+          Navigator.of(context).pop(paired);
+        case ConnectCode(:final host, :final port, :final token):
+          await ref
+              .read(discoveryProvider.notifier)
+              .addManual(host, port, token);
+          if (mounted) Navigator.of(context).pop();
+      }
+    } catch (e) {
       if (mounted) {
         setState(() {
           _connecting = false;
-          _error = 'Could not connect — check the code and try again.';
+          _error = e is PairingException
+              ? e.message
+              : 'Could not connect — check the code and try again.';
         });
         await _controller.start();
       }
     }
-  }
-
-  /// Parses `agentmux://connect?host=<ip>&port=<port>&token=<key>`.
-  /// Returns null if host, port, or token is missing/invalid.
-  ({String host, int port, String token})? _parseConnectUri(String raw) {
-    final uri = Uri.tryParse(raw);
-    if (uri == null) return null;
-
-    final host = uri.queryParameters['host'];
-    final portRaw = uri.queryParameters['port'];
-    final token = uri.queryParameters['token'];
-    if (host == null || host.isEmpty) return null;
-    if (token == null || token.isEmpty) return null;
-    if (portRaw == null || portRaw.isEmpty) return null;
-
-    final port = int.tryParse(portRaw);
-    if (port == null || port < 1 || port > 65535) return null;
-
-    return (host: host, port: port, token: token);
   }
 
   @override
@@ -137,7 +136,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text(
-                    'Point your camera at the QR code shown in\nAgentMux → Settings on your desktop.',
+                    'Point your camera at the "Pair a device" QR code\nshown by AgentMux on your computer.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.white, fontSize: 13),
                   ),
@@ -195,8 +194,11 @@ class _CameraErrorView extends StatelessWidget {
   }
 }
 
-void showQrScanScreen(BuildContext context) {
-  Navigator.of(context).push(
+/// Opens the scanner; completes with the new pairing when a pair code was
+/// scanned, null otherwise.
+Future<PairedHost?> showQrScanScreen(BuildContext context) async {
+  final result = await Navigator.of(context).push<Object?>(
     MaterialPageRoute(builder: (_) => const QrScanScreen()),
   );
+  return result is PairedHost ? result : null;
 }
