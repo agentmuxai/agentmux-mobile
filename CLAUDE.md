@@ -52,10 +52,23 @@ app at *build* time by `run-emulator.sh`. So any AgentMux restart — including 
 silent auto-update — invalidates the built-in key and the request 401s. The
 in-app Debug log (🐛) carries the specific stale-dev-key message.
 
-**When launching the emulator or `flutter run` from a Bash *tool call*, never
-append a shell `&`** — use the Bash tool's own `run_in_background: true` (with
-no `&`) instead. This is harness-level behavior, not repo-specific: a tool call
-returns as soon as the backgrounded command is spawned, so the tracked process
+**From an agent inside AgentMux, start the emulator and `dev-full.sh` with
+AgentMux's `Shell` tool, not the Bash tool.** Since Claude Code 2.1.285
+(2026-09-29) a `run_in_background` Bash command is stopped after a time limit
+(default 30 min) in unattended sessions, which includes agents AgentMux runs:
+the emulator vanishes and the discovery relay stops with `dev-full.sh`. A
+command started with `Shell` runs under AgentMux itself, has no such limit,
+and is stopped with `ShellStop`. Give `Shell` a plain command line (no quoted
+program path; use `C:\PROGRA~1\...` or a small wrapper script for paths with
+spaces), e.g. `C:\Users\<user>\AppData\Local\Android\Sdk\emulator\emulator.exe
+-avd AgentMux_Pixel9 -no-snapshot-load`, then a wrapper script that puts
+Flutter and `platform-tools` on `PATH` and runs `bash scripts/dev-full.sh`.
+
+**When launching the emulator or `flutter run` from a Bash *tool call* anyway,
+never append a shell `&`** — use the Bash tool's own `run_in_background: true`
+(with no `&`) instead, and expect the time limit above. This is harness-level
+behavior, not repo-specific: a tool call returns as soon as the backgrounded
+command is spawned, so the tracked process
 is the launcher shell that exits in milliseconds, and the real long-running
 process is killed out from under you. It fails *silently* — the emulator simply
 vanishes from `tasklist` with nothing in its log, and `adb devices` keeps
