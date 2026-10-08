@@ -1,73 +1,212 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 
+import '../api/muxbus_api_base.dart';
+import 'auth_errors.dart';
+import 'muxbus_auth_config.dart';
 import 'token_storage.dart';
 
-// Build-time constants injected via --dart-define.
+export 'auth_errors.dart';
+
+// Development overrides, injected via --dart-define. A release build leaves
+// them empty and reads the cloud discovery document instead.
 const _cognitoDomain = String.fromEnvironment('MUXBUS_COGNITO_DOMAIN');
 const _clientId = String.fromEnvironment('MUXBUS_CLIENT_ID');
 // agentmuxmobile:// scheme avoids conflicts with any existing agentmux:// desktop scheme.
 const _redirectUri = 'agentmuxmobile://auth/callback';
+const _logoutUri = 'agentmuxmobile://auth/logout';
 const _callbackScheme = 'agentmuxmobile';
 
+/// How the person signs in.
+enum SignInMethod {
+  /// Straight to Google: the sign-in service skips its own page.
+  google,
+
+  /// The sign-in service's own page (email and password).
+  email,
+}
+
+/// Opens [url] in the system browser session and completes with the callback
+/// URL. Throws a `PlatformException` with code `CANCELED` when the person
+/// closes it. Replaced in tests.
+typedef WebAuthenticate =
+    Future<String> Function({
+      required String url,
+      required String callbackUrlScheme,
+    });
+
+Future<String> _flutterWebAuth({
+  required String url,
+  required String callbackUrlScheme,
+}) => FlutterWebAuth2.authenticate(
+  url: url,
+  callbackUrlScheme: callbackUrlScheme,
+);
+
+/// The sign-in service's authorize URL (PKCE S256). [method] google adds
+/// `identity_provider=Google`; email leaves it out so the hosted page shows.
+Uri buildAuthorizeUrl({
+  required MuxbusAuthConfig config,
+  required String codeChallenge,
+  required String state,
+  required SignInMethod method,
+}) => Uri.https(config.domain, '/oauth2/authorize', {
+  'response_type': 'code',
+  'client_id': config.clientId,
+  'redirect_uri': _redirectUri,
+  'scope': 'openid email profile',
+  'code_challenge': codeChallenge,
+  'code_challenge_method': 'S256',
+  'state': state,
+  if (method == SignInMethod.google) 'identity_provider': 'Google',
+});
+
+/// The authorization code from a sign-in callback. Refuses a callback whose
+/// `state` is not [expectedState] ([AuthStateMismatch]), reports `error`
+/// ([AuthCallbackError]), and refuses one without a code.
+String parseAuthCallback(String callbackUrl, {required String expectedState}) {
+  final Uri uri;
+  try {
+    uri = Uri.parse(callbackUrl);
+  } on FormatException {
+    throw AuthException('Unreadable sign-in callback');
+  }
+  final params = uri.queryParameters;
+  if (params['state'] != expectedState) throw AuthStateMismatch();
+  final error = params['error'];
+  if (error != null && error.isNotEmpty) {
+    throw AuthCallbackError(error, params['error_description']);
+  }
+  final code = params['code'];
+  if (code == null || code.isEmpty) {
+    throw AuthException('No authorization code in the sign-in callback');
+  }
+  return code;
+}
+
 class AuthRepository {
-  AuthRepository(this._storage);
+  AuthRepository(
+    this._storage, {
+    Dio? dio,
+    WebAuthenticate? authenticate,
+    MuxbusAuthConfigSource? config,
+  }) : _dio =
+           dio ??
+           Dio(
+             BaseOptions(
+               connectTimeout: const Duration(seconds: 10),
+               receiveTimeout: const Duration(seconds: 20),
+             ),
+           ),
+       _authenticate = authenticate ?? _flutterWebAuth {
+    _config =
+        config ??
+        MuxbusAuthConfigSource(
+          dio: _dio,
+          apiBase: muxbusApiBase,
+          domainOverride: _cognitoDomain,
+          clientIdOverride: _clientId,
+        );
+  }
 
   final TokenStorage _storage;
-  final _dio = Dio();
+  final Dio _dio;
+  final WebAuthenticate _authenticate;
+  late final MuxbusAuthConfigSource _config;
 
   // ── Sign in ──────────────────────────────────────────────────────────────
 
-  Future<void> signIn() async {
+  /// Whether this build can sign in at all: false when no client id is
+  /// configured anywhere, null when that can't be told right now (offline).
+  Future<bool?> signInAvailable() => _config.available();
+
+  /// Signs in through the system browser. Throws [AuthCancelled] when the
+  /// person closes it, and another [AuthException] when it fails.
+  Future<void> signIn({SignInMethod method = SignInMethod.email}) async {
+    final config = await _config.resolve();
+    // The verifier and state live only in this call (spec 4.7).
     final verifier = _generateCodeVerifier();
-    final challenge = _generateCodeChallenge(verifier);
     final state = _generateState();
-
-    final authUrl = Uri.https(
-      _cognitoDomain,
-      '/oauth2/authorize',
-      {
-        'response_type': 'code',
-        'client_id': _clientId,
-        'redirect_uri': _redirectUri,
-        'scope': 'openid email profile',
-        'code_challenge': challenge,
-        'code_challenge_method': 'S256',
-        'state': state,
-      },
+    final authUrl = buildAuthorizeUrl(
+      config: config,
+      codeChallenge: _generateCodeChallenge(verifier),
+      state: state,
+      method: method,
     );
 
-    final result = await FlutterWebAuth2.authenticate(
-      url: authUrl.toString(),
-      callbackUrlScheme: _callbackScheme,
-    );
+    final String result;
+    try {
+      result = await _authenticate(
+        url: authUrl.toString(),
+        callbackUrlScheme: _callbackScheme,
+      );
+    } on PlatformException catch (e) {
+      if (e.code == 'CANCELED') throw AuthCancelled();
+      throw AuthException('The browser sign-in failed (${e.code})');
+    }
 
-    final uri = Uri.parse(result);
-    final code = uri.queryParameters['code'];
-    if (code == null) throw AuthException('No authorization code in redirect');
-
-    await _exchangeCode(code, verifier);
+    final code = parseAuthCallback(result, expectedState: state);
+    await _exchangeCode(config, code, verifier);
   }
 
   // ── Sign out ─────────────────────────────────────────────────────────────
 
+  /// Revokes the refresh token (best effort), clears the stored session, then
+  /// ends the hosted sign-in session in the browser without waiting for it,
+  /// so the next "Connect with Google" really asks.
   Future<void> signOut() async {
-    await _storage.clear();
-    // Best-effort Cognito global sign-out (ignore errors — local clear is enough)
+    // Read the session before clearing it.
+    String? refreshToken;
     try {
-      final idToken = await _storage.readIdToken();
-      if (idToken != null) {
-        final logoutUrl = Uri.https(_cognitoDomain, '/logout', {
-          'client_id': _clientId,
-          'logout_uri': _redirectUri,
-        });
-        await _dio.getUri(logoutUrl);
-      }
+      refreshToken = await _storage.readRefreshToken();
     } catch (_) {}
+
+    MuxbusAuthConfig? config;
+    if (refreshToken != null) {
+      try {
+        config = await _config.resolve();
+      } catch (_) {}
+    }
+    if (config != null) {
+      try {
+        await _dio.postUri<Object>(
+          Uri.https(config.domain, '/oauth2/revoke'),
+          data: {'token': refreshToken, 'client_id': config.clientId},
+          options: Options(
+            contentType: Headers.formUrlEncodedContentType,
+            sendTimeout: const Duration(seconds: 5),
+            receiveTimeout: const Duration(seconds: 5),
+          ),
+        );
+      } catch (_) {
+        // Ignored: the tokens are cleared below either way.
+      }
+    }
+
+    await _storage.clear();
+
+    if (config != null) unawaited(_endHostedSession(config));
+  }
+
+  Future<void> _endHostedSession(MuxbusAuthConfig config) async {
+    try {
+      await _authenticate(
+        url:
+            Uri.https(config.domain, '/logout', {
+              'client_id': config.clientId,
+              'logout_uri': _logoutUri,
+            }).toString(),
+        callbackUrlScheme: _callbackScheme,
+      );
+    } catch (_) {
+      // Best effort: the local session is already gone.
+    }
   }
 
   // ── Token access ─────────────────────────────────────────────────────────
@@ -85,7 +224,8 @@ class AuthRepository {
 
     // Refresh 60 seconds before actual expiry to avoid edge-case 401s. A
     // session saved before the access token was stored has none: refresh.
-    final needsRefresh = accessToken == null ||
+    final needsRefresh =
+        accessToken == null ||
         expiry == null ||
         DateTime.now().isAfter(expiry.subtract(const Duration(seconds: 60)));
 
@@ -97,12 +237,13 @@ class AuthRepository {
   Future<String> refreshTokens() async {
     final refreshToken = await _storage.readRefreshToken();
     if (refreshToken == null) throw AuthException('No refresh token');
+    final config = await _config.resolve();
 
     final response = await _dio.postUri<Map<String, dynamic>>(
-      Uri.https(_cognitoDomain, '/oauth2/token'),
+      Uri.https(config.domain, '/oauth2/token'),
       data: {
         'grant_type': 'refresh_token',
-        'client_id': _clientId,
+        'client_id': config.clientId,
         'refresh_token': refreshToken,
       },
       options: Options(
@@ -111,34 +252,51 @@ class AuthRepository {
       ),
     );
 
-    await _saveTokenResponse(response.data!,
-        // Cognito does not issue a new refresh token on refresh — reuse existing.
-        existingRefreshToken: refreshToken);
+    await _saveTokenResponse(
+      response.data!,
+      // Cognito does not issue a new refresh token on refresh — reuse existing.
+      existingRefreshToken: refreshToken,
+    );
 
     return (await _storage.readAccessToken())!;
   }
 
   Future<String?> getUserSub() => _storage.readUserSub();
 
+  /// The signed-in account's email, from the stored ID token.
+  Future<String?> getAccountEmail() => _storage.readEmail();
+
   Future<bool> isAuthenticated() => _storage.hasTokens();
 
   // ── Private helpers ───────────────────────────────────────────────────────
 
-  Future<void> _exchangeCode(String code, String verifier) async {
-    final response = await _dio.postUri<Map<String, dynamic>>(
-      Uri.https(_cognitoDomain, '/oauth2/token'),
-      data: {
-        'grant_type': 'authorization_code',
-        'client_id': _clientId,
-        'redirect_uri': _redirectUri,
-        'code': code,
-        'code_verifier': verifier,
-      },
-      options: Options(
-        contentType: Headers.formUrlEncodedContentType,
-        responseType: ResponseType.json,
-      ),
-    );
+  Future<void> _exchangeCode(
+    MuxbusAuthConfig config,
+    String code,
+    String verifier,
+  ) async {
+    final Response<Map<String, dynamic>> response;
+    try {
+      response = await _dio.postUri<Map<String, dynamic>>(
+        Uri.https(config.domain, '/oauth2/token'),
+        data: {
+          'grant_type': 'authorization_code',
+          'client_id': config.clientId,
+          'redirect_uri': _redirectUri,
+          'code': code,
+          'code_verifier': verifier,
+        },
+        options: Options(
+          contentType: Headers.formUrlEncodedContentType,
+          responseType: ResponseType.json,
+        ),
+      );
+    } on DioException catch (e) {
+      if (e.response == null) throw AuthNetworkError();
+      throw AuthException(
+        'The sign-in service refused the code (${e.response!.statusCode})',
+      );
+    }
     await _saveTokenResponse(response.data!);
   }
 
@@ -192,14 +350,8 @@ class AuthRepository {
 
   String _generateState() {
     final rng = Random.secure();
-    return base64UrlEncode(List<int>.generate(16, (_) => rng.nextInt(256)))
-        .replaceAll('=', '');
+    return base64UrlEncode(
+      List<int>.generate(16, (_) => rng.nextInt(256)),
+    ).replaceAll('=', '');
   }
-}
-
-class AuthException implements Exception {
-  AuthException(this.message);
-  final String message;
-  @override
-  String toString() => 'AuthException: $message';
 }

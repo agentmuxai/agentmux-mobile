@@ -11,11 +11,9 @@ import '../models/agent.dart';
 import '../models/injection.dart';
 import '../models/message.dart';
 import '../models/usage.dart';
+import 'muxbus_api_base.dart';
 
-const _apiBase = String.fromEnvironment(
-  'MUXBUS_API_BASE',
-  defaultValue: 'https://muxbus.agentmux.ai',
-);
+const _apiBase = muxbusApiBase;
 
 class MuxbusClient {
   /// [httpClientAdapter] replaces the network in tests.

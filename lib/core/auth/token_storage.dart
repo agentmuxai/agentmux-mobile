@@ -8,6 +8,22 @@ const _kRefreshToken = 'muxbus_refresh_token';
 const _kTokenExpiry = 'muxbus_token_expiry';
 const _kUserSub = 'muxbus_user_sub';
 
+/// A string claim from a JWT's payload, without checking the signature (the
+/// token came from our own sign-in). Null when absent or unreadable.
+String? idTokenClaim(String token, String name) {
+  try {
+    final parts = token.split('.');
+    if (parts.length != 3) return null;
+    final payload = base64Url.normalize(parts[1]);
+    final decoded = jsonDecode(utf8.decode(base64Url.decode(payload)))
+        as Map<String, dynamic>;
+    final v = decoded[name];
+    return v is String ? v : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 class TokenStorage {
   final _store = const FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
@@ -50,19 +66,15 @@ class TokenStorage {
 
   // Decodes the billing_tier claim embedded by the Cognito pre-token Lambda.
   // No API call — reads straight from the stored JWT payload.
-  Future<String?> readBillingTier() async {
+  Future<String?> readBillingTier() => _readIdClaim('billing_tier');
+
+  /// The signed-in account's email (the ID token's `email` claim).
+  Future<String?> readEmail() => _readIdClaim('email');
+
+  Future<String?> _readIdClaim(String name) async {
     final token = await readIdToken();
     if (token == null) return null;
-    try {
-      final parts = token.split('.');
-      if (parts.length != 3) return null;
-      final payload = base64Url.normalize(parts[1]);
-      final decoded = jsonDecode(utf8.decode(base64Url.decode(payload)))
-          as Map<String, dynamic>;
-      return decoded['billing_tier'] as String?;
-    } catch (_) {
-      return null;
-    }
+    return idTokenClaim(token, name);
   }
 
   Future<void> clear() async {

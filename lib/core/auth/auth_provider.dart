@@ -20,12 +20,13 @@ class AuthNotifier extends AsyncNotifier<AuthStatus> {
     return ok ? AuthStatus.authenticated : AuthStatus.unauthenticated;
   }
 
-  Future<void> signIn() async {
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
-      await ref.read(authRepositoryProvider).signIn();
-      return AuthStatus.authenticated;
-    });
+  /// Signs in. The state changes only on success; a failure (including
+  /// [AuthCancelled]) is thrown to the caller, the sign-in page, which shows
+  /// it. Not passing through a loading state keeps the app's router (rebuilt
+  /// on every auth change) from leaving the sign-in page mid-flow.
+  Future<void> signIn({SignInMethod method = SignInMethod.email}) async {
+    await ref.read(authRepositoryProvider).signIn(method: method);
+    state = const AsyncValue.data(AuthStatus.authenticated);
   }
 
   Future<void> signOut() async {
@@ -37,3 +38,14 @@ class AuthNotifier extends AsyncNotifier<AuthStatus> {
 final authProvider = AsyncNotifierProvider<AuthNotifier, AuthStatus>(
   AuthNotifier.new,
 );
+
+/// The signed-in account's email; null when signed out or unknown.
+final accountEmailProvider = FutureProvider<String?>((ref) async {
+  final status = ref.watch(authProvider).valueOrNull;
+  if (status != AuthStatus.authenticated) return null;
+  try {
+    return await ref.read(authRepositoryProvider).getAccountEmail();
+  } catch (_) {
+    return null;
+  }
+});
