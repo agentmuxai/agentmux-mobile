@@ -7,7 +7,7 @@
     <!-- QR code fallback pairing: mobile_scanner needs camera access -->
     <uses-permission android:name="android.permission.CAMERA" />
     <application
-        android:label="agentmux_mobile"
+        android:label="AgentMux Mobile"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
