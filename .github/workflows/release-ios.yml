@@ -113,9 +113,18 @@ jobs:
         env:
           IOS_PROVISIONING_PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
         run: |
-          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
-          mkdir -p "$PROFILE_DIR"
-          echo "$IOS_PROVISIONING_PROFILE" | base64 --decode > "$PROFILE_DIR/agentmux-mobile.mobileprovision"
+          PROFILE_FILE="$RUNNER_TEMP/agentmux-mobile.mobileprovision"
+          echo "$IOS_PROVISIONING_PROFILE" | base64 --decode > "$PROFILE_FILE"
+          PROFILE_UUID="$(security cms -D -i "$PROFILE_FILE" | plutil -extract UUID raw -)"
+          # Xcode 16 and later read profiles from UserData; older Xcode from
+          # MobileDevice. Install it in both, named <UUID>.mobileprovision as
+          # Xcode itself does, or a manual-signing archive fails with "No
+          # profile for team … matching … found".
+          for PROFILE_DIR in "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" \
+                             "$HOME/Library/MobileDevice/Provisioning Profiles"; do
+            mkdir -p "$PROFILE_DIR"
+            cp "$PROFILE_FILE" "$PROFILE_DIR/$PROFILE_UUID.mobileprovision"
+          done
 
           # ExportOptions.plist's `provisioningProfiles` dict maps bundle ID
           # -> the profile's own registered NAME (or UUID) -- e.g. "AgentMux
@@ -128,7 +137,7 @@ jobs:
           # Extracting it here means this can never drift from whatever the
           # profile is actually named when it's (re)created in the Apple
           # Developer portal.
-          PROFILE_NAME="$(security cms -D -i "$PROFILE_DIR/agentmux-mobile.mobileprovision" | plutil -extract Name raw -)"
+          PROFILE_NAME="$(security cms -D -i "$PROFILE_FILE" | plutil -extract Name raw -)"
           echo "PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
 
       - name: Generate ExportOptions.plist
@@ -161,6 +170,33 @@ jobs:
           # PlistBuddy's own writer escapes it correctly (round-trips back to
           # the exact original string). (muxreview P1, PR #19.)
           /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:ai.agentmux.mobile string ${PROFILE_NAME}" ios/ExportOptions.plist
+
+      # `flutter build ipa` archives with the Xcode project's own signing
+      # settings, and the Runner target is on automatic signing with no team
+      # (fine for local runs). ExportOptions.plist only governs the export
+      # after the archive, so without this the archive fails with "No valid
+      # code signing certificates were found". Switch the Runner target's
+      # Release and Profile configurations to manual signing with the
+      # distribution identity and the installed profile, on the runner only:
+      # the team id stays in secrets, out of the committed project.
+      - name: Configure manual signing for the Runner target
+        run: |
+          gem list -i xcodeproj >/dev/null || gem install xcodeproj -N
+          ruby -e '
+            require "xcodeproj"
+            project = Xcodeproj::Project.open("ios/Runner.xcodeproj")
+            target = project.targets.find { |t| t.name == "Runner" } or abort "no Runner target"
+            target.build_configurations.each do |config|
+              next unless %w[Release Profile].include?(config.name)
+              s = config.build_settings
+              s["CODE_SIGN_STYLE"] = "Manual"
+              s["DEVELOPMENT_TEAM"] = ENV.fetch("APPLE_TEAM_ID")
+              s["PROVISIONING_PROFILE_SPECIFIER"] = ENV.fetch("PROFILE_NAME")
+              s["CODE_SIGN_IDENTITY"] = "Apple Distribution"
+              s["CODE_SIGN_IDENTITY[sdk=iphoneos*]"] = "Apple Distribution"
+            end
+            project.save
+          '
 
       - name: Build release IPA
         run: |
