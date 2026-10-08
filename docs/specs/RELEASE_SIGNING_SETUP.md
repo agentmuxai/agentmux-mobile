@@ -66,7 +66,7 @@ that already happens on GitHub's own `macos-latest` runner via
    as `ios_distribution.cer`.
 3. **Register the App ID and provisioning profile** — both are plain web
    forms, no Xcode:
-   - Identifiers → "+" → App IDs → App → bundle ID `com.agentmux.agentmuxMobile`
+   - Identifiers → "+" → App IDs → App → bundle ID `ai.agentmux.mobile`
      (must match exactly; skip this if it's already registered).
    - Profiles → "+" → **App Store** distribution type → select the App ID
      above → select the Apple Distribution certificate from step 2 →

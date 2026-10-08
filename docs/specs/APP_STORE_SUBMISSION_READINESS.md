@@ -161,7 +161,7 @@ account or network.
 - Full 24-entry `AppIcon.appiconset` with all files present as real
   generated PNGs (alpha channel correctly flattened for iOS — Apple
   rejects any transparency in the App Store icon).
-- Bundle ID `com.agentmux.agentmuxMobile` and deployment target
+- Bundle ID `ai.agentmux.mobile` and deployment target
   (`IPHONEOS_DEPLOYMENT_TARGET = 15.5`) consistently set.
 - App doesn't force a login wall on first launch (Discovery is the
   default unauthenticated route).
@@ -303,7 +303,7 @@ Numbered in the order you'd actually do them:
 1. **Confirm Apple Developer Program enrollment** (individual or
    AgentMux Corp. organization account, $99/year) is active for the team
    that will own this app.
-2. **Register the App ID** `com.agentmux.agentmuxMobile` under
+2. **Register the App ID** `ai.agentmux.mobile` under
    Certificates, Identifiers & Profiles on developer.apple.com, matching
    the Xcode project exactly.
 3. **Create an "Apple Distribution" certificate** (not "Developer ID
