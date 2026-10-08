@@ -10,6 +10,7 @@ import '../../core/fleet/cloud_instance_source.dart';
 import '../../core/viewer/paired_hosts_repository.dart';
 import 'host_card.dart';
 import 'manual_add_sheet.dart';
+import 'muxbus_account_bar.dart';
 import 'qr_scan_screen.dart';
 
 class DiscoveryScreen extends ConsumerWidget {
@@ -44,30 +45,20 @@ class DiscoveryScreen extends ConsumerWidget {
             tooltip: 'Connect manually',
             onPressed: () => showManualAddSheet(context),
           ),
-          // Cloud login/Demo/Settings/Debug consolidated into one overflow
-          // menu rather than four more direct IconButtons. Even the
-          // previous 5-control version (4 icons + this popup) still left
-          // only ~64dp for the title on a 320dp iPhone SE per Codex review
-          // on #28 — moving one more action in leaves 3 direct icons + 1
-          // overflow trigger (~192dp), comfortably clearing room for
-          // "AgentMux" at any supported width.
+          // Demo/Settings/Debug consolidated into one overflow menu rather
+          // than more direct IconButtons: 3 direct icons + 1 overflow
+          // trigger (~192dp) leaves room for "AgentMux" on a 320dp screen
+          // (Codex review on #28). MuxBus sign-in is not in here: it is the
+          // always-visible button at the bottom (MuxbusAccountBar).
           PopupMenuButton<_MoreAction>(
             icon: const Icon(Icons.more_vert),
             tooltip: 'More',
             onSelected: (action) => switch (action) {
-              _MoreAction.cloudLogin => context.push('/login'),
               _MoreAction.demo => context.push('/demo'),
               _MoreAction.settings => context.push('/settings'),
               _MoreAction.debugLog => context.push('/debug-log'),
             },
             itemBuilder: (context) => const [
-              PopupMenuItem(
-                value: _MoreAction.cloudLogin,
-                child: ListTile(
-                  leading: Icon(Icons.cloud_outlined),
-                  title: Text('Cloud login'),
-                ),
-              ),
               PopupMenuItem(
                 value: _MoreAction.demo,
                 child: ListTile(
@@ -99,11 +90,13 @@ class DiscoveryScreen extends ConsumerWidget {
         DiscoveryResults(:final hosts, :final cloud) =>
           _ResultsView(hosts: hosts, cloud: cloud),
       },
+      // Always on screen, outside the scrolling list.
+      bottomNavigationBar: const MuxbusAccountBar(),
     );
   }
 }
 
-enum _MoreAction { cloudLogin, demo, settings, debugLog }
+enum _MoreAction { demo, settings, debugLog }
 
 class _ScanningView extends StatelessWidget {
   const _ScanningView();
@@ -144,66 +137,66 @@ class _EmptyView extends StatelessWidget {
     final hint = DiscoveryTelemetry.lastNetworkSnapshot?.hint;
     final note = cloudNoteText(cloud);
 
+    // Scrolls when it can't fit (a small screen, large text, the footer
+    // button below it).
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.wifi_off, size: 64, color: Colors.white38),
-          const SizedBox(height: 24),
-          const Text(
-            'No AgentMux found on this network.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 16),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Make sure LAN discovery is enabled\non your desktop instance.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white54, fontSize: 13),
-          ),
-          if (hint != null) ...[
-            const SizedBox(height: 16),
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 24),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.wifi_off, size: 64, color: Colors.white38),
+            const SizedBox(height: 24),
+            const Text(
+              'No AgentMux found on this network.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Make sure LAN discovery is enabled\non your desktop instance.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white54, fontSize: 13),
+            ),
+            if (hint != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 24),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: Colors.amber.withValues(alpha: 0.4)),
+                ),
+                child: Text(
+                  hint,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.amber, fontSize: 12),
+                ),
               ),
-              child: Text(
-                hint,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.amber, fontSize: 12),
-              ),
+            ],
+            if (note != null) CloudNote(text: note),
+            const SizedBox(height: 32),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.qr_code_scanner),
+              label: const Text('Scan QR code'),
+              onPressed: () => showQrScanScreen(context),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.add),
+              label: const Text('Connect manually'),
+              onPressed: () => showManualAddSheet(context),
+            ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              icon: const Icon(Icons.visibility_outlined),
+              label: const Text('View a demo fleet'),
+              onPressed: () => context.push('/demo'),
             ),
           ],
-          if (note != null) CloudNote(text: note),
-          const SizedBox(height: 32),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.qr_code_scanner),
-            label: const Text('Scan QR code'),
-            onPressed: () => showQrScanScreen(context),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.add),
-            label: const Text('Connect manually'),
-            onPressed: () => showManualAddSheet(context),
-          ),
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            icon: const Icon(Icons.cloud),
-            label: const Text('Sign in to cloud →'),
-            onPressed: () => context.push('/login'),
-          ),
-          const SizedBox(height: 12),
-          TextButton.icon(
-            icon: const Icon(Icons.visibility_outlined),
-            label: const Text('View a demo fleet'),
-            onPressed: () => context.push('/demo'),
-          ),
-        ],
+        ),
       ),
     );
   }

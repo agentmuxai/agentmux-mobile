@@ -19,6 +19,7 @@ class SettingsScreen extends ConsumerWidget {
     final authState = ref.watch(authProvider);
     final isAuthed = authState.valueOrNull == AuthStatus.authenticated;
     final tierAsync = ref.watch(billingTierProvider);
+    final email = ref.watch(accountEmailProvider).valueOrNull;
 
     return Scaffold(
       appBar: AppBar(
@@ -58,6 +59,18 @@ class SettingsScreen extends ConsumerWidget {
               title: 'MuxBus Cloud',
               children: [
                 ListTile(
+                  leading: const Icon(Icons.account_circle_outlined),
+                  title: const Text('Signed in',
+                      style: TextStyle(color: AppColors.textPrimary)),
+                  subtitle: email == null
+                      ? null
+                      : Text(
+                          email,
+                          style: const TextStyle(
+                              color: AppColors.textSecondary, fontSize: 12),
+                        ),
+                ),
+                ListTile(
                   leading: const Icon(Icons.cloud_outlined),
                   title: Text(
                     tierAsync.maybeWhen(
@@ -96,10 +109,10 @@ class SettingsScreen extends ConsumerWidget {
                 ListTile(
                   leading: const Icon(Icons.cloud_outlined,
                       color: AppColors.textMuted),
-                  title: const Text('Connect to MuxBus →',
+                  title: const Text('MuxBus Sign in',
                       style: TextStyle(color: AppColors.primary)),
                   subtitle: const Text(
-                    'Remote access to agents anywhere',
+                    'See your computers and agents from anywhere',
                     style: TextStyle(
                         color: AppColors.textSecondary, fontSize: 12),
                   ),
