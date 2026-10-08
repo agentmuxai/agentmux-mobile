@@ -38,6 +38,12 @@ dependencies:
 
   # LAN discovery via mDNS
   multicast_dns: ^0.3.2+3
+  # LAN discovery on iOS through the system's Bonjour browser (NWBrowser):
+  # raw multicast (multicast_dns, the UDP probe) needs Apple's restricted
+  # multicast entitlement on a real iOS device; Bonjour does not. 6.x is the
+  # last line that supports the pinned Flutter 3.38 / Dart 3.10 (7.x's
+  # bonsoir_darwin needs Dart 3.11).
+  bonsoir: ^6.0.3
 
   # QR code fallback for LAN pairing
   mobile_scanner: ^6.0.5

@@ -84,6 +84,15 @@ void main() {
     expect(find.text('View a demo fleet'), findsNWidgets(2));
   });
 
+  testWidgets('nothing found says so', (tester) async {
+    await tester.pumpWidget(_app(FakeAuthRepository()));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('No AgentMux instances found on this network'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('signed out: one "MuxBus Sign in" button at the bottom', (
     tester,
   ) async {

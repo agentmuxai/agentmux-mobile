@@ -198,23 +198,26 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
         ),
         actions: [
           ConnectionIndicator(connection: connection),
-          PopupMenuButton<_FeedMenu>(
-            tooltip: 'More',
-            onSelected: (action) => switch (action) {
-              _FeedMenu.sendMessage => openMessageScreen(
-                  context,
-                  widget.instance,
-                  widget.agent,
-                  route: widget.route,
+          // A paired computer discovery has not found has no fleet endpoint
+          // or key to send a message with; only its live feed.
+          if (widget.instance.authKey.isNotEmpty)
+            PopupMenuButton<_FeedMenu>(
+              tooltip: 'More',
+              onSelected: (action) => switch (action) {
+                _FeedMenu.sendMessage => openMessageScreen(
+                    context,
+                    widget.instance,
+                    widget.agent,
+                    route: widget.route,
+                  ),
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: _FeedMenu.sendMessage,
+                  child: Text('Send a message…'),
                 ),
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(
-                value: _FeedMenu.sendMessage,
-                child: Text('Send a message…'),
-              ),
-            ],
-          ),
+              ],
+            ),
         ],
       ),
       body: _body(connection, feed?.transcript),

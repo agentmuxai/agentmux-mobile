@@ -8,6 +8,8 @@ import 'package:agentmux_mobile/core/discovery/models/lan_instance.dart';
 import 'package:agentmux_mobile/core/fleet/cloud_instance_source.dart';
 import 'package:agentmux_mobile/core/fleet/fleet_store.dart';
 import 'package:agentmux_mobile/core/viewer/paired_host.dart';
+import 'package:agentmux_mobile/core/viewer/paired_host_source.dart';
+import 'package:agentmux_mobile/core/viewer/viewer_client.dart';
 import 'package:agentmux_mobile/core/viewer/paired_match.dart';
 import 'package:agentmux_mobile/features/discovery/host_card.dart';
 import 'package:agentmux_mobile/shared/widgets/agent_state_chip.dart';
@@ -440,6 +442,58 @@ void main() {
       await tester.tap(find.text('AgentA'));
       await tester.pumpAndSettle();
       expect(find.text('cloud agent AgentA'), findsOneWidget);
+    });
+
+    /// A paired computer discovery has not found, as the poller shows it.
+    HostNode pairedOnlyHost({PairedHost? paired}) {
+      final p = paired ?? testPairedHost();
+      final reading = const PairedReading().after(
+        PairedPollOk(PairedSnapshot(
+          hello: const ViewerHello(
+            hostname: 'host-a',
+            deviceId: 'dev-1',
+            channel: 'stable',
+            version: '0.60.0',
+          ),
+          agents: [
+            LanAgent(
+              name: 'Camper',
+              kind: AgentKind.host,
+              state: AgentState.working,
+              stateSince: StateSince(
+                elapsedAtReceipt: const Duration(minutes: 3),
+                receivedAt: clock.now(),
+              ),
+            ),
+          ],
+        )),
+        clock.now(),
+      );
+      return applyPairings(
+        buildHostTrees([pairedFleetEntry(p, reading, clock.now())!]),
+        [p],
+      ).single;
+    }
+
+    testWidgets('a paired-only computer: name, Paired, LAN, version, states',
+        (tester) async {
+      await tester.pumpWidget(_app(HostCard(host: pairedOnlyHost())));
+      expect(find.text('host-a'), findsOneWidget);
+      expect(find.text('Paired'), findsOneWidget);
+      expect(find.text('LAN'), findsOneWidget);
+      expect(find.text('v0.60.0'), findsOneWidget);
+      expect(find.text('HOST'), findsOneWidget);
+      expect(find.text('working 3m'), findsOneWidget);
+    });
+
+    testWidgets('tapping an agent of a paired-only computer opens its feed',
+        (tester) async {
+      await tester.pumpWidget(
+          MaterialApp.router(routerConfig: router(pairedOnlyHost())));
+      await tester.tap(find.text('Camper'));
+      await tester.pumpAndSettle();
+      // The stored listener: the only way this computer is reached.
+      expect(find.text('feed Camper via 198.51.100.20:29800'), findsOneWidget);
     });
 
     testWidgets('long-press offers Unpair', (tester) async {
