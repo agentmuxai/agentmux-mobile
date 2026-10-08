@@ -59,10 +59,27 @@ PairingMatch? matchPairing(
 }
 
 /// [hosts] with each channel's pairing filled in.
+///
+/// A channel read from a pairing ([ChannelNode.pairedId], a paired computer
+/// discovery has not found) carries that pairing, at its stored address;
+/// every other channel is matched by [matchPairing].
 List<HostNode> applyPairings(List<HostNode> hosts, List<PairedHost> paired) {
   if (paired.isEmpty) return hosts;
-  final used = <String>{};
+  final byId = {for (final p in paired) p.id: p};
+  final used = <String>{
+    for (final h in hosts)
+      for (final c in h.channels)
+        if (c.pairedId != null && byId.containsKey(c.pairedId)) c.pairedId!,
+  };
   ChannelNode pair(ChannelNode c) {
+    final own = byId[c.pairedId];
+    if (own != null) {
+      return c.withPairing(
+        PairingMatch(paired: own, host: own.host, port: own.port),
+      );
+    }
+    // Read from a pairing since removed: it is no other pairing's.
+    if (c.pairedId != null) return c;
     final m = matchPairing(c, paired, used: used);
     if (m == null) return c;
     used.add(m.paired.id);

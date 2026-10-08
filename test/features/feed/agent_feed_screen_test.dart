@@ -46,6 +46,7 @@ void main() {
     WidgetTester tester,
     PairedHost paired, {
     LanAgent agent = _agent,
+    LanInstance instance = _instance,
   }) async {
     await PairedHostsRepository(store).save([paired]);
     final router = GoRouter(routes: [
@@ -58,7 +59,7 @@ void main() {
             port: paired.port,
           ),
           agent: agent,
-          instance: _instance,
+          instance: instance,
           channel: 'stable',
           route: ChannelRoute.lan,
         ),
@@ -222,6 +223,20 @@ void main() {
     await tester.tap(find.text('Send a message…'));
     await tester.pumpAndSettle();
     expect(find.text('message screen AgentA'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('a paired computer discovery has not found has no message menu',
+      (tester) async {
+    adapter = FakeAdapter([const FakeResponse(200, keepOpen: true, chunks: [])]);
+    // As the paired-host card hands it over: the viewer listener, no key.
+    await pumpFeed(
+      tester,
+      testPairedHost(),
+      instance: _instance.copyWith(port: 29800, authKey: ''),
+    );
+    expect(find.byTooltip('More'), findsNothing);
+    expect(find.text('Live'), findsOneWidget);
     await unmount(tester);
   });
 

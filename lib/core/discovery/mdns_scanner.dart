@@ -6,6 +6,7 @@ import 'package:multicast_dns/multicast_dns.dart';
 import '../logging/app_logger.dart';
 import 'android_multicast_lock.dart';
 import 'discovery_telemetry.dart';
+import 'lan_scanner.dart';
 import 'models/lan_instance.dart';
 import 'peer_fields.dart';
 
@@ -26,10 +27,11 @@ class _ResolveOutcome {
   final String? discardReason;
 }
 
-class MdnsScanner {
+class MdnsScanner implements LanScanner {
   /// [logSummary] false keeps the end-of-scan line out of the debug log
   /// (discovery repeats every few seconds); the structured
   /// [DiscoveryTelemetry] summary is updated either way.
+  @override
   Stream<LanInstance> scan({bool logSummary = true}) async* {
     final client = MDnsClient();
     await AndroidMulticastLock.acquire();
@@ -166,17 +168,12 @@ class MdnsScanner {
       return const _ResolveOutcome.discarded('no resolvable A/AAAA record');
     }
 
-    return _ResolveOutcome.success(LanInstance(
-      hostname: txt.hostname ?? host.split('.').first,
-      version: txt.version ?? '?',
-      address: address,
-      port: port,
+    return _ResolveOutcome.success(lanInstanceFromService(
+      txt: txt,
       authKey: authKey,
-      instanceId: txt.instanceId,
-      channel: txt.channel,
-      // `channels_running` is not in TXT (it changes); the fleet feed has it.
-      os: txt.os,
-      installId: txt.installId,
+      srvTarget: host,
+      port: port,
+      address: address,
     ));
   }
 
@@ -184,15 +181,23 @@ class MdnsScanner {
   /// keys are ignored; `os` and `install_id` are validated and dropped when
   /// malformed (an older desktop sends neither).
   @visibleForTesting
-  static ({
-    String? authKey,
-    String? version,
-    String? hostname,
-    String? instanceId,
-    String? channel,
-    String? os,
-    String? installId,
-  }) parseTxt(String text) {
+  static TxtFields parseTxt(String text) => _parseTxtPairs([
+        for (final kv in text.split('\n'))
+          if (kv.contains('='))
+            (
+              kv.substring(0, kv.indexOf('=')),
+              kv.substring(kv.indexOf('=') + 1),
+            ),
+      ]);
+
+  /// [parseTxt] for a TXT record a platform Bonjour browser has already split
+  /// into keys and values; the same keys, the same validation.
+  static TxtFields parseTxtAttributes(Map<String, String> attributes) =>
+      _parseTxtPairs([
+        for (final e in attributes.entries) (e.key, e.value),
+      ]);
+
+  static TxtFields _parseTxtPairs(List<(String, String)> pairs) {
     String? authKey;
     String? version;
     String? hostname;
@@ -200,11 +205,9 @@ class MdnsScanner {
     String? channel;
     String? os;
     String? installId;
-    for (final kv in text.split('\n')) {
-      final idx = kv.indexOf('=');
-      if (idx < 0) continue;
-      final k = kv.substring(0, idx).trim();
-      final v = kv.substring(idx + 1).trim();
+    for (final (rawKey, rawValue) in pairs) {
+      final k = rawKey.trim();
+      final v = rawValue.trim();
       switch (k) {
         case 'auth_key':
           authKey = v;

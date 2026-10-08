@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:fake_async/fake_async.dart';
@@ -15,29 +16,45 @@ import 'package:agentmux_mobile/core/fleet/cloud_instances.dart';
 import 'package:agentmux_mobile/core/fleet/fleet_snapshot.dart';
 import 'package:agentmux_mobile/core/fleet/fleet_store.dart';
 import 'package:agentmux_mobile/core/fleet/fleet_transport.dart';
+import 'package:agentmux_mobile/core/discovery/lan_scanner.dart';
+import 'package:agentmux_mobile/core/fleet/channel_session.dart';
+import 'package:agentmux_mobile/core/viewer/paired_host.dart';
+import 'package:agentmux_mobile/core/viewer/paired_host_source.dart';
 import 'package:agentmux_mobile/core/viewer/paired_hosts_repository.dart';
+import 'package:agentmux_mobile/core/viewer/viewer_client.dart';
+import 'package:flutter/foundation.dart';
 
 import '../viewer/viewer_fakes.dart';
 
 class _FakeMdns extends MdnsScanner {
+  var scans = 0;
+
   @override
-  Stream<LanInstance> scan({bool logSummary = true}) => const Stream.empty();
+  Stream<LanInstance> scan({bool logSummary = true}) {
+    scans++;
+    return const Stream.empty();
+  }
 }
 
 class _FakeUdp extends UdpBroadcastProber {
   List<LanInstance> replies = [];
+  var probes = 0;
 
   @override
   Stream<LanInstance> probe({
     Duration timeout = const Duration(seconds: 2),
     bool tryEmulatorRelay = false,
     bool logSummary = true,
-  }) =>
-      Stream.fromIterable(replies);
+  }) {
+    probes++;
+    return Stream.fromIterable(replies);
+  }
 }
 
 /// One fake desktop channel per port: streams its agents while alive.
 class _FakeHost {
+  /// The hostname every channel reports.
+  var hostname = 'narko';
   final agents = <int, List<String>>{};
   final connects = <int, int>{};
   final dead = <int>{};
@@ -76,7 +93,7 @@ class _HostTransport implements FleetTransport {
       ..add(FleetSnapshot(
         epoch: 'e$port',
         rev: 1,
-        hostname: 'narko',
+        hostname: host.hostname,
         version: '0.59.7',
         agents: host.agents[port] ?? const [],
       ));
@@ -90,13 +107,60 @@ class _HostTransport implements FleetTransport {
   Future<LegacyFleetInfo> legacy() => throw _down;
 }
 
-LanInstance _reply(int port, String channel) => LanInstance(
-      hostname: 'narko',
+LanInstance _reply(int port, String channel, {String hostname = 'narko'}) =>
+    LanInstance(
+      hostname: hostname,
       version: '0.59.7',
       address: '192.168.1.230',
       port: port,
       authKey: 'lan-$port',
       channel: channel,
+    );
+
+/// A Bonjour browse that finds a fixed set of instances.
+class _FakeBonjour implements LanScanner {
+  List<LanInstance> found = [];
+  var scans = 0;
+
+  @override
+  Stream<LanInstance> scan({bool logSummary = true}) {
+    scans++;
+    return Stream.fromIterable(found);
+  }
+}
+
+/// Paired computers' viewer listeners: each read answers [answer], or throws
+/// [failure] when set.
+class _FakePaired {
+  final fetches = <String>[];
+  Object? failure;
+  PairedSnapshot Function(PairedHost host) answer = (_) => _snapshot();
+
+  Future<PairedSnapshot> fetch(PairedHost host) async {
+    fetches.add(host.id);
+    final f = failure;
+    if (f != null) throw f;
+    return answer(host);
+  }
+}
+
+PairedSnapshot _snapshot({
+  String hostname = 'host-a',
+  String? channel = 'stable',
+  List<LanAgent> agents = const [
+    LanAgent(name: 'AgentA', kind: AgentKind.host, state: AgentState.working),
+    LanAgent(name: 'AgentB', kind: AgentKind.container, state: AgentState.idle),
+  ],
+}) =>
+    PairedSnapshot(
+      hello: ViewerHello(
+        hostname: hostname,
+        deviceId: 'dev-1',
+        channel: channel,
+        version: '0.60.0',
+        installId: testInstallId,
+      ),
+      agents: agents,
     );
 
 /// The account's install list as the fake relay serves it.
@@ -491,11 +555,16 @@ void main() {
 
   group('paired hosts', () {
     late InMemorySecureStore store;
+    late _FakePaired paired;
 
     setUp(() {
       store = InMemorySecureStore();
+      paired = _FakePaired();
+      // The fake channels report the paired host's name.
+      host.hostname = 'host-a';
       container.dispose();
       container = ProviderContainer(overrides: [
+        pairedHostFetchProvider.overrideWithValue(paired.fetch),
         cloudSignedInProvider.overrideWithValue(cloud.isSignedIn),
         cloudInstancesFetchProvider.overrideWithValue(cloud.fetch),
         mdnsScannerProvider.overrideWithValue(_FakeMdns()),
@@ -555,6 +624,336 @@ void main() {
         async.elapse(const Duration(seconds: 1));
         final s = container.read(discoveryProvider) as DiscoveryResults;
         expect(s.hosts.single.channels.single.pairing, isNull);
+      });
+    });
+
+    test('discovery finding the paired channel stops reading it directly', () {
+      fakeAsync((async) {
+        PairedHostsRepository(store).save([testPairedHost()]);
+        async.flushMicrotasks();
+        udp.replies = [reply()];
+        host.agents[29704] = ['AgentA'];
+        container.read(discoveryProvider);
+        async.elapse(const Duration(seconds: 1));
+        final reads = paired.fetches.length;
+        async.elapse(const Duration(seconds: 60));
+        expect(paired.fetches.length, reads);
+      });
+    });
+  });
+
+  group('platform', () {
+    late _FakeMdns mdns;
+    late _FakeBonjour bonjour;
+
+    ProviderContainer on(TargetPlatform platform) => ProviderContainer(
+          overrides: [
+            discoveryPlatformProvider.overrideWithValue(platform),
+            bonjourScannerProvider.overrideWithValue(bonjour),
+            cloudSignedInProvider.overrideWithValue(cloud.isSignedIn),
+            cloudInstancesFetchProvider.overrideWithValue(cloud.fetch),
+            mdnsScannerProvider.overrideWithValue(mdns),
+            udpBroadcastProberProvider.overrideWithValue(udp),
+            fleetTransportFactoryProvider.overrideWithValue(host.transport),
+            networkSnapshotProvider.overrideWithValue(
+              () async => NetworkSnapshot(interfaces: interfaces, hint: null),
+            ),
+            followAppLifecycleProvider.overrideWithValue(false),
+          ],
+        );
+
+    setUp(() {
+      mdns = _FakeMdns();
+      bonjour = _FakeBonjour();
+    });
+
+    test('iOS finds channels through Bonjour and sends no UDP probe', () {
+      fakeAsync((async) {
+        final c = on(TargetPlatform.iOS);
+        addTearDown(c.dispose);
+        host.hostname = 'host-a';
+        bonjour.found = [_reply(29704, 'local-main', hostname: 'host-a')];
+        host.agents[29704] = ['AgentA'];
+        c.read(discoveryProvider);
+        async.elapse(const Duration(seconds: 12));
+
+        expect(channelsOf(c.read(discoveryProvider)),
+            ['host-a/local-main:AgentA']);
+        expect(bonjour.scans, greaterThan(1));
+        expect(mdns.scans, 0);
+        expect(udp.probes, 0);
+      });
+    });
+
+    test('Android keeps multicast_dns and the UDP probe', () {
+      fakeAsync((async) {
+        final c = on(TargetPlatform.android);
+        addTearDown(c.dispose);
+        host.hostname = 'host-a';
+        udp.replies = [_reply(29704, 'local-main', hostname: 'host-a')];
+        host.agents[29704] = ['AgentA'];
+        c.read(discoveryProvider);
+        async.elapse(const Duration(seconds: 1));
+
+        expect(channelsOf(c.read(discoveryProvider)),
+            ['host-a/local-main:AgentA']);
+        expect(mdns.scans, 1);
+        expect(udp.probes, 1);
+        expect(bonjour.scans, 0);
+      });
+    });
+  });
+
+  group('paired computers discovery has not found', () {
+    late InMemorySecureStore store;
+    late _FakePaired paired;
+
+    setUp(() {
+      store = InMemorySecureStore();
+      paired = _FakePaired();
+      // The fake channels report the paired host's name.
+      host.hostname = 'host-a';
+      container.dispose();
+      container = ProviderContainer(overrides: [
+        pairedHostFetchProvider.overrideWithValue(paired.fetch),
+        cloudSignedInProvider.overrideWithValue(cloud.isSignedIn),
+        cloudInstancesFetchProvider.overrideWithValue(cloud.fetch),
+        mdnsScannerProvider.overrideWithValue(_FakeMdns()),
+        udpBroadcastProberProvider.overrideWithValue(udp),
+        fleetTransportFactoryProvider.overrideWithValue(host.transport),
+        networkSnapshotProvider.overrideWithValue(
+          () async => NetworkSnapshot(interfaces: interfaces, hint: null),
+        ),
+        followAppLifecycleProvider.overrideWithValue(false),
+        secureStoreProvider.overrideWithValue(store),
+      ]);
+    });
+
+    /// Starts discovery with [hosts] already paired.
+    void start(FakeAsync async, [List<PairedHost>? hosts]) {
+      PairedHostsRepository(store).save(hosts ?? [testPairedHost()]);
+      async.flushMicrotasks();
+      container.read(discoveryProvider);
+      async.elapse(const Duration(seconds: 1));
+    }
+
+    ChannelNode only() {
+      final s = container.read(discoveryProvider) as DiscoveryResults;
+      return s.hosts.single.channels.single;
+    }
+
+    test('shows as a host card with its agents, kinds and states', () {
+      fakeAsync((async) {
+        start(async);
+        final s = container.read(discoveryProvider) as DiscoveryResults;
+        final h = s.hosts.single;
+        final c = h.channels.single;
+        expect(h.name, 'host-a');
+        expect(h.version, '0.60.0');
+        expect(h.route, ChannelRoute.lan);
+        expect(c.name, 'stable');
+        expect(c.presence, Presence.live);
+        expect(c.pairedId, 'p1');
+        expect(c.pairing!.paired.id, 'p1');
+        // The pairing's own listener, as stored.
+        expect((c.pairing!.host, c.pairing!.port), ('198.51.100.20', 29800));
+        expect(
+          [for (final a in c.agents) (a.name, a.kind, a.state)],
+          [
+            ('AgentA', AgentKind.host, AgentState.working),
+            ('AgentB', AgentKind.container, AgentState.idle),
+          ],
+        );
+        expect(paired.fetches, ['p1']);
+      });
+    });
+
+    test('is read again every 10 s', () {
+      fakeAsync((async) {
+        start(async);
+        expect(paired.fetches, hasLength(1));
+        async.elapse(const Duration(seconds: 10));
+        expect(paired.fetches, hasLength(2));
+        async.elapse(const Duration(seconds: 20));
+        expect(paired.fetches, hasLength(4));
+      });
+    });
+
+    test('a failed read dims it and keeps what was known', () {
+      fakeAsync((async) {
+        start(async);
+        paired.failure = DioException(
+          requestOptions: RequestOptions(path: '/agentmux/viewer/hello'),
+          type: DioExceptionType.connectionTimeout,
+        );
+        async.elapse(const Duration(seconds: 10));
+        final c = only();
+        expect(c.presence, Presence.stale);
+        expect(c.error, ChannelError.unreachable);
+        expect(c.agents.map((a) => a.name), ['AgentA', 'AgentB']);
+
+        // It answers again: live.
+        paired.failure = null;
+        async.elapse(const Duration(seconds: 10));
+        expect(only().presence, Presence.live);
+        expect(only().error, isNull);
+      });
+    });
+
+    test('never answering, it still shows, dimmed', () {
+      fakeAsync((async) {
+        paired.failure = const SocketException('unreachable');
+        start(async);
+        final c = only();
+        expect(c.presence, Presence.stale);
+        expect(c.error, ChannelError.unreachable);
+        expect(c.pairing!.paired.id, 'p1');
+      });
+    });
+
+    test('a 401 marks the pairing invalid and stops reading it', () {
+      fakeAsync((async) {
+        paired.failure = const ViewerUnauthorized();
+        start(async);
+        expect(container.read(pairedHostsProvider).single.invalid, isTrue);
+        final c = only();
+        expect(c.pairing!.paired.invalid, isTrue);
+        expect(c.error, ChannelError.unauthorized);
+        final reads = paired.fetches.length;
+        async.elapse(const Duration(seconds: 60));
+        expect(paired.fetches, hasLength(reads));
+      });
+    });
+
+    test('a pairing already refused shows without being read', () {
+      fakeAsync((async) {
+        start(async, [testPairedHost(invalid: true)]);
+        expect(only().pairing!.paired.invalid, isTrue);
+        expect(paired.fetches, isEmpty);
+      });
+    });
+
+    test('found by discovery later (install id), it merges into one card', () {
+      fakeAsync((async) {
+        start(async);
+        expect(only().pairedId, 'p1');
+
+        // Discovery finds the same install, under another address.
+        udp.replies = [
+          const LanInstance(
+            hostname: 'host-a',
+            version: '0.60.0',
+            address: '198.51.100.44',
+            port: 29704,
+            authKey: 'lan-k',
+            channel: 'stable',
+            installId: testInstallId,
+          ),
+        ];
+        host.agents[29704] = ['AgentA'];
+        async.elapse(const Duration(seconds: 6));
+
+        final c = only();
+        expect(c.pairedId, isNull);
+        expect(c.pairing!.paired.id, 'p1');
+        expect(c.via.port, 29704);
+        // No longer read directly.
+        final reads = paired.fetches.length;
+        async.elapse(const Duration(seconds: 30));
+        expect(paired.fetches, hasLength(reads));
+      });
+    });
+
+    test('found by discovery by hostname and channel when no install id', () {
+      fakeAsync((async) {
+        start(async, [testPairedHost(installId: null)]);
+        udp.replies = [
+          const LanInstance(
+            hostname: 'HOST-A',
+            version: '0.60.0',
+            address: '198.51.100.44',
+            port: 29704,
+            authKey: 'lan-k',
+            channel: 'stable',
+          ),
+        ];
+        host.agents[29704] = ['AgentA'];
+        async.elapse(const Duration(seconds: 6));
+        final c = only();
+        expect(c.pairedId, isNull);
+        expect(c.pairing!.paired.id, 'p1');
+      });
+    });
+
+    test('next to a discovered channel of the same host, it is its own', () {
+      fakeAsync((async) {
+        udp.replies = [_reply(29704, 'local-main', hostname: 'host-a')];
+        host.agents[29704] = ['AgentC'];
+        start(async, [testPairedHost(installId: null)]);
+        async.elapse(const Duration(seconds: 10));
+        expect(channelsOf(container.read(discoveryProvider)), [
+          'host-a/local-main:AgentC',
+          'host-a/stable:AgentA,AgentB',
+        ]);
+      });
+    });
+
+    test('reading stops in the background and resumes in front', () {
+      fakeAsync((async) {
+        start(async);
+        final notifier = container.read(discoveryProvider.notifier);
+        notifier.handlePause();
+        final reads = paired.fetches.length;
+        async.elapse(const Duration(minutes: 2));
+        expect(paired.fetches, hasLength(reads));
+
+        notifier.handleResume();
+        async.elapse(const Duration(seconds: 1));
+        expect(paired.fetches, hasLength(reads + 1));
+      });
+    });
+
+    test('pull-to-refresh reads it at once', () {
+      fakeAsync((async) {
+        start(async);
+        container.read(discoveryProvider.notifier).refresh();
+        async.elapse(const Duration(milliseconds: 10));
+        expect(paired.fetches, hasLength(2));
+      });
+    });
+
+    test('unpairing removes the card', () {
+      fakeAsync((async) {
+        start(async);
+        container.read(pairedHostsProvider.notifier).remove('p1');
+        async.elapse(const Duration(seconds: 6));
+        expect(container.read(discoveryProvider), isA<DiscoveryEmpty>());
+      });
+    });
+
+    test('off the LAN, an install in the cloud list keeps its cloud card', () {
+      fakeAsync((async) {
+        cloud.signedIn = true;
+        cloud.list = () => [_install(testInstallId, hostname: 'host-a',
+            receivedAt: DateTime.now())];
+        paired.failure = const SocketException('unreachable');
+        start(async);
+        final c = only();
+        expect(c.cloudOnly, isTrue);
+        expect(c.pairedId, isNull);
+      });
+    });
+
+    test('on the LAN, it joins the cloud card of its install', () {
+      fakeAsync((async) {
+        cloud.signedIn = true;
+        cloud.list = () => [_install(testInstallId, hostname: 'host-a',
+            receivedAt: DateTime.now())];
+        start(async);
+        final c = only();
+        expect(c.cloudOnly, isFalse);
+        expect(c.pairedId, 'p1');
+        expect(c.route, ChannelRoute.lanAndCloud);
       });
     });
   });

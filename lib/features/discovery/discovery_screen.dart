@@ -148,7 +148,7 @@ class _EmptyView extends StatelessWidget {
             const Icon(Icons.wifi_off, size: 64, color: Colors.white38),
             const SizedBox(height: 24),
             const Text(
-              'No AgentMux found on this network.',
+              'No AgentMux instances found on this network',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 16),
             ),

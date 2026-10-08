@@ -14,6 +14,7 @@ class FleetEntry {
     this.error,
     this.lastSeen,
     this.route = ChannelRoute.lan,
+    this.pairedId,
   });
 
   final LanInstance instance;
@@ -25,6 +26,12 @@ class FleetEntry {
   /// [LanInstance.installId] is the install's instance id, and it has no LAN
   /// endpoint); otherwise how its LAN endpoint was found.
   final ChannelRoute route;
+
+  /// Set when the entry is a paired computer read over its viewer listener
+  /// rather than found by discovery: the id of its [PairedHost]. Its
+  /// [LanInstance] then carries the listener's address and port and no
+  /// fleet key, so it is only ever reached through that pairing.
+  final String? pairedId;
 
   bool get isCloud => route == ChannelRoute.cloud;
 }
@@ -59,6 +66,7 @@ class ChannelNode {
     this.route = ChannelRoute.lan,
     this.cloudOnly = false,
     this.pairing,
+    this.pairedId,
     String? key,
   }) : key = key ?? name;
 
@@ -85,6 +93,10 @@ class ChannelNode {
   /// 13.4). Set by `applyPairings`, never by [buildHostTrees].
   final PairingMatch? pairing;
 
+  /// The [PairedHost] this channel was read from, for a paired computer that
+  /// discovery has not found ([FleetEntry.pairedId]); null otherwise.
+  final String? pairedId;
+
   ChannelNode withPairing(PairingMatch? pairing) => ChannelNode(
         name: name,
         via: via,
@@ -95,6 +107,7 @@ class ChannelNode {
         route: route,
         cloudOnly: cloudOnly,
         pairing: pairing,
+        pairedId: pairedId,
         key: key,
       );
 }
@@ -328,6 +341,7 @@ FleetEntry _mergeChannel(FleetEntry lan, FleetEntry cloud) {
       (false, true) => ChannelRoute.cloud,
       _ => ChannelRoute.lanAndCloud,
     },
+    pairedId: lan.pairedId,
   );
 }
 
@@ -384,11 +398,16 @@ class _HostBuilder {
     }
 
     final ownName = channelLabel(instance);
+    // A paired computer read over its viewer listener is its own channel,
+    // keyed by pairing: it only reaches the tree when no discovered channel
+    // is that pairing's, so it never takes over one of the same name.
+    final ownKey =
+        entry.pairedId == null ? ownName : 'paired:${entry.pairedId}';
     // The instance itself is the authority for its own channel, even if a
     // sibling already created that channel from its agent list.
     final own = _channels.putIfAbsent(
-      ownName,
-      () => _ChannelBuilder(ownName, ownName, entry, own: true),
+      ownKey,
+      () => _ChannelBuilder(ownKey, ownName, entry, own: true),
     )
       ..entry = entry
       ..own = true;
@@ -420,6 +439,7 @@ class _HostBuilder {
           lastSeen: c.entry.lastSeen,
           route: c.entry.route,
           cloudOnly: c.cloudOnly,
+          pairedId: c.own ? c.entry.pairedId : null,
         ),
     ]..sort((a, b) {
         final byChannel = _byName(a.name, b.name);

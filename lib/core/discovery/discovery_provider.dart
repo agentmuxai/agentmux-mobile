@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:clock/clock.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,10 +14,15 @@ import '../fleet/cloud_instances.dart';
 import '../fleet/fleet_store.dart';
 import '../fleet/fleet_transport.dart';
 import '../logging/app_logger.dart';
+import '../viewer/paired_host.dart';
+import '../viewer/paired_host_source.dart';
 import '../viewer/paired_hosts_repository.dart';
 import '../viewer/paired_match.dart';
+import '../viewer/pairing_service.dart';
+import 'bonjour_scanner.dart';
 import 'discovery_telemetry.dart';
 import 'host_tree.dart';
+import 'lan_scanner.dart';
 import 'local_api_client.dart';
 import 'mdns_scanner.dart';
 import 'models/lan_instance.dart';
@@ -56,6 +62,26 @@ class DiscoveryEmpty extends DiscoveryState {
 // ─── providers ───────────────────────────────────────────────────────────────
 
 final mdnsScannerProvider = Provider<MdnsScanner>((_) => MdnsScanner());
+
+final bonjourScannerProvider = Provider<LanScanner>((_) => BonjourScanner());
+
+/// The platform discovery runs on; overridden in tests.
+final discoveryPlatformProvider =
+    Provider<TargetPlatform>((_) => defaultTargetPlatform);
+
+/// How this platform browses the LAN: the system's Bonjour browser on iOS
+/// (raw multicast needs an entitlement there), `multicast_dns` elsewhere.
+final lanScannerProvider = Provider<LanScanner>(
+  (ref) => switch (lanBrowseMethodFor(ref.watch(discoveryPlatformProvider))) {
+    LanBrowseMethod.bonjour => ref.watch(bonjourScannerProvider),
+    LanBrowseMethod.multicastDns => ref.watch(mdnsScannerProvider),
+  },
+);
+
+/// Reads a paired computer over its viewer listener; overridden in tests.
+final pairedHostFetchProvider = Provider<PairedFetch>(
+  (ref) => viewerPairedFetch(ref.watch(viewerClientFactoryProvider)),
+);
 
 final udpBroadcastProberProvider =
     Provider<UdpBroadcastProber>((_) => UdpBroadcastProber());
@@ -108,6 +134,12 @@ final discoveryProvider =
 /// the same store as cloud channels
 /// (`SPEC_FLEET_HOST_TAGS_AND_CLOUD_HOSTS_2026_10_06.md` section 5); the
 /// tree joins a cloud channel to a LAN one only by install id.
+///
+/// A paired computer always shows: one that discovery has not found is read
+/// over its pinned viewer listener by a [PairedHostPoller] (every 10 s) and
+/// joins the tree as its own channel; once discovery finds the same channel
+/// (install id, else hostname and channel), the discovered one is shown
+/// instead.
 class DiscoveryNotifier extends Notifier<DiscoveryState> {
   static const mdnsWindow = Duration(seconds: 4);
   static const udpWindow = Duration(seconds: 2);
@@ -127,6 +159,8 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
   int _nextId = 0;
   CloudInstanceSource? _cloud;
   CloudListStatus _cloudStatus = CloudListStatus.pending;
+  PairedHostPoller? _paired;
+  final _pairedReadings = <String, PairedReading>{};
 
   Timer? _roundTimer;
   Timer? _tickTimer;
@@ -161,7 +195,11 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
     for (final s in _sessions.values) {
       s.resync();
     }
-    return Future.wait([_round(), refreshCloud()]);
+    return Future.wait([
+      _round(),
+      refreshCloud(),
+      _paired?.pollNow() ?? Future<void>.value(),
+    ]);
   }
 
   /// Reads the cloud install list now (pull-to-refresh, or after signing in
@@ -182,6 +220,7 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
     _burstUntil = clock.now().add(burstLength);
     _tickTimer = Timer.periodic(tickInterval, (_) => _tick());
     _startCloud();
+    _startPaired();
     await _maybeAutoConnect();
     unawaited(_round());
   }
@@ -205,6 +244,8 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
     _sessions.clear();
     _cloud?.stop();
     _cloud = null;
+    _paired?.stop();
+    _paired = null;
   }
 
   void _resume() {
@@ -218,6 +259,7 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
       _startSession(id);
     }
     _startCloud();
+    _startPaired();
     unawaited(_round());
   }
 
@@ -232,6 +274,8 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
     _sessions.clear();
     _cloud?.stop();
     _cloud = null;
+    _paired?.stop();
+    _paired = null;
     _lifecycle?.dispose();
   }
 
@@ -252,12 +296,15 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
       if (_disposed || _paused) return;
       _noteNetwork(snapshot);
       scanned = true;
+      final platform = ref.read(discoveryPlatformProvider);
       await Future.wait([
         _listenWithin(
-          ref.read(mdnsScannerProvider).scan(logSummary: logSummary),
+          ref.read(lanScannerProvider).scan(logSummary: logSummary),
           mdnsWindow,
         ),
-        _listenWithin(
+        // iOS refuses a broadcast send without the multicast entitlement.
+        if (udpProbeSupportedOn(platform))
+          _listenWithin(
           ref.read(udpBroadcastProberProvider).probe(
                 timeout: udpWindow,
                 // Only meaningful (and only sent) when the network snapshot
@@ -266,8 +313,8 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
                 tryEmulatorRelay: snapshot.looksLikeEmulatorNat,
                 logSummary: logSummary,
               ),
-          udpWindow,
-        ),
+            udpWindow,
+          ),
       ]);
     } catch (e, stackTrace) {
       AppLogger.log(
@@ -420,6 +467,34 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
     _scheduleEmit();
   }
 
+  // ─── paired computers ──────────────────────────────────────────────────────
+
+  void _startPaired() {
+    if (_paused || _disposed || _paired != null) return;
+    late final PairedHostPoller poller;
+    poller = PairedHostPoller(
+      fetch: ref.read(pairedHostFetchProvider),
+      onResult: (host, result) {
+        if (_disposed || _paired != poller) return;
+        _onPaired(host, result);
+      },
+    );
+    _paired = poller;
+    // Its targets come from the next emit, which knows what discovery found.
+    _scheduleEmit();
+  }
+
+  void _onPaired(PairedHost host, PairedPollResult result) {
+    _pairedReadings[host.id] =
+        (_pairedReadings[host.id] ?? const PairedReading())
+            .after(result, clock.now());
+    if (result case PairedPollFailed(error: ChannelError.unauthorized)) {
+      // The existing "Pair again": the computer revoked this device.
+      unawaited(ref.read(pairedHostsProvider.notifier).markInvalid(host.id));
+    }
+    _scheduleEmit();
+  }
+
   // ─── sessions ──────────────────────────────────────────────────────────────
 
   void _startSession(String id) {
@@ -492,15 +567,60 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
         route: r.route,
       ));
     }
-    final hosts = entries.isEmpty
+    final paired = ref.read(pairedHostsProvider);
+    var hosts = entries.isEmpty
         ? const <HostNode>[]
-        : applyPairings(buildHostTrees(entries), ref.read(pairedHostsProvider));
+        : applyPairings(buildHostTrees(entries), paired);
+    final pairedEntries = _pairedEntries(hosts, entries, paired, now);
+    if (pairedEntries.isNotEmpty) {
+      entries.addAll(pairedEntries);
+      hosts = applyPairings(buildHostTrees(entries), paired);
+    }
     _followMovedPairings(hosts);
     state = entries.isNotEmpty
         ? DiscoveryResults(hosts, cloud: _cloudStatus)
         : (_firstRoundDone
             ? DiscoveryEmpty(cloud: _cloudStatus)
             : const DiscoveryScanning());
+  }
+
+  /// The paired computers discovery has not found, as entries of their own;
+  /// and which of them the poller reads (all but those the computer refused).
+  ///
+  /// One whose install is also in the cloud list joins that cloud channel
+  /// while it answers; while it does not, the cloud channel shows alone, as
+  /// before, so its agents keep the cloud screen off the LAN.
+  List<FleetEntry> _pairedEntries(
+    List<HostNode> hosts,
+    List<FleetEntry> discovered,
+    List<PairedHost> paired,
+    DateTime now,
+  ) {
+    final found = {
+      for (final h in hosts)
+        for (final c in h.channels)
+          if (c.pairing != null) c.pairing!.paired.id,
+    };
+    final missing = [
+      for (final p in paired)
+        if (!found.contains(p.id)) p,
+    ];
+    _pairedReadings.removeWhere((id, _) => !paired.any((p) => p.id == id));
+    _paired?.sync([
+      for (final p in missing)
+        if (!p.invalid) p,
+    ]);
+    final cloudIds = {
+      for (final e in discovered)
+        if (e.isCloud && e.instance.installId != null) e.instance.installId!,
+    };
+    return [
+      for (final p in missing)
+        if (pairedFleetEntry(p, _pairedReadings[p.id], now) case final e?)
+          if (e.presence == Presence.live ||
+              !cloudIds.contains(e.instance.installId))
+            e,
+    ];
   }
 
   /// Where each paired channel's viewer listener was last asked to move to,

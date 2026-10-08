@@ -133,4 +133,67 @@ void main() {
     // Without pairings the trees are returned as they are.
     expect(applyPairings(hosts, const []), same(hosts));
   });
+
+  group('a paired computer discovery has not found', () {
+    FleetEntry pairedOnly({String id = 'p1', String channel = 'stable'}) =>
+        FleetEntry(
+          instance: LanInstance(
+            hostname: 'host-a',
+            version: '0.60.0',
+            address: '198.51.100.20',
+            port: 29800,
+            authKey: '',
+            channel: channel,
+            installId: testInstallId,
+            viewerPort: 29800,
+            agents: const [LanAgent(name: 'AgentA')],
+          ),
+          pairedId: id,
+        );
+
+    test('carries its own pairing, at the stored listener', () {
+      final hosts = applyPairings(
+        buildHostTrees([pairedOnly()]),
+        [testPairedHost()],
+      );
+      final c = hosts.single.channels.single;
+      expect(c.pairedId, 'p1');
+      expect(c.pairing!.paired.id, 'p1');
+      expect((c.pairing!.host, c.pairing!.port), ('198.51.100.20', 29800));
+      expect(c.pairing!.moved, isFalse);
+    });
+
+    test('never takes over a discovered channel of the same name', () {
+      // Two installs on one machine, both "stable": the discovered one is
+      // not this pairing's (different install id).
+      final hosts = applyPairings(
+        buildHostTrees([
+          _lan(installId: 'otherinstallotherinstallot'),
+          pairedOnly(),
+        ]),
+        [testPairedHost()],
+      );
+      final channels = hosts.single.channels;
+      expect(channels, hasLength(2));
+      expect(channels.where((c) => c.pairedId == 'p1'), hasLength(1));
+      expect(
+        channels.firstWhere((c) => c.pairedId == null).pairing,
+        isNull,
+      );
+    });
+
+    test('once unpaired, it is matched to no other pairing', () {
+      final hosts = applyPairings(
+        buildHostTrees([pairedOnly()]),
+        [testPairedHost(id: 'p2', installId: null)],
+      );
+      expect(hosts.single.channels.single.pairing, isNull);
+    });
+
+    test('joins the cloud record of its install', () {
+      final c = _only([pairedOnly(), _cloud()]);
+      expect(c.cloudOnly, isFalse);
+      expect(c.pairedId, 'p1');
+    });
+  });
 }
