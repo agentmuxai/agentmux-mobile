@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('Injection.fromInjectResponse', () {
     // Pins the actual response shape of POST /reactive/inject
-    // (agentmux-cloud/muxbus/server/src/index.ts) — a flat object, no
+    // (the MuxBus server's inject handler) — a flat object, no
     // nested "injection" key, no echoed "message". DOC-001 (2026-08-03
     // documentation analyst): the client previously called
     // Injection.fromJson(res.data!['injection']), which always threw
