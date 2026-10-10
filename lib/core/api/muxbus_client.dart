@@ -75,17 +75,21 @@ class MuxbusClient {
 
   // ── Messages ─────────────────────────────────────────────────────────────
 
+  /// [agentId]'s mailbox. Reading never marks messages read unless
+  /// [markAsRead] is set: the agent consumes its own mailbox, and a viewer
+  /// looking at it must not use its unread messages up.
   Future<List<Message>> getMessages(
     String agentId, {
     bool unreadOnly = false,
     int limit = 50,
+    bool markAsRead = false,
   }) async {
     final res = await _dio.get<Map<String, dynamic>>(
       '/api/messages',
       queryParameters: {
         'unread_only': unreadOnly,
         'limit': limit,
-        'mark_as_read': true,
+        'mark_as_read': markAsRead,
       },
       options: Options(headers: {'x-agent-id': agentId}),
     );
