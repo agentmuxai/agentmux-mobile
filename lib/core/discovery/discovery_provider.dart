@@ -568,13 +568,18 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
       ));
     }
     final paired = ref.read(pairedHostsProvider);
+    // A failed read leaves cloud records aging: that is this device falling
+    // behind, not an install that stopped publishing.
+    final cloudCurrent = _cloudStatus == CloudListStatus.ok;
     var hosts = entries.isEmpty
         ? const <HostNode>[]
-        : applyPairings(buildHostTrees(entries), paired);
+        : applyPairings(
+            buildHostTrees(entries, cloudListCurrent: cloudCurrent), paired);
     final pairedEntries = _pairedEntries(hosts, entries, paired, now);
     if (pairedEntries.isNotEmpty) {
       entries.addAll(pairedEntries);
-      hosts = applyPairings(buildHostTrees(entries), paired);
+      hosts = applyPairings(
+          buildHostTrees(entries, cloudListCurrent: cloudCurrent), paired);
     }
     _followMovedPairings(hosts);
     state = entries.isNotEmpty

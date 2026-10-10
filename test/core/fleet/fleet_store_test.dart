@@ -340,6 +340,28 @@ void main() {
       expect(pruned.records, hasLength(1));
     });
 
+    test('a signed-off install is dropped at once; its LAN record stays', () {
+      var (s, lan) = _add(const FleetStore(), _sight());
+      s = s.syncCloud([cloud('aaaa'), cloud('bbbb')]);
+      expect(s.records, hasLength(3));
+      // A fresh tombstone: not live for 3 more minutes, not dimmed after.
+      s = s.syncCloud([
+        CloudInstance(
+          instanceId: 'aaaa',
+          hostname: 'atlas',
+          channel: 'stable',
+          version: '0.59.11',
+          agents: const [],
+          receivedAtMs: t0.millisecondsSinceEpoch,
+          gone: true,
+          goneAtMs: t0.millisecondsSinceEpoch,
+        ),
+        cloud('bbbb'),
+      ]);
+      expect(s.records.keys,
+          unorderedEquals([lan, FleetStore.cloudRecordId('bbbb')]));
+    });
+
     test('a LAN sighting never lands on a cloud record of the same name', () {
       var s = const FleetStore()
           .syncCloud([cloud('aaaa', hostname: 'narko', channel: 'local-main')]);

@@ -15,6 +15,7 @@ class FleetEntry {
     this.lastSeen,
     this.route = ChannelRoute.lan,
     this.pairedId,
+    this.notPublishingSince,
   });
 
   final LanInstance instance;
@@ -32,6 +33,11 @@ class FleetEntry {
   /// [LanInstance] then carries the listener's address and port and no
   /// fleet key, so it is only ever reached through that pairing.
   final String? pairedId;
+
+  /// Set on a channel seen live on the LAN whose cloud record has gone
+  /// stale: when the install last published to the cloud list. See
+  /// [ChannelNode.notPublishingSince].
+  final DateTime? notPublishingSince;
 
   bool get isCloud => route == ChannelRoute.cloud;
 }
@@ -67,6 +73,7 @@ class ChannelNode {
     this.cloudOnly = false,
     this.pairing,
     this.pairedId,
+    this.notPublishingSince,
     String? key,
   }) : key = key ?? name;
 
@@ -97,6 +104,13 @@ class ChannelNode {
   /// discovery has not found ([FleetEntry.pairedId]); null otherwise.
   final String? pairedId;
 
+  /// The install answers on the LAN but its cloud record is stale
+  /// (`cloudStaleAfter`): it last published at this time, so devices off this
+  /// network see it dimmed. The card says so (install presence spec,
+  /// section 3.7). Null otherwise, and while the cloud list itself cannot be
+  /// read (then it is this device that is behind, not the install).
+  final DateTime? notPublishingSince;
+
   ChannelNode withPairing(PairingMatch? pairing) => ChannelNode(
         name: name,
         via: via,
@@ -108,6 +122,7 @@ class ChannelNode {
         cloudOnly: cloudOnly,
         pairing: pairing,
         pairedId: pairedId,
+        notPublishingSince: notPublishingSince,
         key: key,
       );
 }
@@ -207,8 +222,15 @@ int _byName(String a, String b) => a.toLowerCase().compareTo(b.toLowerCase());
 /// (`LanAgent.channel`) are placed under those channels, merged with that
 /// channel's own entry when it was discovered too. Hosts, channels and
 /// agents are sorted by name so an update never reorders what is on screen.
-List<HostNode> buildHostTrees(List<FleetEntry> entries) {
-  final resolved = _mergeByInstallId(entries);
+///
+/// [cloudListCurrent] is false while the cloud list cannot be read: a stale
+/// cloud record then says nothing about the install, so a merged channel
+/// does not claim the install stopped publishing.
+List<HostNode> buildHostTrees(
+  List<FleetEntry> entries, {
+  bool cloudListCurrent = true,
+}) {
+  final resolved = _mergeByInstallId(entries, cloudListCurrent);
 
   final byName = <String, List<_Resolved>>{};
   for (final r in resolved) {
@@ -266,7 +288,10 @@ class _Resolved {
   final bool cloudOnly;
 }
 
-List<_Resolved> _mergeByInstallId(List<FleetEntry> entries) {
+List<_Resolved> _mergeByInstallId(
+  List<FleetEntry> entries,
+  bool cloudListCurrent,
+) {
   final cloudById = <String, FleetEntry>{
     for (final e in entries)
       if (e.isCloud && e.instance.installId != null) e.instance.installId!: e,
@@ -283,7 +308,10 @@ List<_Resolved> _mergeByInstallId(List<FleetEntry> entries) {
       continue;
     }
     used.add(id!);
-    result.add(_Resolved(_mergeChannel(e, twin), cloudOnly: false));
+    result.add(_Resolved(
+      _mergeChannel(e, twin, cloudListCurrent: cloudListCurrent),
+      cloudOnly: false,
+    ));
   }
   for (final e in entries) {
     if (!e.isCloud) continue;
@@ -302,7 +330,14 @@ List<_Resolved> _mergeByInstallId(List<FleetEntry> entries) {
 /// live (live, and how long), the cloud's only when the LAN is not. A state
 /// the LAN leaves out is unknown, never filled from an older cloud record
 /// (`SPEC_AGENT_STATUS_AND_LIVE_PANE_FEED_2026_10_07.md` section 3).
-FleetEntry _mergeChannel(FleetEntry lan, FleetEntry cloud) {
+///
+/// Live on the LAN with a stale cloud record, the install has stopped
+/// publishing while it still runs: [FleetEntry.notPublishingSince].
+FleetEntry _mergeChannel(
+  FleetEntry lan,
+  FleetEntry cloud, {
+  required bool cloudListCurrent,
+}) {
   final lanLive = lan.presence == Presence.live;
   final cloudLive = cloud.presence == Presence.live;
   final useCloud = !lanLive && cloudLive;
@@ -342,6 +377,8 @@ FleetEntry _mergeChannel(FleetEntry lan, FleetEntry cloud) {
       _ => ChannelRoute.lanAndCloud,
     },
     pairedId: lan.pairedId,
+    notPublishingSince:
+        cloudListCurrent && lanLive && !cloudLive ? cloudSeen : null,
   );
 }
 
@@ -440,6 +477,8 @@ class _HostBuilder {
           route: c.entry.route,
           cloudOnly: c.cloudOnly,
           pairedId: c.own ? c.entry.pairedId : null,
+          // Like the error: a sibling's cloud record is not this channel's.
+          notPublishingSince: c.own ? c.entry.notPublishingSince : null,
         ),
     ]..sort((a, b) {
         final byChannel = _byName(a.name, b.name);

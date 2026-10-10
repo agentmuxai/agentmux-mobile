@@ -158,6 +158,79 @@ void main() {
     expect(find.text('cloud agent AgentA'), findsOneWidget);
   });
 
+  group('an install on the LAN that has stopped publishing', () {
+    const id = 'testinstallidtestinstallid';
+
+    List<FleetEntry> entries({
+      required Duration cloudAge,
+      Presence cloudPresence = Presence.stale,
+      String? otherChannel,
+    }) =>
+        [
+          _entry(installId: id, channelsRunning: otherChannel == null ? 1 : 2),
+          if (otherChannel != null)
+            _entry(channel: otherChannel, port: 29700),
+          FleetEntry(
+            instance: const LanInstance(
+              hostname: 'narko',
+              version: '0.59.11',
+              address: '',
+              port: 0,
+              authKey: '',
+              channel: 'local-main',
+              installId: id,
+            ),
+            route: ChannelRoute.cloud,
+            presence: cloudPresence,
+            lastSeen: clock.now().subtract(cloudAge),
+          ),
+        ];
+
+    testWidgets('a lone channel says so on the host row', (tester) async {
+      final host =
+          buildHostTrees(entries(cloudAge: const Duration(minutes: 7))).single;
+      await tester.pumpWidget(_app(HostCard(host: host)));
+      expect(find.text('this computer has not published for 7 min'),
+          findsOneWidget);
+      // Still a live LAN host: not dimmed, and the badge is plain LAN.
+      expect(find.text('LAN'), findsOneWidget);
+      expect(
+        tester.widget<Opacity>(find.byType(Opacity).first).opacity,
+        1,
+      );
+    });
+
+    testWidgets('with several channels, on that channel only', (tester) async {
+      final host = buildHostTrees(entries(
+        cloudAge: const Duration(minutes: 4),
+        otherChannel: 'stable',
+      )).single;
+      await tester.pumpWidget(_app(HostCard(host: host)));
+      expect(find.text('2 channels'), findsOneWidget);
+      expect(find.text('this computer has not published for 4 min'),
+          findsOneWidget);
+    });
+
+    testWidgets('nothing while its cloud record is live', (tester) async {
+      final host = buildHostTrees(entries(
+        cloudAge: const Duration(seconds: 30),
+        cloudPresence: Presence.live,
+      )).single;
+      await tester.pumpWidget(_app(HostCard(host: host)));
+      expect(find.textContaining('has not published'), findsNothing);
+      expect(find.text('LAN + Cloud'), findsOneWidget);
+    });
+
+    test('minutes, then hours', () {
+      expect(notPublishingText(const Duration(minutes: 3, seconds: 59)),
+          'this computer has not published for 3 min');
+      expect(notPublishingText(const Duration(minutes: 59)),
+          'this computer has not published for 59 min');
+      expect(notPublishingText(const Duration(minutes: 125)),
+          'this computer has not published for 2 h');
+    });
+  });
+
   test('the notes under the list', () {
     expect(cloudNoteText(CloudListStatus.signedOut),
         'Cloud hosts are not shown (not signed in)');

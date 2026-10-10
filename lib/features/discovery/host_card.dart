@@ -309,7 +309,20 @@ String? _channelStatus(ChannelNode c, {required bool showVersion}) {
   if (c.presence != Presence.live && c.lastSeen != null) {
     parts.add('last seen ${_ago(c.lastSeen!)}');
   }
+  final silentSince = c.notPublishingSince;
+  if (silentSince != null) {
+    parts.add(notPublishingText(clock.now().difference(silentSince)));
+  }
   return parts.isEmpty ? null : parts.join('  •  ');
+}
+
+/// For a channel that answers on the LAN while its cloud record has gone
+/// stale (install presence spec, section 3.7): devices off this network see
+/// it dimmed, and this says why.
+String notPublishingText(Duration silent) {
+  final minutes = max(0, silent.inMinutes);
+  final span = minutes < 60 ? '$minutes min' : '${minutes ~/ 60} h';
+  return 'this computer has not published for $span';
 }
 
 String _errorText(ChannelError e) => switch (e) {

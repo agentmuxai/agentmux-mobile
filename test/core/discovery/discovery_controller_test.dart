@@ -185,6 +185,7 @@ CloudInstance _install(
   String hostname = 'atlas',
   String channel = 'stable',
   required DateTime receivedAt,
+  bool gone = false,
 }) =>
     CloudInstance(
       instanceId: id,
@@ -194,6 +195,8 @@ CloudInstance _install(
       os: 'macos',
       agents: const [LanAgent(name: 'AgentA', kind: AgentKind.host)],
       receivedAtMs: receivedAt.millisecondsSinceEpoch,
+      gone: gone,
+      goneAtMs: gone ? receivedAt.millisecondsSinceEpoch : null,
     );
 
 void main() {
@@ -479,6 +482,86 @@ void main() {
         expect(c.route, ChannelRoute.lanAndCloud);
         expect(c.via.port, 29704);
         expect(c.agents.map((a) => a.name), ['Clamk']);
+      });
+    });
+
+    test('a signed-off install disappears at the next read, not 3 min later',
+        () {
+      fakeAsync((async) {
+        cloud.signedIn = true;
+        cloud.list = () => [_install('aaaa', receivedAt: DateTime.now())];
+        container.read(discoveryProvider);
+        async.elapse(const Duration(seconds: 1));
+        expect(channels(container.read(discoveryProvider)).single.presence,
+            Presence.live);
+        // The desktop quit and said goodbye; the relay lists a tombstone.
+        cloud.list = () =>
+            [_install('aaaa', receivedAt: DateTime.now(), gone: true)];
+        async.elapse(const Duration(seconds: 31));
+        expect(container.read(discoveryProvider), isA<DiscoveryEmpty>());
+      });
+    });
+
+    test('a tombstone leaves the same install on the LAN as a LAN channel',
+        () {
+      fakeAsync((async) {
+        cloud.signedIn = true;
+        // Signed out of the cloud, still running on this network.
+        cloud.list = () => [
+              _install(
+                'testinstallidtestinstallid',
+                hostname: 'narko',
+                channel: 'local-main',
+                receivedAt: DateTime.now(),
+                gone: true,
+              ),
+            ];
+        udp.replies = [
+          _reply(29704, 'local-main')
+              .copyWith(installId: 'testinstallidtestinstallid'),
+        ];
+        host.agents[29704] = ['Clamk'];
+        container.read(discoveryProvider);
+        async.elapse(const Duration(seconds: 1));
+        final c = channels(container.read(discoveryProvider)).single;
+        expect(c.route, ChannelRoute.lan);
+        expect(c.presence, Presence.live);
+        expect(c.notPublishingSince, isNull);
+      });
+    });
+
+    test('on the LAN but its cloud record stale: not publishing since then',
+        () {
+      fakeAsync((async) {
+        cloud.signedIn = true;
+        final received = DateTime.now().subtract(const Duration(minutes: 5));
+        cloud.list = () => [
+              _install(
+                'testinstallidtestinstallid',
+                hostname: 'narko',
+                channel: 'local-main',
+                receivedAt: received,
+              ),
+            ];
+        udp.replies = [
+          _reply(29704, 'local-main')
+              .copyWith(installId: 'testinstallidtestinstallid'),
+        ];
+        host.agents[29704] = ['Clamk'];
+        container.read(discoveryProvider);
+        async.elapse(const Duration(seconds: 1));
+        var c = channels(container.read(discoveryProvider)).single;
+        expect(c.route, ChannelRoute.lan);
+        expect(c.notPublishingSince?.millisecondsSinceEpoch,
+            received.millisecondsSinceEpoch);
+        // A list this device cannot read says nothing about the install.
+        cloud.failure = DioException(
+          requestOptions: RequestOptions(path: '/wan-instances'),
+          type: DioExceptionType.connectionError,
+        );
+        async.elapse(const Duration(seconds: 31));
+        c = channels(container.read(discoveryProvider)).single;
+        expect(c.notPublishingSince, isNull);
       });
     });
 
