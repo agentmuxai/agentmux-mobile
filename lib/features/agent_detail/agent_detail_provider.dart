@@ -17,6 +17,7 @@ class AgentDetailNotifier
     return _fetch(agentId);
   }
 
+  // A read-only view: leaves the agent's unread messages unread.
   Future<List<Message>> _fetch(String agentId) =>
       ref.read(muxbusClientProvider).getMessages(agentId, unreadOnly: false);
 
