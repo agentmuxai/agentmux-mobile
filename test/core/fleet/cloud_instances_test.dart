@@ -181,6 +181,74 @@ void main() {
     });
   });
 
+  group('CloudInstance tombstones', () {
+    test('a record without the fields has not signed off (older relays)', () {
+      final c = CloudInstance.tryParse(_record())!;
+      expect(c.gone, isFalse);
+      expect(c.goneAtMs, isNull);
+    });
+
+    test('gone with its own offline time', () {
+      final c = CloudInstance.tryParse(
+          _record({'gone': true, 'gone_at_ms': 1791352493000}))!;
+      expect(c.gone, isTrue);
+      expect(c.goneAtMs, 1791352493000);
+    });
+
+    test('gone without an offline time uses the receive time', () {
+      final c = CloudInstance.tryParse(_record({'gone': true}))!;
+      expect(c.gone, isTrue);
+      expect(c.goneAtMs, 1791352494000);
+      for (final bad in [null, 'soon', 0, -5, 1.5]) {
+        final d = CloudInstance.tryParse(
+            _record({'gone': true, 'gone_at_ms': bad}))!;
+        expect(d.goneAtMs, 1791352494000, reason: '$bad');
+      }
+    });
+
+    test('only a real true is gone', () {
+      for (final v in [false, 'true', 1, null, 'yes']) {
+        final c = CloudInstance.tryParse(
+            _record({'gone': v, 'gone_at_ms': 1791352493000}))!;
+        expect(c.gone, isFalse, reason: '$v');
+        expect(c.goneAtMs, isNull, reason: '$v');
+      }
+    });
+
+    test('the offline time moves onto the device clock with the rest', () {
+      final relayNow = DateTime.fromMillisecondsSinceEpoch(1791352500000);
+      final fetchedAt = relayNow.add(const Duration(minutes: 5));
+      final c = CloudInstance.parseList(
+        {
+          'instances': [
+            _record({'gone': true, 'gone_at_ms': 1791352490000}),
+          ],
+        },
+        relayNow: relayNow,
+        fetchedAt: fetchedAt,
+      ).single;
+      expect(fetchedAt.millisecondsSinceEpoch - c.goneAtMs!, 10000);
+    });
+
+    test('a tombstone newer than a live record of the same install wins, and '
+        'a newer live record beats an older tombstone', () {
+      final gone = CloudInstance.parseList({
+        'instances': [
+          _record(),
+          _record({'gone': true, 'received_at_ms': 1791352499000}),
+        ],
+      }).single;
+      expect(gone.gone, isTrue);
+      final back = CloudInstance.parseList({
+        'instances': [
+          _record({'gone': true}),
+          _record({'received_at_ms': 1791352499000}),
+        ],
+      }).single;
+      expect(back.gone, isFalse);
+    });
+  });
+
   group('MuxbusClient.getInstances', () {
     TestWidgetsFlutterBinding.ensureInitialized();
 

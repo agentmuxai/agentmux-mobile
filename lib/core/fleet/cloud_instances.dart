@@ -10,6 +10,12 @@ import '../discovery/peer_fields.dart';
 /// A `v: 2` record's agents may carry `state`
 /// (`SPEC_AGENT_STATUS_AND_LIVE_PANE_FEED_2026_10_07.md` section 13.1); a v1
 /// record has none, and a `state` on one is ignored.
+///
+/// An install that signed off cleanly (quit, signed out, or stopped
+/// publishing) is listed for a while as a tombstone: `gone: true`, with the
+/// time it went offline in `gone_at_ms` when the relay sends one. Both fields
+/// are optional, so a record without them (any older relay) is an install
+/// that has not signed off.
 class CloudInstance {
   const CloudInstance({
     required this.instanceId,
@@ -20,6 +26,8 @@ class CloudInstance {
     required this.receivedAtMs,
     this.os,
     this.channelsRunning,
+    this.gone = false,
+    this.goneAtMs,
   });
 
   static const maxInstances = 500;
@@ -39,6 +47,15 @@ class CloudInstance {
   /// device's clock (see [parseList]). Presence and the "as of" age are
   /// judged from it.
   final int receivedAtMs;
+
+  /// The install signed off: devices hide it at once rather than wait for
+  /// its record to go stale.
+  final bool gone;
+
+  /// When it went offline, on this device's clock: the relay's `gone_at_ms`
+  /// when it sends a usable one, otherwise [receivedAtMs] (the goodbye is
+  /// the last record the install sent). Null unless [gone].
+  final int? goneAtMs;
 
   static String? _text(Object? v, int max) =>
       v is String && v.isNotEmpty && v.length <= max && !hasControlChar(v)
@@ -64,6 +81,14 @@ class CloudInstance {
       return null;
     }
     final receivedLocal = received + clockOffsetMs;
+    // Only a real `true` is a tombstone: anything else reads as live.
+    final gone = json['gone'] == true;
+    final goneAt = json['gone_at_ms'];
+    final goneAtLocal = !gone
+        ? null
+        : (goneAt is int && goneAt > 0
+            ? goneAt + clockOffsetMs
+            : receivedLocal);
     final version = json['v'];
     final hasStates = version is int && version >= 2;
     final rawAgents = json['agents'];
@@ -96,11 +121,14 @@ class CloudInstance {
       channelsRunning: parseChannelsRunning(json['channels_running']),
       agents: agents,
       receivedAtMs: receivedLocal,
+      gone: gone,
+      goneAtMs: goneAtLocal,
     );
   }
 
   /// Parses a `GET /wan-instances` body (`{"instances": [...]}`): bad
-  /// records are skipped, and an install listed twice keeps its newest record.
+  /// records are skipped, and an install listed twice keeps its newest record
+  /// (so a tombstone received after a live record wins, and the reverse).
   ///
   /// The relay's times are moved onto this device's clock by the difference
   /// between [fetchedAt] (this device's clock when the answer arrived) and

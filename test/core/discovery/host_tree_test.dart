@@ -454,6 +454,59 @@ void main() {
       ]).single.channels.single;
       expect(agentLocation(c, c.agents.first), '/agents/AgentX');
     });
+
+    test('live on the LAN with a stale cloud record: not publishing since the '
+        'record', () {
+      final c = buildHostTrees([lan(), cloud(presence: Presence.stale)])
+          .single
+          .channels
+          .single;
+      expect(c.notPublishingSince, DateTime(2026, 10, 6, 12, 1));
+      expect(c.route, ChannelRoute.lan);
+      expect(c.presence, Presence.live);
+      // Kept through pairing, which rebuilds the node.
+      expect(c.withPairing(null).notPublishingSince, c.notPublishingSince);
+    });
+
+    test('no note while the cloud record is live, the LAN is quiet too, or '
+        'the cloud list cannot be read', () {
+      ChannelNode only(List<FleetEntry> entries, {bool current = true}) =>
+          buildHostTrees(entries, cloudListCurrent: current)
+              .single
+              .channels
+              .single;
+      expect(only([lan(), cloud()]).notPublishingSince, isNull);
+      expect(
+        only([
+          lan(presence: Presence.stale),
+          cloud(presence: Presence.stale),
+        ]).notPublishingSince,
+        isNull,
+        reason: 'the computer is just off',
+      );
+      expect(
+        only([lan(), cloud(presence: Presence.stale)], current: false)
+            .notPublishingSince,
+        isNull,
+      );
+      // A stale install that is not on the LAN is only dimmed.
+      expect(only([cloud(presence: Presence.stale)]).notPublishingSince,
+          isNull);
+    });
+
+    test('a sibling channel never carries the note of the entry that '
+        'reported it', () {
+      final host = buildHostTrees([
+        lan(agents: const [
+          LanAgent(name: 'Camper'),
+          LanAgent(name: 'Agent3', channel: 'stable'),
+        ]),
+        cloud(presence: Presence.stale),
+      ]).single;
+      final byName = {for (final c in host.channels) c.name: c};
+      expect(byName['local-main']!.notPublishingSince, isNotNull);
+      expect(byName['stable']!.notPublishingSince, isNull);
+    });
   });
 
   group('buildHostTrees: agent states, LAN and cloud', () {

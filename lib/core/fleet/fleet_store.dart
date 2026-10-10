@@ -34,7 +34,8 @@ const staleAfter = Duration(seconds: 60);
 const goneAfter = Duration(seconds: 300);
 
 /// A cloud install publishes every 60 s; three missed intervals dims it
-/// (spec section 5). It is hidden only when the relay stops listing it.
+/// (spec section 5). It is hidden only when the relay stops listing it, or
+/// lists it as signed off.
 const cloudStaleAfter = Duration(minutes: 3);
 
 /// One channel endpoint and everything known about it.
@@ -403,10 +404,18 @@ class FleetStore {
   /// record (and the UI state keyed on it) survives every refresh. An install
   /// the list no longer names is dropped (the relay stops listing it after
   /// 24 hours). LAN records are untouched.
+  ///
+  /// An install the list names as signed off ([CloudInstance.gone]) is
+  /// dropped at once, like one it no longer names: it is not shown as live
+  /// for the minutes its record would take to go stale, nor dimmed after.
+  /// A LAN record of the same install is untouched and keeps its own LAN
+  /// presence: an install that only signed out of the cloud, or stopped
+  /// publishing, is still running on the LAN.
   FleetStore syncCloud(List<CloudInstance> instances) {
     final next = Map<String, ChannelRecord>.of(records)
       ..removeWhere((_, r) => r.source == EndpointSource.cloud);
     for (final c in instances) {
+      if (c.gone) continue;
       final id = cloudRecordId(c.instanceId);
       next[id] = ChannelRecord(
         id: id,
