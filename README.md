@@ -1,9 +1,9 @@
 # AgentMux Mobile
 
 Mobile companion for the [AgentMux](https://github.com/agentmuxai/agentmux) fleet.
-Built with Flutter. Connects via [agentmux-cloud](https://github.com/agentmuxai/agentmux-cloud) (muxbus) when off the local network, or directly to the desktop backend over LAN (mDNS discovery, UDP-broadcast fallback, QR-code pairing).
+Built with Flutter. Connects through the AgentMux cloud relay (MuxBus) when off the local network, or directly to the desktop backend over LAN (mDNS discovery, UDP-broadcast fallback, QR-code pairing).
 
-**Private repo — AgentMux Corp.**
+By AgentMux Corp. Licensed under the [Apache License 2.0](./LICENSE).
 
 ## What it does
 
