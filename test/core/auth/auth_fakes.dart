@@ -167,6 +167,9 @@ class FakeAuthRepository implements AuthRepository {
   bool signedIn;
   String? email;
   bool? available;
+
+  /// Whether the sign-in service offers Sign in with Apple.
+  bool apple = false;
   final signIns = <SignInMethod>[];
   Completer<void>? pendingSignIn;
   Object? signInError;
@@ -174,6 +177,9 @@ class FakeAuthRepository implements AuthRepository {
 
   @override
   Future<bool?> signInAvailable() async => available;
+
+  @override
+  Future<bool> appleSignInOffered() async => apple;
 
   @override
   Future<void> signIn({SignInMethod method = SignInMethod.email}) async {

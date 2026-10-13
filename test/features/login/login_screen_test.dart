@@ -49,6 +49,7 @@ Future<void> _openLogin(
 
 final _google = find.byKey(const ValueKey('connect-google'));
 final _email = find.byKey(const ValueKey('use-email'));
+final _apple = find.byKey(const ValueKey('continue-apple'));
 
 bool _enabled(WidgetTester tester, Finder f) =>
     tester.widget<ButtonStyleButton>(f).onPressed != null;
@@ -85,6 +86,25 @@ void main() {
     auth.pendingSignIn!.complete();
     await tester.pumpAndSettle();
     expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('no Apple button unless the sign-in service offers it', (
+    tester,
+  ) async {
+    await _openLogin(tester, FakeAuthRepository());
+    expect(_apple, findsNothing);
+  });
+
+  testWidgets('Continue with Apple, where offered, signs in with Apple', (
+    tester,
+  ) async {
+    final auth = FakeAuthRepository()..apple = true;
+    await _openLogin(tester, auth);
+    expect(find.text('Continue with Apple'), findsOneWidget);
+    expect(_enabled(tester, _apple), isTrue);
+    await tester.tap(_apple);
+    await tester.pumpAndSettle();
+    expect(auth.signIns, [SignInMethod.apple]);
   });
 
   testWidgets('Use email signs in with the hosted page', (tester) async {

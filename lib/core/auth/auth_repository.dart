@@ -28,6 +28,10 @@ enum SignInMethod {
   /// Straight to Google: the sign-in service skips its own page.
   google,
 
+  /// Straight to Apple (Sign in with Apple), where the sign-in service
+  /// offers it ([AuthRepository.appleSignInOffered]).
+  apple,
+
   /// The sign-in service's own page (email and password).
   email,
 }
@@ -50,7 +54,8 @@ Future<String> _flutterWebAuth({
 );
 
 /// The sign-in service's authorize URL (PKCE S256). [method] google adds
-/// `identity_provider=Google`; email leaves it out so the hosted page shows.
+/// `identity_provider=Google` and apple `identity_provider=SignInWithApple`;
+/// email leaves it out so the hosted page shows.
 Uri buildAuthorizeUrl({
   required MuxbusAuthConfig config,
   required String codeChallenge,
@@ -65,6 +70,7 @@ Uri buildAuthorizeUrl({
   'code_challenge_method': 'S256',
   'state': state,
   if (method == SignInMethod.google) 'identity_provider': 'Google',
+  if (method == SignInMethod.apple) 'identity_provider': 'SignInWithApple',
 });
 
 /// The authorization code from a sign-in callback. Refuses a callback whose
@@ -125,6 +131,10 @@ class AuthRepository {
   /// Whether this build can sign in at all: false when no client id is
   /// configured anywhere, null when that can't be told right now (offline).
   Future<bool?> signInAvailable() => _config.available();
+
+  /// Whether the sign-in service offers Sign in with Apple. False when it
+  /// doesn't say so or can't be asked, so the Apple button stays hidden.
+  Future<bool> appleSignInOffered() => _config.offers('SignInWithApple');
 
   /// Signs in through the system browser. Throws [AuthCancelled] when the
   /// person closes it, and another [AuthException] when it fails.

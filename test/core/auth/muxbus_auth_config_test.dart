@@ -10,6 +10,7 @@ const _docPath = '/.well-known/agentmux-cloud.json';
 Map<String, Object?> _doc({
   Object? domain = 'https://$testAuthDomain',
   Object? mobileClientId = testClientId,
+  Object? identityProviders,
 }) => {
   'version': 1,
   'api': testRelay,
@@ -18,6 +19,7 @@ Map<String, Object?> _doc({
     // The desktop's client: never used by the app.
     'clientId': 'test-desktop-client',
     'mobileClientId': mobileClientId,
+    if (identityProviders != null) 'identityProviders': identityProviders,
   },
 };
 
@@ -121,6 +123,37 @@ void main() {
       expect(byDomain.clientId, testClientId);
     },
   );
+
+  test('offers a provider only when the document lists it', () async {
+    final both = make(
+      answer: FakeAnswer(
+        200,
+        _doc(identityProviders: ['Google', 'SignInWithApple']),
+      ),
+    );
+    expect(await both.offers('SignInWithApple'), isTrue);
+    expect(await both.offers('Google'), isTrue);
+
+    final googleOnly = make(
+      answer: FakeAnswer(200, _doc(identityProviders: ['Google'])),
+    );
+    expect(await googleOnly.offers('SignInWithApple'), isFalse);
+
+    // A document from before the list, an odd value, and offline: not offered.
+    expect(await make().offers('SignInWithApple'), isFalse);
+    expect(
+      await make(
+        answer: FakeAnswer(200, _doc(identityProviders: 'SignInWithApple')),
+      ).offers('SignInWithApple'),
+      isFalse,
+    );
+    expect(
+      await make(
+        answer: const FakeAnswer.offline(),
+      ).offers('SignInWithApple'),
+      isFalse,
+    );
+  });
 
   test('no mobile client id anywhere: sign-in is not available', () async {
     final source = make(answer: FakeAnswer(200, _doc(mobileClientId: null)));

@@ -35,8 +35,8 @@ String? signInErrorText(Object error) {
   return signInFailedText;
 }
 
-/// The MuxBus sign-in page: "Connect with Google" first, then email, and
-/// "Not now". Reached from the discovery screen's "MuxBus Sign in" button and
+/// The MuxBus sign-in page: "Connect with Google" first, "Continue with
+/// Apple" where the sign-in service offers it, then email, and "Not now". Reached from the discovery screen's "MuxBus Sign in" button and
 /// from Settings.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -49,11 +49,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _busy = false;
   String? _error;
   bool _unavailable = false;
+  bool _apple = false;
 
   @override
   void initState() {
     super.initState();
     _checkAvailable();
+    _checkApple();
+  }
+
+  Future<void> _checkApple() async {
+    bool offered;
+    try {
+      offered = await ref.read(authRepositoryProvider).appleSignInOffered();
+    } catch (_) {
+      offered = false;
+    }
+    if (mounted && offered) setState(() => _apple = true);
   }
 
   Future<void> _checkAvailable() async {
@@ -192,6 +204,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     icon: const _GoogleMark(),
                     label: const Text('Connect with Google'),
                   ),
+                  if (_apple) ...[
+                    const SizedBox(height: 12),
+                    // Apple's white style, its guidelines' choice on a dark
+                    // background, and no less prominent than Google's.
+                    FilledButton.icon(
+                      key: const ValueKey('continue-apple'),
+                      onPressed:
+                          enabled ? () => _signIn(SignInMethod.apple) : null,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        minimumSize: const Size.fromHeight(52),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      icon: const Icon(Icons.apple, size: 22),
+                      label: const Text('Continue with Apple'),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     key: const ValueKey('use-email'),
