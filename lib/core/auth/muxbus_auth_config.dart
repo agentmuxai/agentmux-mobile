@@ -78,6 +78,18 @@ class MuxbusAuthConfigSource {
     }
   }
 
+  /// Whether the discovery document lists [provider] (a sign-in service
+  /// name such as `SignInWithApple`) in `cognito.identityProviders`. False
+  /// when it doesn't, or when the document can't be read.
+  Future<bool> offers(String provider) async {
+    try {
+      final providers = (await _cognitoSection())['identityProviders'];
+      return providers is List && providers.contains(provider);
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<Map<String, Object?>> _cognitoSection() async {
     // One read per session; a failed read is forgotten so the next try asks
     // again.

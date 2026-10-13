@@ -67,6 +67,14 @@ void main() {
   group('sign in', () {
     setUp(setUpRepo);
 
+    test('Apple: straight to Apple, then the code exchange', () async {
+      await repo.signIn(method: SignInMethod.apple);
+      final q = browser.calls.single.url.queryParameters;
+      expect(q['identity_provider'], 'SignInWithApple');
+      expect(q['code_challenge_method'], 'S256');
+      expect(await repo.isAuthenticated(), isTrue);
+    });
+
     test(
       'Google: straight to Google, PKCE S256, state, then the code exchange',
       () async {
