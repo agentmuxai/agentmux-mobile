@@ -18,6 +18,8 @@ import '../../shared/widgets/tag_chip.dart';
 import '../discovery/host_card.dart';
 import '../discovery/qr_scan_screen.dart';
 import 'feed_controller.dart';
+import 'tool_disclosure.dart';
+import 'tool_meta.dart';
 import 'transcript.dart';
 import 'transcript_view.dart';
 
@@ -58,12 +60,22 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
 
   /// Scrolled to the bottom: new output scrolls into view.
   bool _follow = true;
-  final _expanded = <int>{};
 
-  /// The transcript [_expanded] belongs to. A snapshot or reset makes a new
-  /// transcript whose item keys start again at 0, so expansions are dropped
-  /// with the old one rather than opening unrelated tool calls.
-  Transcript? _expandedFor;
+  /// Which tool calls are open (the desktop's rules).
+  final _disclosure = ToolDisclosure();
+
+  /// Each tool call's state at the last update, to see which just finished.
+  final _seen = <int, ToolState>{};
+
+  /// Keys on the rows of running and held calls, to tell whether they are
+  /// on screen.
+  final _anchors = <int, GlobalKey>{};
+  final _listKey = GlobalKey();
+
+  /// The transcript the state above belongs to. A snapshot or reset makes a
+  /// new transcript whose item keys start again at 0, so it is dropped with
+  /// the old one rather than opening unrelated tool calls.
+  Transcript? _disclosureFor;
 
   @override
   void initState() {
@@ -118,15 +130,74 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
 
   void _onFeed() {
     if (!mounted) return;
+    _trackTools(_feed?.transcript);
     setState(() {});
     if (_follow) _scrollToEndAfterFrame();
+  }
+
+  /// Holds open a call that finished on screen; the layout is still the one
+  /// it was drawn in while running.
+  void _trackTools(Transcript? transcript) {
+    if (!identical(transcript, _disclosureFor)) {
+      _disclosure.clear();
+      _seen.clear();
+      _anchors.clear();
+      _disclosureFor = transcript;
+      if (transcript == null) return;
+      for (final item in transcript.items) {
+        if (item is ToolCallItem) _seen[item.key] = item.state;
+      }
+      return;
+    }
+    if (transcript == null) return;
+    final live = <int>{};
+    for (final item in transcript.items) {
+      if (item is! ToolCallItem) continue;
+      live.add(item.key);
+      final before = _seen[item.key];
+      _seen[item.key] = item.state;
+      if (before == ToolState.running &&
+          item.state != ToolState.running &&
+          !isDismissed(item.state) &&
+          _onScreen(item.key)) {
+        _disclosure.hold(item.key);
+      }
+    }
+    _seen.removeWhere((k, _) => !live.contains(k));
+    _anchors.removeWhere((k, _) =>
+        !live.contains(k) ||
+        (_seen[k] != ToolState.running && !_disclosure.held.contains(k)));
+  }
+
+  /// Where row [key] is against the list's viewport: null when not laid out.
+  ({double top, double bottom, double height})? _rowBox(int key) {
+    final row = _anchors[key]?.currentContext?.findRenderObject();
+    final list = _listKey.currentContext?.findRenderObject();
+    if (row is! RenderBox || list is! RenderBox || !row.attached || !list.attached) {
+      return null;
+    }
+    final top = row.localToGlobal(Offset.zero, ancestor: list).dy;
+    return (top: top, bottom: top + row.size.height, height: list.size.height);
+  }
+
+  bool _onScreen(int key) {
+    final b = _rowBox(key);
+    return b != null && b.bottom > 0 && b.top < b.height;
   }
 
   void _onScroll() {
     if (!_scroll.hasClients) return;
     final p = _scroll.position;
     final atEnd = p.pixels >= p.maxScrollExtent - 48;
-    if (atEnd != _follow) setState(() => _follow = atEnd);
+    // A held call closes once it scrolls off the top.
+    final gone = [
+      for (final k in _disclosure.held)
+        if ((_rowBox(k)?.bottom ?? -1) < 0) k,
+    ];
+    for (final k in gone) {
+      _disclosure.release(k);
+    }
+    if (atEnd != _follow || gone.isNotEmpty) setState(() => _follow = atEnd);
   }
 
   void _scrollToEndAfterFrame() {
@@ -259,10 +330,7 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
         detail: null,
       );
     }
-    if (!identical(transcript, _expandedFor)) {
-      _expanded.clear();
-      _expandedFor = transcript;
-    }
+    if (!identical(transcript, _disclosureFor)) _trackTools(transcript);
     final items = transcript.items;
     if (items.isEmpty) {
       return const _Message(icon: null, title: 'Nothing here yet.', detail: null);
@@ -270,20 +338,27 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
     return Stack(
       children: [
         ListView.builder(
+          key: _listKey,
           controller: _scroll,
           padding: const EdgeInsets.only(top: 8, bottom: 24),
           itemCount: items.length,
           itemBuilder: (_, i) {
             final item = items[i];
-            return TranscriptItemView(
+            if (item is! ToolCallItem) {
+              return TranscriptItemView(key: ValueKey(item.key), item: item);
+            }
+            final anchor = item.state == ToolState.running ||
+                    _disclosure.held.contains(item.key)
+                ? _anchors.putIfAbsent(item.key, GlobalKey.new)
+                : null;
+            return KeyedSubtree(
               key: ValueKey(item.key),
-              item: item,
-              expanded: _expanded.contains(item.key),
-              onToggle: item is ToolCallItem
-                  ? () => setState(() {
-                        if (!_expanded.remove(item.key)) _expanded.add(item.key);
-                      })
-                  : null,
+              child: TranscriptItemView(
+                key: anchor,
+                item: item,
+                expanded: _disclosure.isOpen(item),
+                onToggle: () => setState(() => _disclosure.toggle(item)),
+              ),
             );
           },
         ),

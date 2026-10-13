@@ -177,6 +177,50 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('a running call is open, and stays open when it finishes on screen',
+      (tester) async {
+    final lines = [
+      userPrompt('Check the tree'),
+      toolUse('toolu_old', 'Bash', {'command': 'git log -1'}),
+      toolResult('toolu_old', '<exited 0 in 0.10s>\nabc123 last commit'),
+      toolUse('toolu_new', 'Bash', {'command': 'git status'}),
+    ];
+    adapter = FakeAdapter([
+      FakeResponse(200, keepOpen: true, chunks: [
+        _sse('snapshot', {
+          'provider': 'claude',
+          'gen': 1,
+          'from_line': 0,
+          'next_line': lines.length,
+          'lines': lines,
+        }, id: '1:${lines.length}'),
+      ]),
+    ]);
+    await pumpFeed(tester, testPairedHost());
+
+    // Finished before this device looked: closed. Running: open.
+    expect(find.textContaining('abc123'), findsNothing);
+    expect(find.text('⏳ Thinking…'), findsOneWidget);
+
+    // It finishes while on screen: it stays open, now with its output.
+    adapter.open.single.add(Uint8List.fromList(utf8.encode(_sse('append', {
+      'gen': 1,
+      'line': lines.length,
+      'lines': [toolResult('toolu_new', '<exited 0 in 1.50s>\nnothing to commit')],
+    }))));
+    await settle(tester);
+    expect(find.text('⏳ Thinking…'), findsNothing);
+    expect(find.textContaining('nothing to commit'), findsOneWidget);
+    expect(find.text('(1.5s)'), findsOneWidget);
+
+    // A tap closes it.
+    await tester.tap(find.text('git status'));
+    await tester.pump();
+    expect(find.textContaining('nothing to commit'), findsNothing);
+
+    await unmount(tester);
+  });
+
   testWidgets('status chip: the host list state, then the feed state',
       (tester) async {
     adapter = FakeAdapter([

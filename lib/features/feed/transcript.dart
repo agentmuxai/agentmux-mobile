@@ -25,7 +25,17 @@ class AssistantTextItem extends TranscriptItem {
   final String text;
 }
 
-enum ToolState { running, done, failed }
+enum ToolState {
+  running,
+  done,
+  failed,
+
+  /// The user refused it.
+  denied,
+
+  /// Still running when the turn ended or was interrupted.
+  cancelled,
+}
 
 /// The assistant's text while it streams, built from `stream_event` deltas.
 /// Replaced by an [AssistantTextItem] once the whole message arrives.
@@ -46,14 +56,23 @@ class ThinkingItem extends TranscriptItem {
   bool _streaming = false;
 }
 
-/// One tool call, as one line, with its result once it arrives.
+/// One tool call: a header line, and a preview of its input or result.
 class ToolCallItem extends TranscriptItem {
-  ToolCallItem(super.key, {required this.id, required this.name, this.summary = ''});
+  ToolCallItem(
+    super.key, {
+    required this.id,
+    required this.name,
+    this.summary = '',
+    Map<String, dynamic>? input,
+  }) : input = input ?? const {};
   final String id;
   final String name;
 
   /// The input field that says most about the call (the command, the path).
   String summary;
+
+  /// The call's input, as the model sent it.
+  Map<String, dynamic> input;
   ToolState state = ToolState.running;
 
   /// The result's text, capped at [Transcript.maxResultChars].
@@ -61,6 +80,99 @@ class ToolCallItem extends TranscriptItem {
 
   /// Set when the desktop cut the result frame (over 64 KB): its size.
   int? truncatedBytes;
+
+  /// Set when the desktop cut the call's own frame (a large Write or Edit):
+  /// its size. The input is then unknown.
+  int? inputTruncatedBytes;
+
+  /// What Claude Code's structured `tool_use_result` adds to the text.
+  ToolFacts facts = const ToolFacts();
+
+  /// How long the call took, when known.
+  int? durationMs;
+
+  /// When this device received the call, for a live call's duration.
+  DateTime? receivedAt;
+}
+
+/// The parts of Claude Code's structured `tool_use_result` the previews and
+/// header use. Only these are kept, never a file's text or the old file.
+class ToolFacts {
+  const ToolFacts({
+    this.stdout,
+    this.stderr,
+    this.interrupted = false,
+    this.startLine,
+    this.numLines,
+    this.totalLines,
+    this.linesAdded,
+    this.linesRemoved,
+    this.created = false,
+    this.unchanged = false,
+    this.durationMs,
+  });
+
+  /// Bash's own streams.
+  final String? stdout;
+  final String? stderr;
+  final bool interrupted;
+
+  /// Where a Read's text sits in the file.
+  final int? startLine;
+  final int? numLines;
+  final int? totalLines;
+
+  /// An Edit's or Write's changed lines, from its patch.
+  final int? linesAdded;
+  final int? linesRemoved;
+
+  /// A Write that created the file.
+  final bool created;
+
+  /// A Read of a file already read and unchanged since: its text is a note
+  /// to the model, not the file.
+  final bool unchanged;
+
+  /// The tool's own timing (Glob, Agent, WebSearch).
+  final int? durationMs;
+
+  static ToolFacts from(Map structured) {
+    String? str(String k) => structured[k] is String ? structured[k] as String : null;
+    int? whole(Object? v) => v is num && v.isFinite ? v.toInt() : null;
+    final file = structured['file'];
+    int? added;
+    int? removed;
+    final patch = structured['structuredPatch'];
+    if (patch is List) {
+      added = 0;
+      removed = 0;
+      for (final hunk in patch) {
+        final lines = hunk is Map ? hunk['lines'] : null;
+        if (lines is! List) continue;
+        for (final l in lines) {
+          if (l is! String || l.isEmpty) continue;
+          if (l[0] == '+') added = added! + 1;
+          if (l[0] == '-') removed = removed! + 1;
+        }
+      }
+    }
+    final seconds = structured['durationSeconds'];
+    return ToolFacts(
+      stdout: str('stdout'),
+      stderr: str('stderr'),
+      interrupted: structured['interrupted'] == true,
+      startLine: file is Map ? whole(file['startLine']) : null,
+      numLines: file is Map ? whole(file['numLines']) : null,
+      totalLines: file is Map ? whole(file['totalLines']) : null,
+      linesAdded: added,
+      linesRemoved: removed,
+      created: structured['type'] == 'create',
+      unchanged: structured['type'] == 'file_unchanged',
+      durationMs: whole(structured['durationMs']) ??
+          whole(structured['totalDurationMs']) ??
+          (seconds is num ? (seconds * 1000).round() : null),
+    );
+  }
 }
 
 /// The end of a turn.
@@ -119,7 +231,14 @@ class Transcript {
   List<TranscriptItem> get items => List.unmodifiable(_items);
   int get length => _items.length;
 
-  void addFrames(Iterable<String> frames) {
+  /// When the frames being added arrived; null for a snapshot's, which
+  /// arrived together long after they were written.
+  DateTime? _at;
+
+  /// Adds [frames]. [at] is when a live batch arrived on this device, for
+  /// how long a tool call took when the frames don't say.
+  void addFrames(Iterable<String> frames, {DateTime? at}) {
+    _at = at;
     for (final f in frames) {
       if (_claude) {
         _claudeFrame(f);
@@ -174,7 +293,7 @@ class Transcript {
       case 'user':
         if (f['isMeta'] == true) return;
         final message = f['message'];
-        if (message is Map) _user(message['content']);
+        if (message is Map) _user(message['content'], f['tool_use_result']);
       case 'user_message':
         // AgentMux's own normalised record of a sent message.
         final m = f['message'];
@@ -183,6 +302,7 @@ class Transcript {
         }
       case 'result':
         _dropLive(_live);
+        _cancelRunning();
         final duration = f['duration_ms'];
         String? error;
         if (f['is_error'] == true) {
@@ -286,14 +406,21 @@ class Transcript {
           final id = block['id'];
           final name = block['name'];
           if (id is! String || name is! String) continue;
-          final summary = toolSummary(name, block['input']);
+          final input = block['input'];
+          final summary = toolSummary(name, input);
           final existing = _tools[id];
           if (existing != null) {
             existing.summary = summary;
+            if (input is Map<String, dynamic>) existing.input = input;
             continue;
           }
-          final item =
-              ToolCallItem(_nextKey++, id: id, name: name, summary: summary);
+          final item = ToolCallItem(
+            _nextKey++,
+            id: id,
+            name: name,
+            summary: summary,
+            input: input is Map<String, dynamic> ? input : null,
+          )..receivedAt = _at;
           _tools[id] = item;
           _items.add(item);
         case 'thinking':
@@ -306,27 +433,74 @@ class Transcript {
     }
   }
 
-  void _user(Object? content) {
+  void _user(Object? content, Object? structured) {
     if (content is String) {
       if (content.trim().isNotEmpty) _items.add(PromptItem(_nextKey++, content));
       return;
     }
     if (content is! List) return;
-    // Text-only arrays are Claude Code's meta lines ("[Request interrupted
-    // by user]"); like the desktop pane, only tool results are taken.
-    for (final block in content) {
-      if (block is! Map || block['type'] != 'tool_result') continue;
+    // Text-only arrays are Claude Code's meta lines; like the desktop pane,
+    // only tool results are taken, and an interrupt ends what was running.
+    final results = [
+      for (final b in content)
+        if (b is Map && b['type'] == 'tool_result') b,
+    ];
+    if (results.isEmpty) {
+      final interrupted = content.any((b) =>
+          b is Map &&
+          b['text'] is String &&
+          (b['text'] as String).startsWith('[Request interrupted by user'));
+      if (interrupted) _cancelRunning();
+      return;
+    }
+    for (final block in results) {
       final tool = _tools[block['tool_use_id']];
       if (tool == null) continue;
-      tool.state = block['is_error'] == true ? ToolState.failed : ToolState.done;
-      tool.result = _cap(_resultText(block['content']));
+      final text = _resultText(block['content']);
+      tool.state = block['is_error'] != true
+          ? ToolState.done
+          : (_denied(text) ? ToolState.denied : ToolState.failed);
+      tool.result = _cap(text);
+      // The structured result names no call: it is only this one's when
+      // the message answers one call.
+      if (results.length == 1 && structured is Map) {
+        tool.facts = ToolFacts.from(structured);
+      }
+      tool.durationMs = _duration(tool);
+    }
+  }
+
+  /// How long [tool] took: Bash's own `<exited N in Ts>` line, the tool's
+  /// own timing, or the time between its call and result arriving live.
+  int? _duration(ToolCallItem tool) {
+    final bash = bashExit(tool.facts.stdout ?? tool.result);
+    if (bash != null && bash.ms != null) return bash.ms;
+    if (tool.facts.durationMs != null) return tool.facts.durationMs;
+    final started = tool.receivedAt;
+    final at = _at;
+    if (started == null || at == null || !at.isAfter(started)) return null;
+    return at.difference(started).inMilliseconds;
+  }
+
+  /// Claude Code's text for a call the user refused.
+  static bool _denied(String text) =>
+      text.startsWith("The user doesn't want to proceed with this tool use") ||
+      text.contains('Permission to use') && text.contains('has been denied');
+
+  void _cancelRunning() {
+    for (final tool in _tools.values) {
+      if (tool.state == ToolState.running) tool.state = ToolState.cancelled;
     }
   }
 
   static final _toolUseId = RegExp(r'"tool_use_id"\s*:\s*"([^"]{1,128})"');
+  static final _toolUse = RegExp(
+    r'"type"\s*:\s*"tool_use"\s*,\s*"id"\s*:\s*"([^"]{1,128})"\s*,\s*"name"\s*:\s*"([^"]{1,128})"',
+  );
+  static final _headPath = RegExp(r'"(?:file_path|notebook_path|path)"\s*:\s*"((?:[^"\\]|\\.){1,1024})"');
 
   /// A frame cut by the desktop: its head may still say which tool call it
-  /// answers; otherwise it is shown on its own line.
+  /// answers, or which call it is; otherwise it is shown on its own line.
   void _truncated(Map<String, dynamic> f) {
     final bytes = f['bytes'] is num ? (f['bytes'] as num).toInt() : null;
     final head = f['head'];
@@ -338,6 +512,38 @@ class Transcript {
             ? ToolState.failed
             : ToolState.done;
         tool.truncatedBytes = bytes ?? 0;
+        tool.durationMs = _duration(tool);
+        return;
+      }
+      // A call too large to send (a big Write or Edit): its header is
+      // still known from the head, which keeps its id and name first.
+      final call = _toolUse.firstMatch(head);
+      if (call != null && !head.contains('"parent_tool_use_id":"toolu')) {
+        final callId = call.group(1)!;
+        final name = call.group(2)!;
+        final raw = _headPath.firstMatch(head)?.group(1);
+        String? path;
+        if (raw != null) {
+          try {
+            path = jsonDecode('"$raw"') as String;
+          } on FormatException {
+            path = null;
+          }
+        }
+        final input = path == null ? null : <String, dynamic>{'file_path': path};
+        final item = _tools[callId] ??
+            (ToolCallItem(
+              _nextKey++,
+              id: callId,
+              name: name,
+              summary: toolSummary(name, input),
+              input: input,
+            )..receivedAt = _at);
+        item.inputTruncatedBytes = bytes ?? 0;
+        if (!_tools.containsKey(callId)) {
+          _tools[callId] = item;
+          _items.add(item);
+        }
         return;
       }
     }
@@ -451,6 +657,34 @@ String toolSummary(String name, Object? input) {
   return line.length <= Transcript.maxSummaryChars
       ? line
       : '${line.substring(0, Transcript.maxSummaryChars)}…';
+}
+
+/// Bash's exit line, which AgentMux's bash wrapper puts before a command's
+/// output: `<exited 0 in 0.60s>`.
+class BashExit {
+  const BashExit(this.code, this.ms, this.body);
+  final int code;
+  final int? ms;
+
+  /// The output after the line.
+  final String body;
+}
+
+/// Claude Code puts its own "Exit code N" line before a failed command's
+/// output, so the wrapper's line may come second.
+final _exitLine = RegExp(r'^(?:Exit code -?\d+\n)?<exited (-?\d+) in ([\d.]+)s>\n?');
+
+/// The exit line at the start of [output], or null.
+BashExit? bashExit(String? output) {
+  if (output == null) return null;
+  final m = _exitLine.firstMatch(output);
+  if (m == null) return null;
+  final seconds = double.tryParse(m[2]!);
+  return BashExit(
+    int.parse(m[1]!),
+    seconds == null ? null : (seconds * 1000).round(),
+    output.substring(m.end),
+  );
 }
 
 String? _firstString(Map input) {
