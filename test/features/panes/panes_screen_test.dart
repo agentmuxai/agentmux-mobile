@@ -85,13 +85,13 @@ void main() {
         'Agent · watch live');
     expect(paneSubtitle(_pane('a', PaneKind.agent)), 'Agent · not running');
     expect(paneSubtitle(_pane('t', PaneKind.terminal, running: true)),
-        'Terminal · running · opens on the computer');
+        'Terminal · running · not shared by the computer');
     expect(
         paneSubtitle(
             _pane('s', PaneKind.terminal, running: false, parent: 'a')),
-        'Agent\'s shell · stopped · opens on the computer');
-    expect(paneSubtitle(_pane('t', PaneKind.terminal)),
-        'Terminal · opens on the computer');
+        'Agent\'s shell · stopped · not shared by the computer');
+    expect(paneSubtitle(_pane('t', PaneKind.terminal), terminalsShared: true),
+        'Terminal · watch live');
     expect(paneSubtitle(_pane('e', PaneKind.other, view: 'editor')),
         'Editor · opens on the computer');
     expect(paneTypeName(_pane('x', PaneKind.other, view: 'ext:acme.board')),
@@ -115,6 +115,13 @@ void main() {
             channel: 'stable',
             route: ChannelRoute.lan,
           ),
+        ),
+        GoRoute(
+          path: '/viewer/:pairId/terminal/:blockId',
+          builder: (_, state) {
+            final extra = state.extra! as Map<String, dynamic>;
+            return Text('terminal ${state.pathParameters['blockId']} (${extra['label']})');
+          },
         ),
         GoRoute(
           path: '/viewer/:pairId/agent/:name',
@@ -164,7 +171,7 @@ void main() {
       expect(find.text('Notes'), findsOneWidget);
       expect(find.text('Ada'), findsOneWidget);
       expect(find.text('Ada shell'), findsOneWidget);
-      expect(find.text('Agent\'s shell · running · opens on the computer'), findsOneWidget);
+      expect(find.text('Agent\'s shell · running · not shared by the computer'), findsOneWidget);
       expect(find.text('Editor'), findsOneWidget, reason: 'an untitled pane is named by its type');
       expect(find.text('Main'), findsNothing, reason: 'one window: no window header');
 
@@ -172,6 +179,13 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('feed ada (ada)'), findsOneWidget);
     });
+
+    FakeResponse listedTerminal() => FakeResponse(200, json: {
+          'now_ms': 1,
+          'panes': [
+            _json(_pane('t', PaneKind.terminal, view: 'term', label: 'build')),
+          ],
+        });
 
     FakeResponse listed() => FakeResponse(200, json: {
           'now_ms': 1,
@@ -201,6 +215,30 @@ void main() {
       await refresh(tester);
       expect(find.text('Ada'), findsNothing);
       expect(find.text('This device was unpaired on the computer'), findsOneWidget);
+    });
+
+    testWidgets('a shared terminal opens', (tester) async {
+      final adapter = FakeAdapter([
+        FakeResponse(200, json: {
+          'now_ms': 1,
+          'terminals_shared': true,
+          'panes': [
+            _json(_pane('t', PaneKind.terminal, view: 'term', label: 'build', running: true)),
+          ],
+        }),
+      ]);
+      await pump(tester, adapter);
+      expect(find.text('Terminal · running · watch live'), findsOneWidget);
+      await tester.tap(find.text('build'));
+      await tester.pumpAndSettle();
+      expect(find.text('terminal t (build)'), findsOneWidget);
+    });
+
+    testWidgets('an unshared terminal does not open', (tester) async {
+      await pump(tester, FakeAdapter([listedTerminal()]));
+      await tester.tap(find.text('build'));
+      await tester.pumpAndSettle();
+      expect(find.text('build'), findsOneWidget, reason: 'still on the list');
     });
 
     testWidgets('a desktop without the route asks for an update', (tester) async {

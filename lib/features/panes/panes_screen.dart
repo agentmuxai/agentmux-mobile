@@ -48,8 +48,9 @@ List<PaneWindowGroup> groupPanes(List<ViewerPane> panes) {
 
 /// Every pane of a paired computer, window by window and tab by tab
 /// (`docs/reports/REPORT_PANE_LIST_TERMINALS_AND_FROZEN_FEED_2026_10_12.md`
-/// §2.5, phase A). Agents open their live feed; terminals say whether they
-/// run; every other pane is listed by name and opens on the computer.
+/// §2.5, phases A and B). Agents open their live feed; terminals open too
+/// once the computer shares them; every other pane is listed by name and
+/// opens on the computer.
 /// Read-only, like the feed.
 class PanesScreen extends ConsumerStatefulWidget {
   const PanesScreen({
@@ -75,6 +76,7 @@ enum _Failure { unpaired, tooOld, unreachable }
 
 class _PanesScreenState extends ConsumerState<PanesScreen> {
   List<ViewerPane>? _panes;
+  bool _terminalsShared = false;
   _Failure? _failure;
   bool _loading = false;
 
@@ -98,10 +100,11 @@ class _PanesScreenState extends ConsumerState<PanesScreen> {
       token: paired.token,
     );
     try {
-      final panes = await client.panes();
+      final result = await client.panes();
       if (!mounted) return;
       setState(() {
-        _panes = panes;
+        _panes = result.panes;
+        _terminalsShared = result.terminalsShared;
         _failure = null;
       });
     } on ViewerUnauthorized {
@@ -128,6 +131,21 @@ class _PanesScreenState extends ConsumerState<PanesScreen> {
       'channel': widget.channel,
     });
   }
+
+  void _openTerminal(ViewerPane pane) {
+    final location = '/viewer/${Uri.encodeComponent(widget.pairing.paired.id)}'
+        '/terminal/${Uri.encodeComponent(pane.blockId)}';
+    context.push(location, extra: {
+      'pairing': widget.pairing,
+      'label': pane.label.isEmpty ? paneTypeName(pane) : pane.label,
+    });
+  }
+
+  VoidCallback? _opener(ViewerPane p) => switch (p.kind) {
+        PaneKind.agent when p.agent != null => () => _openAgent(p.agent!),
+        PaneKind.terminal when _terminalsShared => () => _openTerminal(p),
+        _ => null,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -225,9 +243,8 @@ class _PanesScreenState extends ConsumerState<PanesScreen> {
                 PaneRow(
                   key: ValueKey(p.blockId),
                   pane: p,
-                  onOpen: p.kind == PaneKind.agent && p.agent != null
-                      ? () => _openAgent(p.agent!)
-                      : null,
+                  terminalsShared: _terminalsShared,
+                  onOpen: _opener(p),
                 ),
             ],
           ],
@@ -275,8 +292,14 @@ class _Header extends StatelessWidget {
 
 /// One pane: what it is, and what tapping it does.
 class PaneRow extends StatelessWidget {
-  const PaneRow({super.key, required this.pane, this.onOpen});
+  const PaneRow({
+    super.key,
+    required this.pane,
+    this.terminalsShared = false,
+    this.onOpen,
+  });
   final ViewerPane pane;
+  final bool terminalsShared;
 
   /// Null when the pane opens only on the computer.
   final VoidCallback? onOpen;
@@ -293,7 +316,7 @@ class PaneRow extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
-        paneSubtitle(pane),
+        paneSubtitle(pane, terminalsShared: terminalsShared),
         style: const TextStyle(fontSize: 12, color: Colors.white54),
       ),
       trailing: onOpen == null ? null : const Icon(Icons.chevron_right),
@@ -339,8 +362,10 @@ String paneTypeName(ViewerPane pane) => switch (pane.kind) {
         },
     };
 
-/// The row's second line: what the pane is and where it opens.
-String paneSubtitle(ViewerPane pane) => switch (pane.kind) {
+/// The row's second line: what the pane is and where it opens. A terminal
+/// opens here once the computer shares its terminals.
+String paneSubtitle(ViewerPane pane, {bool terminalsShared = false}) =>
+    switch (pane.kind) {
       PaneKind.agent =>
         pane.agent == null ? 'Agent · not running' : 'Agent · watch live',
       PaneKind.terminal => [
@@ -350,7 +375,7 @@ String paneSubtitle(ViewerPane pane) => switch (pane.kind) {
             false => 'stopped',
             null => null,
           },
-          'opens on the computer',
+          terminalsShared ? 'watch live' : 'not shared by the computer',
         ].whereType<String>().join(' · '),
       PaneKind.other => '${paneTypeName(pane)} · opens on the computer',
     };

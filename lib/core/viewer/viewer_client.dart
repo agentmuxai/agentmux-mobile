@@ -8,6 +8,7 @@ import '../discovery/peer_fields.dart';
 import '../fleet/sse.dart';
 import 'feed_events.dart';
 import 'pinned_tls.dart';
+import 'terminal_events.dart';
 
 /// The desktop refused the viewer token (`401`): it was revoked on the
 /// computer, or the computer forgot it.
@@ -24,6 +25,15 @@ class ViewerNotFound implements Exception {
 
   @override
   String toString() => 'ViewerNotFound';
+}
+
+/// `403`: the computer doesn't share this (its terminals, while the user
+/// hasn't turned sharing on).
+class ViewerForbidden implements Exception {
+  const ViewerForbidden();
+
+  @override
+  String toString() => 'ViewerForbidden';
 }
 
 /// Why pairing failed, each with what the user can do about it.
@@ -161,6 +171,15 @@ class ViewerPane {
   final String? parentBlockId;
 }
 
+/// What `GET /agentmux/viewer/panes` returns.
+class ViewerPanes {
+  const ViewerPanes({required this.panes, this.terminalsShared = false});
+  final List<ViewerPane> panes;
+
+  /// Whether the computer lets this device watch its terminals.
+  final bool terminalsShared;
+}
+
 /// A token is sent in a header, so only header-safe characters are kept.
 final _tokenPattern = RegExp(r'^[A-Za-z0-9._~+/=-]{1,512}$');
 
@@ -243,11 +262,14 @@ class ViewerClient {
   /// `GET /agentmux/viewer/panes`: every pane on the computer, in the
   /// desktop's order. Throws [ViewerUnauthorized] on a 401, and
   /// [ViewerNotFound] on a desktop too old to have the route.
-  Future<List<ViewerPane>> panes() async {
+  Future<ViewerPanes> panes() async {
     final data = await _get('/agentmux/viewer/panes');
     final panes = parsePanes(data);
     if (panes == null) throw const FormatException('not a panes body');
-    return panes;
+    return ViewerPanes(
+      panes: panes,
+      terminalsShared: data is Map && data['terminals_shared'] == true,
+    );
   }
 
   Future<Object?> _get(String path) async {
@@ -260,6 +282,7 @@ class ViewerClient {
 
   static Object _mapped(DioException e) => switch (e.response?.statusCode) {
         401 => const ViewerUnauthorized(),
+        403 => const ViewerForbidden(),
         404 => const ViewerNotFound(),
         _ => e,
       };
@@ -269,15 +292,35 @@ class ViewerClient {
   /// of life), and each [FeedEvent]. Errors with [ViewerUnauthorized],
   /// [ViewerNotFound], a [TimeoutException] after [idleTimeout] of silence,
   /// or the network error.
-  Stream<FeedEvent?> feed(String agent, {String? lastEventId}) {
+  Stream<FeedEvent?> feed(String agent, {String? lastEventId}) => _events(
+        '/agentmux/viewer/agents/${Uri.encodeComponent(agent)}/feed',
+        lastEventId,
+        parseFeedEvent,
+      );
+
+  /// Opens one terminal's feed, as [feed] does an agent's. Also errors with
+  /// [ViewerForbidden] while the computer doesn't share its terminals.
+  Stream<TerminalEvent?> terminalFeed(String blockId, {String? lastEventId}) =>
+      _events(
+        '/agentmux/viewer/terminals/${Uri.encodeComponent(blockId)}/feed',
+        lastEventId,
+        parseTerminalEvent,
+      );
+
+  /// An event stream at [path], each event parsed by [parse] (null: skipped).
+  Stream<T?> _events<T>(
+    String path,
+    String? lastEventId,
+    T? Function(SseEvent) parse,
+  ) {
     final cancel = CancelToken();
     StreamSubscription<List<int>>? bytesSub;
-    late final StreamController<FeedEvent?> out;
-    out = StreamController<FeedEvent?>(
+    late final StreamController<T?> out;
+    out = StreamController<T?>(
       onListen: () async {
         try {
           final res = await _dio.get<ResponseBody>(
-            '/agentmux/viewer/agents/${Uri.encodeComponent(agent)}/feed',
+            path,
             cancelToken: cancel,
             options: Options(
               responseType: ResponseType.stream,
@@ -313,7 +356,7 @@ class ViewerClient {
             }
             out.add(null);
             for (final e in events) {
-              final event = parseFeedEvent(e);
+              final event = parse(e);
               if (event != null) out.add(event);
             }
           }));

@@ -6,7 +6,8 @@
 covered by fix 2 when the lines reach the shared transcript; an append whose
 lines never reach it stays unshown (logged at debug). §2.5 phase A (the pane
 list) is agentmux #4761 and the agentmux-mobile "All panes" screen; phase B
-(terminals) follows.
+(read-only terminals) is agentmux #4764 and the agentmux-mobile terminal
+screen. Phase C (typing into a terminal) needs its own spec.
 **Code read at:** agentmux `cf2bb56af` (main), agentmux-mobile `10f117d` (main).
 **Related:** `docs/specs/SPEC_AGENT_STATUS_AND_LIVE_PANE_FEED_2026_10_07.md`
 (the feed this report is about), `docs/specs/REMOTE_TERMINALS_AND_CONVERSATION_HISTORY.md`

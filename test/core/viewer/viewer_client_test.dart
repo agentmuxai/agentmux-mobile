@@ -1,5 +1,6 @@
 import 'package:agentmux_mobile/core/discovery/models/lan_instance.dart';
 import 'package:agentmux_mobile/core/viewer/feed_events.dart';
+import 'package:agentmux_mobile/core/viewer/terminal_events.dart';
 import 'package:agentmux_mobile/core/viewer/viewer_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -143,7 +144,9 @@ void main() {
         ],
       }),
     ]);
-    final panes = await _client(adapter, token: 'amxv_t').panes();
+    final result = await _client(adapter, token: 'amxv_t').panes();
+    final panes = result.panes;
+    expect(result.terminalsShared, isFalse, reason: 'absent: not shared');
     expect(panes.map((p) => p.blockId), ['b1', 'b2']);
     expect(panes[0].kind, PaneKind.agent);
     expect(panes[0].agent, 'ada');
@@ -204,6 +207,36 @@ void main() {
       expect(req.uri.path, '/agentmux/viewer/agents/Agent%20A/feed');
       expect(req.headers['Last-Event-ID'], '3:1');
       expect(req.headers['Authorization'], 'Bearer amxv_t');
+    });
+
+    test('a terminal feed: its path, its events, and resume', () async {
+      final adapter = FakeAdapter([
+        const FakeResponse(200, chunks: [
+          'event: snapshot\nid: 5\ndata: {"offset":0,"next_offset":5,'
+              '"data64":"aGVsbG8=","rows":30,"cols":100}\n\n',
+          'event: append\nid: 6\ndata: {"offset":5,"data64":"IQ=="}\n\n',
+          'event: size\ndata: {"rows":40,"cols":120}\n\n',
+        ]),
+      ]);
+      final items = await _client(adapter, token: 'amxv_t')
+          .terminalFeed('blk 1', lastEventId: '2')
+          .toList();
+      final events = items.whereType<TerminalEvent>().toList();
+      expect(events.map((e) => e.runtimeType),
+          [TerminalSnapshot, TerminalAppend, TerminalResize]);
+      expect((events[0] as TerminalSnapshot).cols, 100);
+      final req = adapter.requests.single;
+      expect(req.uri.path, '/agentmux/viewer/terminals/blk%201/feed');
+      expect(req.headers['Last-Event-ID'], '2');
+    });
+
+    test('403 on a terminal feed is ViewerForbidden', () async {
+      await expectLater(
+        _client(FakeAdapter([const FakeResponse(403, chunks: [])]))
+            .terminalFeed('blk')
+            .toList(),
+        throwsA(isA<ViewerForbidden>()),
+      );
     });
 
     test('401 is ViewerUnauthorized, 404 ViewerNotFound', () async {

@@ -391,6 +391,18 @@ Viewer listener only; `Authorization: Bearer` required (401 otherwise):
   `agent` (its feed opens by `agent`, while it is registered), `terminal` (`running` when known) or `other`
   (opened on the computer). No content, command line or working directory; hidden agents and their shells
   are left out. The app's "All panes" screen; 404 from an older desktop.
+  `terminals_shared` says whether terminal rows open (agentmux #4764).
+- `GET /agentmux/viewer/terminals/:block_id/feed` (Server-Sent Events, agentmux #4764): one terminal's output,
+  read-only. 403 unless the user turned on "Share terminals with paired devices" on the computer; 404 for a
+  block that isn't a terminal, or is the pane or shell of an agent hidden from paired devices.
+  - `snapshot` `{ offset, next_offset, data64, rows?, cols? }`: the last 256 KB of the raw PTY bytes, from a
+    line start; the PTY's size when known.
+  - `append` `{ offset, data64 }` per write; `size` `{ rows, cols }` on a resize.
+  - `reset` `{ reason }` before a fresh snapshot, or before the stream ends (`behind`, `not_shared`, `hidden`,
+    `gone`).
+  - `id: <byte offset after the event>`; a reconnect within 256 KB of the end gets what it missed as one
+    `append`. Same feed caps as the agent feed.
+  - The device never sends input or a resize: it renders at the desktop's size and scrolls sideways.
 
 ### 13.4 The device (phases 1 to 3)
 

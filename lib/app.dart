@@ -17,6 +17,7 @@ import 'features/feed/unpaired_agent_screen.dart';
 import 'features/lan_agent/lan_agent_screen.dart';
 import 'features/login/login_screen.dart';
 import 'features/panes/panes_screen.dart';
+import 'features/terminal/terminal_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/usage/usage_screen.dart';
 import 'shared/theme/app_theme.dart';
@@ -128,6 +129,23 @@ GoRouter _buildRouter(AsyncValue<AuthStatus> authState) {
             instance: extra['instance'] as LanInstance,
             channel: channel is String ? channel : null,
             route: route is ChannelRoute ? route : null,
+          );
+        },
+      ),
+
+      // ── One terminal of a paired computer, read-only ──────────────────
+      GoRoute(
+        path: '/viewer/:pairId/terminal/:blockId',
+        builder: (_, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          if (extra == null || extra['pairing'] is! PairingMatch) {
+            return const DiscoveryScreen();
+          }
+          final label = extra['label'];
+          return TerminalScreen(
+            pairing: extra['pairing'] as PairingMatch,
+            blockId: state.pathParameters['blockId']!,
+            label: label is String && label.isNotEmpty ? label : 'Terminal',
           );
         },
       ),
