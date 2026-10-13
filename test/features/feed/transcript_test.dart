@@ -12,9 +12,10 @@ void main() {
       items = (Transcript(provider: 'claude')..addFrames(claudeTurn)).items;
     });
 
-    test('in order: prompt, text, tools, text, divider; thinking hidden', () {
+    test('in order: prompt, thinking, text, tools, text, divider', () {
       expect(items.map((i) => i.runtimeType), [
         PromptItem,
+        ThinkingItem,
         AssistantTextItem,
         ToolCallItem,
         ToolCallItem,
@@ -24,14 +25,14 @@ void main() {
         TurnDividerItem,
       ]);
       expect((items[0] as PromptItem).text, 'Fix the failing test');
-      expect((items[1] as AssistantTextItem).text, 'Looking at the test first.');
-      for (final i in items) {
-        if (i is AssistantTextItem) expect(i.text, isNot(contains('private')));
-      }
+      final thinking = items[1] as ThinkingItem;
+      expect(thinking.text, 'Reasoning about the test');
+      expect(thinking.streaming, isFalse);
+      expect((items[2] as AssistantTextItem).text, 'Looking at the test first.');
     });
 
     test('a tool call with its result', () {
-      final bash = items[2] as ToolCallItem;
+      final bash = items[3] as ToolCallItem;
       expect(bash.name, 'Bash');
       expect(bash.summary, 'git status');
       expect(bash.state, ToolState.done);
@@ -39,14 +40,14 @@ void main() {
     });
 
     test('a failed tool call', () {
-      final edit = items[3] as ToolCallItem;
+      final edit = items[4] as ToolCallItem;
       expect(edit.summary, 'lib/app.dart');
       expect(edit.state, ToolState.failed);
       expect(edit.result, 'String to replace not found');
     });
 
     test('a truncated result attaches to its tool call', () {
-      final read = items[4] as ToolCallItem;
+      final read = items[5] as ToolCallItem;
       expect(read.summary, 'lib/main.dart');
       expect(read.state, ToolState.done);
       expect(read.truncatedBytes, 70000);
@@ -54,7 +55,7 @@ void main() {
     });
 
     test('a call without a result yet is running', () {
-      final grep = items[5] as ToolCallItem;
+      final grep = items[6] as ToolCallItem;
       expect(grep.summary, 'TODO');
       expect(grep.state, ToolState.running);
     });
@@ -151,10 +152,10 @@ void main() {
           'index': i,
           'delta': {'type': 'text_delta', 'text': text},
         });
-    String thinkingDelta(int i) => event({
+    String thinkingDelta(int i, [String text = 'hmm']) => event({
           'type': 'content_block_delta',
           'index': i,
-          'delta': {'type': 'thinking_delta', 'thinking': 'hmm'},
+          'delta': {'type': 'thinking_delta', 'thinking': text},
         });
     String stop(int i) => event({'type': 'content_block_stop', 'index': i});
     final messageStart = event({'type': 'message_start'});
@@ -174,19 +175,42 @@ void main() {
       expect((t.items.last as AssistantTextItem).text, 'Hello');
     });
 
-    test('thinking shows as one line until its block arrives', () {
+    test('thinking grows as it streams, then its whole block replaces it', () {
       final t = Transcript(provider: 'claude')
         ..addFrames([messageStart, start(0, 'thinking'), thinkingDelta(0)]);
-      expect(t.items.single, isA<ThinkingItem>());
+      final live = t.items.single as ThinkingItem;
+      expect(live.text, 'hmm');
+      expect(live.streaming, isTrue);
+      t.addFrames([thinkingDelta(0, ', the test')]);
+      expect((t.items.single as ThinkingItem).text, 'hmm, the test');
       t.addFrames([
-        assistantThinking('hmm'),
+        assistantThinking('hmm, the test'),
         stop(0),
         start(1, 'text'),
         textDelta(1, 'Done'),
       ]);
-      expect(t.items.single, isA<StreamingTextItem>());
+      expect(t.items.map((i) => i.runtimeType), [ThinkingItem, StreamingTextItem]);
+      final whole = t.items.first as ThinkingItem;
+      expect(whole, isNot(same(live)));
+      expect(whole.streaming, isFalse);
       t.addFrames([assistantText('Done'), stop(1)]);
-      expect((t.items.single as AssistantTextItem).text, 'Done');
+      expect((t.items.last as AssistantTextItem).text, 'Done');
+    });
+
+    test('redacted thinking shows nothing', () {
+      final t = Transcript(provider: 'claude')
+        ..addFrames([
+          frame({
+            'type': 'assistant',
+            'message': {
+              'content': [
+                {'type': 'redacted_thinking', 'data': 'opaque'},
+                {'type': 'thinking', 'thinking': '  '},
+              ],
+            },
+          }),
+        ]);
+      expect(t.items, isEmpty);
     });
 
     test('a delta whose start was not sent still shows', () {

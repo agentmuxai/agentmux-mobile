@@ -82,7 +82,7 @@ String truncated(String head, int bytes) =>
 final claudeTurn = [
   systemInit,
   userPrompt('Fix the failing test'),
-  assistantThinking('private reasoning that is never shown'),
+  assistantThinking('Reasoning about the test'),
   assistantText('Looking at the test first.', stop: 'tool_use'),
   toolUse('toolu_1', 'Bash', {'command': 'git status', 'description': 'Status'}),
   toolResult('toolu_1', 'On branch main\nnothing to commit'),
