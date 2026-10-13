@@ -3,8 +3,8 @@ import 'dart:convert';
 /// The feed screen's document: an agent's transcript frames turned into
 /// what the screen shows (`SPEC_AGENT_STATUS_AND_LIVE_PANE_FEED_2026_10_07.md`
 /// 6.2). Claude-shaped streams (Claude Code, and Qwen Code, which writes the
-/// same frames) get prompts, text (growing as it streams), tool calls and
-/// turn dividers; any other
+/// same frames) get prompts, text and thinking (growing as they stream), tool
+/// calls and turn dividers; any other
 /// provider is shown as the plain text of each frame. Kept in memory only.
 sealed class TranscriptItem {
   TranscriptItem(this.key);
@@ -34,10 +34,16 @@ class StreamingTextItem extends TranscriptItem {
   String text;
 }
 
-/// The model is thinking (what it thinks is not shown). Gone once the
-/// thinking block's whole message arrives.
+/// What the model thought, shown as the desktop shows it: the full text,
+/// muted. Grows from `thinking_delta`s while it streams; the whole block
+/// replaces it once its message arrives.
 class ThinkingItem extends TranscriptItem {
-  ThinkingItem(super.key);
+  ThinkingItem(super.key, [this.text = '']);
+  String text;
+
+  /// Still growing from `stream_event` deltas.
+  bool get streaming => _streaming;
+  bool _streaming = false;
 }
 
 /// One tool call, as one line, with its result once it arrives.
@@ -192,8 +198,8 @@ class Transcript {
     // `system` (init), rate limits and the rest show nothing.
   }
 
-  /// A raw API event inside a `stream_event` frame: reply text grows as it
-  /// streams, and thinking shows as one line, as on the desktop. The
+  /// A raw API event inside a `stream_event` frame: reply text and thinking
+  /// grow as they stream, as on the desktop. The
   /// `assistant` frame that follows each block replaces what streamed.
   void _streamEvent(Object? event) {
     if (event is! Map) return;
@@ -211,7 +217,11 @@ class Transcript {
             final text = block['text'];
             _addLive(index, StreamingTextItem(_nextKey++, text is String ? text : ''));
           case 'thinking':
-            _addLive(index, ThinkingItem(_nextKey++));
+            final text = block['thinking'];
+            _addLive(
+              index,
+              ThinkingItem(_nextKey++, text is String ? text : '').._streaming = true,
+            );
         }
       case 'content_block_delta':
         if (index is! int) return;
@@ -229,7 +239,14 @@ class Transcript {
               _addLive(index, StreamingTextItem(_nextKey++, text));
             }
           case 'thinking_delta':
-            if (_liveBlocks[index] == null) _addLive(index, ThinkingItem(_nextKey++));
+            final text = delta['thinking'];
+            if (text is! String) return;
+            final live = _liveBlocks[index];
+            if (live is ThinkingItem) {
+              live.text += text;
+            } else if (live == null) {
+              _addLive(index, ThinkingItem(_nextKey++, text).._streaming = true);
+            }
         }
     }
   }
@@ -279,7 +296,12 @@ class Transcript {
               ToolCallItem(_nextKey++, id: id, name: name, summary: summary);
           _tools[id] = item;
           _items.add(item);
-        // `thinking` and `redacted_thinking` are not shown.
+        case 'thinking':
+          final text = block['thinking'];
+          if (text is String && text.trim().isNotEmpty) {
+            _items.add(ThinkingItem(_nextKey++, text));
+          }
+        // `redacted_thinking` has nothing to show.
       }
     }
   }
