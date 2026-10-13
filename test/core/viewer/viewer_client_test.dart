@@ -108,6 +108,61 @@ void main() {
     }
   });
 
+  test('panes parse in order; malformed entries are skipped', () async {
+    final adapter = FakeAdapter([
+      const FakeResponse(200, json: {
+        'now_ms': 1000,
+        'panes': [
+          {
+            'block_id': 'b1',
+            'view': 'agent',
+            'kind': 'agent',
+            'label': 'Ada',
+            'window_id': 'w1',
+            'window': 'Main',
+            'tab_id': 't1',
+            'tab': 'Work',
+            'tab_active': true,
+            'agent': 'ada',
+          },
+          {
+            'block_id': 'b2',
+            'view': 'term',
+            'kind': 'terminal',
+            'label': 'Ada shell',
+            'window_id': 'w1',
+            'window': 'Main',
+            'tab_id': 't1',
+            'tab': 'Work',
+            'running': true,
+            'parent_block_id': 'b1',
+          },
+          {'block_id': 'b3', 'kind': 'gadget', 'window_id': 'w1', 'tab_id': 't1'},
+          {'block_id': 'b4', 'kind': 'other'},
+          'junk',
+        ],
+      }),
+    ]);
+    final panes = await _client(adapter, token: 'amxv_t').panes();
+    expect(panes.map((p) => p.blockId), ['b1', 'b2']);
+    expect(panes[0].kind, PaneKind.agent);
+    expect(panes[0].agent, 'ada');
+    expect(panes[0].tabActive, isTrue);
+    expect(panes[1].kind, PaneKind.terminal);
+    expect(panes[1].running, isTrue);
+    expect(panes[1].parentBlockId, 'b1');
+    expect(adapter.requests.single.path, '/agentmux/viewer/panes');
+    expect(adapter.requests.single.headers['Authorization'], 'Bearer amxv_t');
+  });
+
+  test('a desktop without the panes route is ViewerNotFound', () async {
+    final adapter = FakeAdapter([const FakeResponse(404, json: {})]);
+    await expectLater(
+      _client(adapter, token: 'amxv_t').panes(),
+      throwsA(isA<ViewerNotFound>()),
+    );
+  });
+
   test('a 401 on a viewer route is ViewerUnauthorized', () async {
     final adapter = FakeAdapter([const FakeResponse(401, json: {})]);
     await expectLater(

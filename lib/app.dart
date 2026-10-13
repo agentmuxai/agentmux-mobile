@@ -16,6 +16,7 @@ import 'features/feed/agent_feed_screen.dart';
 import 'features/feed/unpaired_agent_screen.dart';
 import 'features/lan_agent/lan_agent_screen.dart';
 import 'features/login/login_screen.dart';
+import 'features/panes/panes_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/usage/usage_screen.dart';
 import 'shared/theme/app_theme.dart';
@@ -104,6 +105,27 @@ GoRouter _buildRouter(AsyncValue<AuthStatus> authState) {
           return UnpairedAgentScreen(
             instance: extra['instance'] as LanInstance,
             agent: extra['agent'] as LanAgent,
+            channel: channel is String ? channel : null,
+            route: route is ChannelRoute ? route : null,
+          );
+        },
+      ),
+
+      // ── Every pane of a paired computer ───────────────────────────────
+      GoRoute(
+        path: '/viewer/:pairId/panes',
+        builder: (_, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          if (extra == null ||
+              extra['pairing'] is! PairingMatch ||
+              extra['instance'] is! LanInstance) {
+            return const DiscoveryScreen();
+          }
+          final route = extra['route'];
+          final channel = extra['channel'];
+          return PanesScreen(
+            pairing: extra['pairing'] as PairingMatch,
+            instance: extra['instance'] as LanInstance,
             channel: channel is String ? channel : null,
             route: route is ChannelRoute ? route : null,
           );

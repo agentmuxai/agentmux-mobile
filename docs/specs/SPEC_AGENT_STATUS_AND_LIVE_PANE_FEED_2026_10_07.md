@@ -385,6 +385,12 @@ Viewer listener only; `Authorization: Bearer` required (401 otherwise):
   - `: hb` every 15 s. At most 4 feeds per device and 16 per srv (503 beyond). A stream more than 1 MB
     behind is sent `reset` and closed.
   - `provider` is the agent's provider id (`claude`, `codex`, `gemini`, `qwen`, ...).
+- `GET /agentmux/viewer/panes` -> `{ now_ms, panes: [ { block_id, view, kind, label, window_id, window,
+  tab_id, tab, tab_active, agent?, running?, parent_block_id? } ] }` (agentmux #4761): every pane, window by
+  window and tab by tab (pinned tabs first), each agent's shell drawer right after its agent. `kind` is
+  `agent` (its feed opens by `agent`, while it is registered), `terminal` (`running` when known) or `other`
+  (opened on the computer). No content, command line or working directory; hidden agents and their shells
+  are left out. The app's "All panes" screen; 404 from an older desktop.
 
 ### 13.4 The device (phases 1 to 3)
 

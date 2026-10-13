@@ -112,6 +112,55 @@ class ViewerAgents {
   final int? nowMs;
 }
 
+/// What a device can do with a pane.
+enum PaneKind {
+  /// An agent: its feed opens by [ViewerPane.agent].
+  agent,
+  terminal,
+
+  /// Any other pane (editor, browser, files, a widget, ...): opened on the
+  /// computer.
+  other,
+}
+
+/// One entry of `GET /agentmux/viewer/panes`.
+class ViewerPane {
+  const ViewerPane({
+    required this.blockId,
+    required this.view,
+    required this.kind,
+    required this.label,
+    required this.windowId,
+    required this.window,
+    required this.tabId,
+    required this.tab,
+    this.tabActive = false,
+    this.agent,
+    this.running,
+    this.parentBlockId,
+  });
+  final String blockId;
+
+  /// The desktop's view id (`agent`, `term`, `editor`, `ext:<id>`, ...).
+  final String view;
+  final PaneKind kind;
+  final String label;
+  final String windowId;
+  final String window;
+  final String tabId;
+  final String tab;
+  final bool tabActive;
+
+  /// For an agent: the name its feed opens by, while it is registered.
+  final String? agent;
+
+  /// For a terminal: whether its shell runs; null when not known.
+  final bool? running;
+
+  /// For an agent's shell: the agent pane it belongs to.
+  final String? parentBlockId;
+}
+
 /// A token is sent in a header, so only header-safe characters are kept.
 final _tokenPattern = RegExp(r'^[A-Za-z0-9._~+/=-]{1,512}$');
 
@@ -189,6 +238,16 @@ class ViewerClient {
     final agents = parseAgents(data);
     if (agents == null) throw const FormatException('not an agents body');
     return agents;
+  }
+
+  /// `GET /agentmux/viewer/panes`: every pane on the computer, in the
+  /// desktop's order. Throws [ViewerUnauthorized] on a 401, and
+  /// [ViewerNotFound] on a desktop too old to have the route.
+  Future<List<ViewerPane>> panes() async {
+    final data = await _get('/agentmux/viewer/panes');
+    final panes = parsePanes(data);
+    if (panes == null) throw const FormatException('not a panes body');
+    return panes;
   }
 
   Future<Object?> _get(String path) async {
@@ -336,6 +395,48 @@ class ViewerClient {
               sinceMs: a['since_ms'] is int ? a['since_ms'] as int : null,
             ),
       ],
+    );
+  }
+
+  static List<ViewerPane>? parsePanes(Object? json) {
+    if (json is! Map) return null;
+    final list = json['panes'];
+    if (list is! List) return null;
+    return [
+      for (final p in list.take(2000))
+        if (_pane(p) case final pane?) pane,
+    ];
+  }
+
+  /// One pane; null when it lacks an id, a known kind or a place.
+  static ViewerPane? _pane(Object? p) {
+    if (p is! Map) return null;
+    final blockId = _short(p['block_id']);
+    final kind = switch (p['kind']) {
+      'agent' => PaneKind.agent,
+      'terminal' => PaneKind.terminal,
+      'other' => PaneKind.other,
+      _ => null,
+    };
+    final windowId = _short(p['window_id']);
+    final tabId = _short(p['tab_id']);
+    if (blockId == null || blockId.isEmpty || kind == null) return null;
+    if (windowId == null || tabId == null) return null;
+    final running = p['running'];
+    final agent = _short(p['agent']);
+    return ViewerPane(
+      blockId: blockId,
+      view: _short(p['view']) ?? '',
+      kind: kind,
+      label: _short(p['label']) ?? '',
+      windowId: windowId,
+      window: _short(p['window']) ?? '',
+      tabId: tabId,
+      tab: _short(p['tab']) ?? '',
+      tabActive: p['tab_active'] == true,
+      agent: agent == null || agent.isEmpty ? null : agent,
+      running: running is bool ? running : null,
+      parentBlockId: _short(p['parent_block_id']),
     );
   }
 
