@@ -191,6 +191,42 @@ void main() {
     });
   });
 
+  test('an empty snapshot is shown, and the first append starts it', () {
+    fakeAsync((async) {
+      final c = controller()..start();
+      async.flushMicrotasks();
+      feed.last.add(const FeedSnapshot(
+          provider: 'claude', gen: '', fromLine: 0, nextLine: 0, lines: [], id: ':0'));
+      async.flushMicrotasks();
+      expect(c.transcript, isNotNull, reason: 'not stuck on Connecting…');
+      expect(c.transcript!.items, isEmpty);
+      expect(c.lastEventId, isNull, reason: 'nothing to resume from yet');
+
+      feed.last.add(FeedAppend(
+          gen: 'g1', line: 0, lines: [userPrompt('first')], id: 'g1:1'));
+      async.flushMicrotasks();
+      expect(_texts(c), ['first']);
+      expect(c.lastEventId, 'g1:1');
+      expect(feed.connects, hasLength(1), reason: 'no resync');
+      c.dispose();
+    });
+  });
+
+  test('a status with no state replaces the last one', () {
+    fakeAsync((async) {
+      final c = controller()..start();
+      async.flushMicrotasks();
+      feed.last
+        ..add(_snapshot())
+        ..add(const FeedStatus(state: 'working', sinceMs: 5, nowMs: 9))
+        ..add(const FeedStatus(state: null, nowMs: 12));
+      async.flushMicrotasks();
+      expect(c.status, isNotNull);
+      expect(c.status!.state, isNull);
+      c.dispose();
+    });
+  });
+
   test('401: stops for good and reports it', () {
     fakeAsync((async) {
       feed.refuseWith = const ViewerUnauthorized();

@@ -23,13 +23,9 @@ class TranscriptItemView extends StatelessWidget {
   Widget build(BuildContext context) => switch (item) {
         PromptItem(:final text) => _PromptBubble(text: text),
         // Markdown source, shown as text: the app has no Markdown renderer.
-        AssistantTextItem(:final text) => Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            child: SelectableText(
-              text,
-              style: const TextStyle(fontSize: 14, height: 1.4),
-            ),
-          ),
+        AssistantTextItem(:final text) => _AssistantText(text: text),
+        StreamingTextItem(:final text) => _AssistantText(text: text),
+        ThinkingItem() => const _Note(text: thinkingText),
         final ToolCallItem tool =>
           _ToolLine(tool: tool, expanded: expanded, onToggle: onToggle),
         TurnDividerItem(:final durationMs, :final error) =>
@@ -46,6 +42,21 @@ class TranscriptItemView extends StatelessWidget {
 }
 
 const truncatedText = 'Output truncated (open on the computer)';
+const thinkingText = 'Thinking…';
+
+class _AssistantText extends StatelessWidget {
+  const _AssistantText({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        child: SelectableText(
+          text,
+          style: const TextStyle(fontSize: 14, height: 1.4),
+        ),
+      );
+}
 
 class _PromptBubble extends StatelessWidget {
   const _PromptBubble({required this.text});

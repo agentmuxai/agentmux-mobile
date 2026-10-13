@@ -58,8 +58,9 @@ class FeedReset extends FeedEvent {
 class FeedStatus extends FeedEvent {
   const FeedStatus({required this.state, this.sinceMs, this.nowMs});
 
-  /// `working`, `waiting`, `idle`, `stopped` or `error`.
-  final String state;
+  /// `working`, `waiting`, `idle`, `stopped` or `error`; null once the
+  /// state has gone (the chip is dropped).
+  final String? state;
   final int? sinceMs;
 
   /// The desktop's clock when it sent this, so "for 3m" never compares the
@@ -84,7 +85,9 @@ FeedEvent? parseFeedEvent(SseEvent e) {
   if (json is! Map) return null;
   switch (e.event) {
     case 'snapshot':
-      final gen = _gen(json['gen']);
+      // '' while the transcript does not exist yet: an empty snapshot whose
+      // first append starts the transcript at line 0.
+      final gen = json['gen'] == '' ? '' : _gen(json['gen']);
       final from = json['from_line'];
       final next = json['next_line'];
       final lines = _lines(json['lines']);
@@ -108,8 +111,10 @@ FeedEvent? parseFeedEvent(SseEvent e) {
     case 'reset':
       return FeedReset(_short(json['reason']) ?? '');
     case 'status':
-      final state = _short(json['state']);
-      if (state == null) return null;
+      // `state: null`: the state the device was shown has gone.
+      final raw = json['state'];
+      final state = _short(raw);
+      if (raw != null && state == null) return null;
       final since = json['since_ms'];
       final now = json['now_ms'];
       return FeedStatus(

@@ -227,7 +227,9 @@ Viewer routes, on the TLS listener, viewer token only:
   (`Live`, `Reconnecting…`, `Paused` in the background).
 - Body, newest at the bottom, following new output while scrolled to the bottom; scrolling up stops
   following and shows "Jump to latest".
-  - Your prompts as bubbles; the assistant's text as Markdown; thinking hidden.
+  - Your prompts as bubbles; the assistant's text as Markdown, growing as it streams (from
+    `stream_event` deltas, replaced by the whole block when it arrives); thinking shown as a
+    "Thinking…" line while it lasts, its text hidden.
   - Each tool call as one line (`Bash  git status`, `Edit  lib/app.dart`, `Read  …`) with its state
     (running, done, failed); tap to expand its result, monospace, already capped at 64 KB.
   - Turn boundaries as a thin divider with the turn's duration.
@@ -366,11 +368,17 @@ Viewer listener only; `Authorization: Bearer` required (401 otherwise):
   agents hidden from paired devices.
 - `GET /agentmux/viewer/agents/:name/feed` (Server-Sent Events; 404 for an unknown or hidden agent):
   - `snapshot` `{ provider, gen, from_line, next_line, lines: [ "<frame>", ... ] }`: the last 50 turns or
-    256 KB, whichever is smaller, read through the bounded range read.
-  - `append` `{ gen, line, lines: [...] }` for each published append.
-  - `reset` `{ reason }` when the transcript is replaced, deleted or its `gen` changes, followed by a
-    `snapshot`.
-  - `status` `{ state, since_ms, now_ms }` when the agent's state changes (and once after `snapshot`).
+    256 KB, whichever is smaller, read through the bounded range read. `gen` is `""` while the transcript
+    doesn't exist yet; the first `append` then starts it at line 0.
+  - `append` `{ gen, line, lines: [...] }` for each published append, and for lines of the agent's shared
+    transcript that no event of its block brought (another block or srv instance running the agent),
+    read every 5 s.
+  - The feed follows the agent, not the block it opened on: every 5 s it asks where the agent runs and
+    moves there (agentmux #4758).
+  - `reset` `{ reason }` when the transcript is replaced, deleted or its `gen` changes, the agent moved to
+    another block's own transcript, or the feed can't continue; followed by a `snapshot`.
+  - `status` `{ state, since_ms, now_ms }` when the agent's state changes (and once after `snapshot`);
+    `state` and `since_ms` are null once a state the device was shown has gone.
   - `id: <gen>:<next line>`; a reconnect with a matching `Last-Event-ID` resumes there, otherwise gets a
     `snapshot`.
   - A frame longer than 64 KB is replaced by `{"type":"amx_truncated","bytes":<n>,"head":"<first 2048 chars>"}`.

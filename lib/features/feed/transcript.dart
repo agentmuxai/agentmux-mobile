@@ -3,7 +3,8 @@ import 'dart:convert';
 /// The feed screen's document: an agent's transcript frames turned into
 /// what the screen shows (`SPEC_AGENT_STATUS_AND_LIVE_PANE_FEED_2026_10_07.md`
 /// 6.2). Claude-shaped streams (Claude Code, and Qwen Code, which writes the
-/// same frames) get prompts, text, tool calls and turn dividers; any other
+/// same frames) get prompts, text (growing as it streams), tool calls and
+/// turn dividers; any other
 /// provider is shown as the plain text of each frame. Kept in memory only.
 sealed class TranscriptItem {
   TranscriptItem(this.key);
@@ -25,6 +26,19 @@ class AssistantTextItem extends TranscriptItem {
 }
 
 enum ToolState { running, done, failed }
+
+/// The assistant's text while it streams, built from `stream_event` deltas.
+/// Replaced by an [AssistantTextItem] once the whole message arrives.
+class StreamingTextItem extends TranscriptItem {
+  StreamingTextItem(super.key, [this.text = '']);
+  String text;
+}
+
+/// The model is thinking (what it thinks is not shown). Gone once the
+/// thinking block's whole message arrives.
+class ThinkingItem extends TranscriptItem {
+  ThinkingItem(super.key);
+}
 
 /// One tool call, as one line, with its result once it arrives.
 class ToolCallItem extends TranscriptItem {
@@ -89,6 +103,13 @@ class Transcript {
   final Map<String, ToolCallItem> _tools = {};
   int _nextKey = 0;
 
+  /// Items built from `stream_event` deltas, by content block index within
+  /// the current message.
+  final Map<int, TranscriptItem> _liveBlocks = {};
+
+  /// Every live item still shown.
+  final Set<TranscriptItem> _live = Set.identity();
+
   List<TranscriptItem> get items => List.unmodifiable(_items);
   int get length => _items.length;
 
@@ -134,8 +155,14 @@ class Transcript {
     final parent = f['parent_tool_use_id'];
     if (parent is String && parent.isNotEmpty) return;
     switch (type) {
+      case 'stream_event':
+        _streamEvent(f['event']);
       case 'assistant':
         if (f['partial'] == true) return;
+        // The whole block: what streamed of it is replaced. Claude Code
+        // writes it before the block's `content_block_stop`, and the next
+        // block starts after that stop, so every live item is this block's.
+        _dropLive(_live);
         final message = f['message'];
         if (message is Map) _assistant(message['content']);
       case 'user':
@@ -149,6 +176,7 @@ class Transcript {
           _items.add(PromptItem(_nextKey++, m));
         }
       case 'result':
+        _dropLive(_live);
         final duration = f['duration_ms'];
         String? error;
         if (f['is_error'] == true) {
@@ -161,8 +189,64 @@ class Transcript {
           error: error,
         ));
     }
-    // `system` (init), `stream_event` (deltas of what an `assistant` frame
-    // then carries whole), rate limits and the rest show nothing.
+    // `system` (init), rate limits and the rest show nothing.
+  }
+
+  /// A raw API event inside a `stream_event` frame: reply text grows as it
+  /// streams, and thinking shows as one line, as on the desktop. The
+  /// `assistant` frame that follows each block replaces what streamed.
+  void _streamEvent(Object? event) {
+    if (event is! Map) return;
+    final index = event['index'];
+    switch (event['type']) {
+      case 'message_start':
+        // A new request: anything left streaming from the last one is stale.
+        _dropLive(_live);
+      case 'content_block_start':
+        if (index is! int) return;
+        final block = event['content_block'];
+        if (block is! Map) return;
+        switch (block['type']) {
+          case 'text':
+            final text = block['text'];
+            _addLive(index, StreamingTextItem(_nextKey++, text is String ? text : ''));
+          case 'thinking':
+            _addLive(index, ThinkingItem(_nextKey++));
+        }
+      case 'content_block_delta':
+        if (index is! int) return;
+        final delta = event['delta'];
+        if (delta is! Map) return;
+        switch (delta['type']) {
+          case 'text_delta':
+            final text = delta['text'];
+            if (text is! String) return;
+            final live = _liveBlocks[index];
+            if (live is StreamingTextItem) {
+              live.text += text;
+            } else if (live == null) {
+              // Its start came before what this device was sent.
+              _addLive(index, StreamingTextItem(_nextKey++, text));
+            }
+          case 'thinking_delta':
+            if (_liveBlocks[index] == null) _addLive(index, ThinkingItem(_nextKey++));
+        }
+    }
+  }
+
+  void _addLive(int index, TranscriptItem item) {
+    _liveBlocks[index] = item;
+    _live.add(item);
+    _items.add(item);
+  }
+
+  /// Takes [which] live items off the screen.
+  void _dropLive(Set<TranscriptItem> which) {
+    if (which.isEmpty) return;
+    final drop = Set<TranscriptItem>.identity()..addAll(which);
+    _items.removeWhere(drop.contains);
+    _live.removeAll(drop);
+    _liveBlocks.removeWhere((_, item) => drop.contains(item));
   }
 
   void _assistant(Object? content) {

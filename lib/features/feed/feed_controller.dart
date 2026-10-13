@@ -227,11 +227,17 @@ class FeedController extends ChangeNotifier {
           ..addFrames(event.lines);
         _gen = event.gen;
         _nextLine = event.nextLine;
-        _lastEventId = event.id ?? '${event.gen}:${event.nextLine}';
+        // No transcript yet: nothing to resume from.
+        _lastEventId = event.gen.isEmpty
+            ? null
+            : event.id ?? '${event.gen}:${event.nextLine}';
         _changed();
       case FeedAppend():
         final transcript = _transcript;
         final next = _nextLine;
+        // A transcript that did not exist at the snapshot: its first
+        // generation simply continues from line 0, as on the desktop.
+        if (_gen == '' && next == 0 && event.line == 0) _gen = event.gen;
         if (transcript == null ||
             next == null ||
             event.gen != _gen ||
