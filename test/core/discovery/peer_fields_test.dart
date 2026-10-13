@@ -221,4 +221,36 @@ void main() {
       expect(none.stateSince, isNull);
     });
   });
+
+
+  group('agent lines', () {
+    test('keeps a bounded line per named agent, keyed by lower-cased name', () {
+      final lines = parseAgentLines({
+        'AgentX': 'Fixing the login race',
+        'Camper': 'x' * 201,
+        'Lark': 'two\nlines',
+        'Opaz': '',
+        'Korp': 7,
+        '': 'no name',
+      });
+      expect(lines, {'agentx': 'Fixing the login race'});
+    });
+
+    test('counts characters, not UTF-16 units', () {
+      expect(parseAgentLine('😀' * 200), '😀' * 200);
+      expect(parseAgentLine('😀' * 201), isNull);
+    });
+
+    test('anything but a map is no lines', () {
+      expect(parseAgentLines('Fixing'), isEmpty);
+      expect(parseAgentLines(null), isEmpty);
+    });
+
+    test('lanAgentFrom carries the line', () {
+      final a = lanAgentFrom('AgentX',
+          line: 'Fixing the login race', receivedAt: DateTime(2026));
+      expect(a.line, 'Fixing the login race');
+      expect(lanAgentFrom('Old', receivedAt: DateTime(2026)).line, isNull);
+    });
+  });
 }

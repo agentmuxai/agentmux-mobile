@@ -91,6 +91,8 @@ class CloudInstance {
             : receivedLocal);
     final version = json['v'];
     final hasStates = version is int && version >= 2;
+    // v4 adds each agent's summary line (agentmux's install_presence.rs).
+    final hasLines = version is int && version >= 4;
     final rawAgents = json['agents'];
     final agents = <LanAgent>[];
     if (rawAgents is List) {
@@ -105,6 +107,7 @@ class CloudInstance {
           name: name,
           kind: parseAgentKind(a['kind']),
           state: state,
+          line: hasLines ? parseAgentLine(a['line']) : null,
           // No since time in the cloud: the chip says how old the record is.
           stateAsOf: state == null
               ? null

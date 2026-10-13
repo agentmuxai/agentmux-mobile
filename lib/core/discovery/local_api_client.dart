@@ -109,7 +109,8 @@ class LocalApiClient {
 
   /// Parses a `/agentmux/reactive/agent-names` body: `{"agents": ["name", ...]}`,
   /// plus `agent_kinds` (`{"name": "host" | "container"}`) and `agent_status`
-  /// with `now_ms` from a desktop that sends them. Bounded like the fleet
+  /// with `now_ms`, and `agent_lines` (`{"name": "line"}`), from a desktop
+  /// that sends them. Bounded like the fleet
   /// feed: a LAN peer is untrusted. [receivedAt] (default: now) anchors how
   /// long each agent has been in its state on this device's clock.
   @visibleForTesting
@@ -121,6 +122,7 @@ class LocalApiClient {
     final names = raw is List ? raw.whereType<String>() : const <String>[];
     final kinds = parseAgentKinds(data?['agent_kinds']);
     final status = parseAgentStatus(data?['agent_status']);
+    final lines = parseAgentLines(data?['agent_lines']);
     final nowMs = parseUnixMs(data?['now_ms']);
     final at = receivedAt ?? clock.now();
     return names
@@ -130,6 +132,7 @@ class LocalApiClient {
               n,
               kind: kinds[n.toLowerCase()],
               status: status[n.toLowerCase()],
+              line: lines[n.toLowerCase()],
               nowMs: nowMs,
               receivedAt: at,
             ))

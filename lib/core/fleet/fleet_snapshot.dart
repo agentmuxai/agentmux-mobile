@@ -24,6 +24,7 @@ class FleetSnapshot {
     this.channelsRunning,
     this.agentKinds = const {},
     this.agentStatus = const {},
+    this.agentLines = const {},
     this.nowMs,
     this.viewerPort,
   });
@@ -54,6 +55,10 @@ class FleetSnapshot {
 
   /// State per agent, keyed by lower-cased name; agents left out have none.
   final Map<String, ReportedAgentStatus> agentStatus;
+
+  /// Summary line per agent, keyed by lower-cased name; agents left out
+  /// have none (an older desktop, or sharing turned off).
+  final Map<String, String> agentLines;
 
   /// The desktop's clock when it made this snapshot, the only time a
   /// `since_ms` in [agentStatus] is compared with.
@@ -101,6 +106,7 @@ class FleetSnapshot {
         json['agent_status'],
         maxEntries: maxAgents,
       ),
+      agentLines: parseAgentLines(json['agent_lines'], maxEntries: maxAgents),
       nowMs: parseUnixMs(json['now_ms']),
       viewerPort: parsePort(json['viewer_port']),
     );

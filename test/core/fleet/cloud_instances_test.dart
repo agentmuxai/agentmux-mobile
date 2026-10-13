@@ -354,4 +354,29 @@ void main() {
       expect(none.agents.single.state, isNull);
     });
   });
+
+
+  group('CloudInstance.tryParse agent lines', () {
+    test('a v4 record carries each agent\'s line', () {
+      final c = CloudInstance.tryParse(_record({
+        'v': 4,
+        'agents': [
+          {'name': 'AgentX', 'kind': 'container', 'state': 'working', 'line': 'Fixing the login race'},
+          {'name': 'Camper', 'kind': 'host', 'line': 'two\nlines'},
+          {'name': 'Lark', 'kind': 'host'},
+        ],
+      }))!;
+      expect(c.agents.map((a) => a.line), ['Fixing the login race', null, null]);
+    });
+
+    test('a line in an older record is not read', () {
+      final c = CloudInstance.tryParse(_record({
+        'v': 2,
+        'agents': [
+          {'name': 'AgentX', 'kind': 'container', 'line': 'Fixing the login race'},
+        ],
+      }))!;
+      expect(c.agents.single.line, isNull);
+    });
+  });
 }

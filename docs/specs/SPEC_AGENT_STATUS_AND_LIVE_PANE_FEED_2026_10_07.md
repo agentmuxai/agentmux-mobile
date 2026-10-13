@@ -337,6 +337,13 @@ Taken on the recommendations, 2026-10-07:
   "since_ms": <unix ms> } }`. An agent with no known state is left out of the map.
 - Each agent in the account's install list may carry `state` (same values). The device reads it from
   `GET /wan-instances` entries; entries without it show no chip.
+- **Summary lines (2026-10-13, the owner's decision to show them on every tier, on by default).**
+  `GET /agentmux/fleet`, its events and `GET /agentmux/reactive/agent-names` add
+  `agent_lines: { "<name>": "<line>" }`, each agent's Swarm summary line: 1 to 200 characters, no
+  control characters. An agent with none is left out; the field is absent when the desktop's
+  `swarm:sharesummaries` setting is off. In the install list, a v4 record's agents may carry `line`
+  (same bounds; agentmux's `install_presence.rs`). The device shows the line under the agent's name
+  and reads none from an older record version. Self-reported text: shown, never acted on.
 
 ### 13.2 Viewer listener and pairing (phase 2)
 
