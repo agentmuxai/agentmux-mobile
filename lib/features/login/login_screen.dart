@@ -36,8 +36,9 @@ String? signInErrorText(Object error) {
 }
 
 /// The MuxBus sign-in page: "Connect with Google" first, "Continue with
-/// Apple" where the sign-in service offers it, then email, and "Not now". Reached from the discovery screen's "MuxBus Sign in" button and
-/// from Settings.
+/// Apple" where the sign-in service offers it, then email, and "Not now".
+/// Reached from the discovery screen's "MuxBus Sign in" button and from
+/// Settings.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
