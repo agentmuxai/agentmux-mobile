@@ -62,8 +62,10 @@ Markdown and a syntax-highlighting package.
   on the left in the user-input colour (#e07832 in the default theme), 3–4 px
   padding, no radius, text wrapped, links tappable. No timestamp (the
   desktop shows one on hover only).
-- **Theme.** Adopt the desktop's default dark tokens in
-  `lib/shared/theme/app_theme.dart` for the feed (they differ today): main
+- **Theme.** The feed uses the desktop's default dark tokens, kept in their
+  own file, `lib/features/feed/feed_theme.dart`, named after the CSS
+  variables they copy. The rest of the app keeps `app_theme.dart`, whose
+  colours differ. The tokens: main
   text #f7f7f7, secondary rgb(195,200,194), accent rgb(65,159,224), user
   input #e07832, success text #10b981, warning text #d97706, error text
   #ff8080, info rgb(155,108,224), borders 16 % white, panel background
@@ -101,8 +103,10 @@ Markdown and a syntax-highlighting package.
 - **Mermaid** fences: shown as code (rendering diagrams is out of scope).
 - **Streaming:** text grows from `stream_event` deltas (today's
   `StreamingTextItem`), re-rendered at most every 90 ms, as the desktop
-  throttles it. Closed blocks are parsed once and kept; only the open tail is
-  parsed again. The tail is not highlighted until its fence closes. No cursor.
+  throttles it. Each update parses the whole reply again, which is cheap at
+  reply sizes. A finished block is parsed once and kept while it's on
+  screen. A fence still open at the end is not highlighted until it closes.
+  No cursor.
 
 ### 4.1 Syntax highlighting
 

@@ -198,6 +198,25 @@ void main() {
       )));
       expect(find.textContaining('Image on the computer: toolbar-after.png'), findsOneWidget);
     });
+
+    testWidgets('an image name is decoded once', (tester) async {
+      await tester.pumpWidget(_host(const FeedMarkdown('![x](shots/100%25.png)')));
+      expect(tester.takeException(), isNull);
+      expect(find.textContaining('Image on the computer: 100%.png'), findsOneWidget);
+    });
+
+    testWidgets('an h2 keeps its inline code, bold and links', (tester) async {
+      await tester.pumpWidget(_host(const FeedMarkdown(
+        '## The `foo` flag is **on**, see [docs](https://example.com)',
+      )));
+      final spans = _spans(tester);
+      TextStyle styleOf(String t) => spans.firstWhere((s) => s.$1 == t).$2;
+      expect(styleOf('foo').fontFamily, feedMono);
+      expect(styleOf('foo').backgroundColor, isNotNull);
+      expect(styleOf('on').fontWeight, FontWeight.w700);
+      expect(styleOf('docs').color, FeedColors.link);
+      expect(styleOf('The ').fontSize, 21);
+    });
   });
 
   group('items', () {

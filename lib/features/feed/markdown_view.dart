@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
@@ -61,8 +62,8 @@ class FeedMarkdown extends StatelessWidget {
       inlineSyntaxes: [AmSpanSyntax()],
       builders: {
         'pre': _CodeBuilder(openTail),
-        'h1': _RuledHeadingBuilder(),
-        'h2': _RuledHeadingBuilder(),
+        'h1': _RuledHeadingBuilder(sheet),
+        'h2': _RuledHeadingBuilder(sheet),
         AmSpanSyntax.tag: _AmSpanBuilder(),
       },
       imageBuilder: (uri, title, alt) => _ImageCard(uri: uri, alt: alt),
@@ -353,6 +354,9 @@ class CopyButton extends StatelessWidget {
 
 /// h1 and h2 with the rule under them.
 class _RuledHeadingBuilder extends MarkdownElementBuilder {
+  _RuledHeadingBuilder(this.sheet);
+  final MarkdownStyleSheet sheet;
+
   @override
   bool isBlockElement() => true;
 
@@ -368,7 +372,94 @@ class _RuledHeadingBuilder extends MarkdownElementBuilder {
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: FeedColors.border)),
       ),
-      child: SelectableText(element.textContent, style: preferredStyle),
+      child: _InlineText(
+        nodes: element.children ?? const [],
+        style: preferredStyle ?? feedProse,
+        sheet: sheet,
+      ),
+    );
+  }
+}
+
+/// Inline Markdown (code, emphasis, links, semantic spans) as one selectable
+/// paragraph, for a block a builder draws itself.
+class _InlineText extends StatefulWidget {
+  const _InlineText({required this.nodes, required this.style, required this.sheet});
+  final List<md.Node> nodes;
+  final TextStyle style;
+  final MarkdownStyleSheet sheet;
+
+  @override
+  State<_InlineText> createState() => _InlineTextState();
+}
+
+class _InlineTextState extends State<_InlineText> {
+  final _recognizers = <TapGestureRecognizer>[];
+
+  @override
+  void dispose() {
+    _clear();
+    super.dispose();
+  }
+
+  void _clear() {
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    _recognizers.clear();
+  }
+
+  List<InlineSpan> _spans(List<md.Node> nodes, TextStyle style) => [
+        for (final n in nodes) ..._span(n, style),
+      ];
+
+  List<InlineSpan> _span(md.Node node, TextStyle style) {
+    if (node is md.Text) return [TextSpan(text: node.text, style: style)];
+    if (node is! md.Element) return const [];
+    final children = node.children ?? const <md.Node>[];
+    final sheet = widget.sheet;
+    switch (node.tag) {
+      case 'code':
+        return [
+          TextSpan(
+            text: node.textContent,
+            style: style.merge(sheet.code).copyWith(
+                  fontSize: (style.fontSize ?? 14) * 0.9,
+                  color: style.color,
+                ),
+          ),
+        ];
+      case 'strong':
+        return _spans(children, style.merge(sheet.strong));
+      case 'em':
+        return _spans(children, style.merge(sheet.em));
+      case 'del':
+        return _spans(children, style.merge(sheet.del));
+      case 'a':
+        final href = node.attributes['href'];
+        final r = TapGestureRecognizer()..onTap = () => unawaited(_openLink(href));
+        _recognizers.add(r);
+        return [
+          TextSpan(
+            text: node.textContent,
+            style: style.copyWith(color: FeedColors.link),
+            recognizer: r,
+          ),
+        ];
+      case AmSpanSyntax.tag:
+        final classes = (node.attributes['class'] ?? '').split(' ').toSet();
+        return [TextSpan(text: node.textContent, style: style.merge(amSpanStyle(classes)))];
+      default:
+        return _spans(children, style);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _clear();
+    return SelectableText.rich(
+      TextSpan(children: _spans(widget.nodes, widget.style)),
+      style: widget.style,
     );
   }
 }
@@ -545,7 +636,7 @@ class _ImageCardState extends State<_ImageCard> {
     final name = uri.pathSegments.isEmpty ? uri.toString() : uri.pathSegments.last;
     final label = web
         ? 'Image from ${uri.host}: tap to load'
-        : 'Image on the computer: ${Uri.decodeComponent(name)}';
+        : 'Image on the computer: $name';
     final card = _card(Icons.image_outlined, label);
     return web ? InkWell(onTap: () => setState(() => _load = true), child: card) : card;
   }
