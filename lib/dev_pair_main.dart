@@ -16,12 +16,24 @@ import 'core/viewer/pairing_service.dart';
 import 'core/viewer/scanned_code.dart';
 
 const _pairB64 = String.fromEnvironment('AGENTMUX_DEV_PAIR_B64');
-final _pairUrl = _pairB64.isEmpty ? '' : utf8.decode(base64Decode(_pairB64));
+
+/// The link, decoded; '' when none was given or it isn't valid base64 (said
+/// in the log, and the app still starts).
+String _pairUrl() {
+  if (_pairB64.isEmpty) return '';
+  try {
+    return utf8.decode(base64Decode(_pairB64));
+  } on FormatException {
+    debugPrint('dev-pair: bad base64');
+    return '';
+  }
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final container = ProviderContainer();
-  final code = _pairUrl.isEmpty ? null : parseScannedCode(_pairUrl);
+  final url = _pairUrl();
+  final code = url.isEmpty ? null : parseScannedCode(url);
   if (code is PairCode) {
     try {
       final host = await container.read(pairingServiceProvider).pair(code);
@@ -29,7 +41,7 @@ Future<void> main() async {
     } catch (e) {
       debugPrint('dev-pair: failed: $e');
     }
-  } else if (_pairUrl.isNotEmpty) {
+  } else if (url.isNotEmpty) {
     debugPrint('dev-pair: not a pairing link');
   }
   runApp(UncontrolledProviderScope(container: container, child: const AgentMuxApp()));
