@@ -4,8 +4,9 @@
 **Status:** §1.3's fixes are in progress: 1, 2, 4 and 5 in agentmux #4758;
 6, 7 and 8 in the agentmux-mobile PR that adds this report. Fix 3 is
 covered by fix 2 when the lines reach the shared transcript; an append whose
-lines never reach it stays unshown (logged at debug). §2's plan follows in
-later PRs.
+lines never reach it stays unshown (logged at debug). §2.5 phase A (the pane
+list) is agentmux #4761 and the agentmux-mobile "All panes" screen; phase B
+(terminals) follows.
 **Code read at:** agentmux `cf2bb56af` (main), agentmux-mobile `10f117d` (main).
 **Related:** `docs/specs/SPEC_AGENT_STATUS_AND_LIVE_PANE_FEED_2026_10_07.md`
 (the feed this report is about), `docs/specs/REMOTE_TERMINALS_AND_CONVERSATION_HISTORY.md`

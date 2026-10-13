@@ -460,7 +460,31 @@ void main() {
             builder: (_, state) =>
                 Text('cloud agent ${state.pathParameters['id']}'),
           ),
+          GoRoute(
+            path: '/viewer/:pairId/panes',
+            builder: (_, state) {
+              final extra = state.extra! as Map<String, dynamic>;
+              final pairing = extra['pairing'] as PairingMatch;
+              return Text('panes of ${extra['channel']} '
+                  'via ${pairing.host}:${pairing.port}');
+            },
+          ),
         ]);
+
+    testWidgets('a paired host offers all its panes', (tester) async {
+      await tester.pumpWidget(
+          MaterialApp.router(routerConfig: router(pairedHost())));
+      await tester.tap(find.text('All panes'));
+      await tester.pumpAndSettle();
+      expect(find.text('panes of stable via 198.51.100.30:29800'), findsOneWidget);
+    });
+
+    testWidgets('no panes row while unpaired or refused', (tester) async {
+      await tester.pumpWidget(_app(HostCard(host: buildHostTrees([_entry()]).single)));
+      expect(find.text('All panes'), findsNothing);
+      await tester.pumpWidget(_app(HostCard(host: pairedHost(invalid: true))));
+      expect(find.text('All panes'), findsNothing);
+    });
 
     testWidgets('a paired host says so', (tester) async {
       await tester.pumpWidget(_app(HostCard(host: pairedHost())));
