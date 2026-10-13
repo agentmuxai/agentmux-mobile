@@ -83,6 +83,41 @@ into a tool call. The README says so inline. The full explanation lives in the
 Shell") — cross-referenced here because an agent working only in this repo has
 no reason to read that file, and this cost real debugging time on 2026-09-08.
 
+### "No agents" in the emulator: start the discovery relay, don't pair
+
+**The app lists every AgentMux channel on the host, and each channel's agents,
+from LAN discovery alone. No pairing is needed for that.** Pairing (the viewer
+token) is only needed to *watch*: an agent's live feed, All panes, terminals.
+
+In the emulator, LAN discovery only works while `scripts/discovery_relay.dart`
+runs on the host (the emulator's NAT can't receive LAN broadcasts; see "Known
+coverage gaps"). Started with a plain `flutter run`, the app finds nothing on
+the network and shows only computers it is paired with. A paired dev instance
+with no agents then reads "No agents reported", which looks like the app can't
+see agents. On 2026-10-13 an agent concluded the emulator "needs to be paired
+with a build" to list agents; it doesn't. **Use `scripts/dev-full.sh`, which
+starts the relay, or run the relay yourself (with `Shell`, as above) before
+judging what the app shows.**
+
+### Pairing from the emulator (no camera for the QR code)
+
+The emulator can't scan the desktop's pairing QR code. `lib/dev_pair_main.dart`
+is a dev-only entrypoint (never the release target) that pairs with the
+`agentmux://pair?...` link given at build time, through the app's own
+`PairingService`, then starts the normal app:
+
+- **Get the link from the desktop you're testing**, never the operator's own
+  instance: in your isolated `task dev`, turn on LAN discovery and call
+  `ViewerPairStartCommand` (dev builds have CDP on; see the `agentmux` repo's
+  `run` skill). Codes are short-lived, so build first
+  (`flutter build apk --debug -t lib/dev_pair_main.dart`), then mint a code and
+  launch at once.
+- **Pass it base64-encoded**: `--dart-define=AGENTMUX_DEV_PAIR_B64=$(base64 -w0 link.txt)`.
+  On Windows `flutter` is a `.bat`, and `cmd` cuts a raw link at its first `&`;
+  the app then logs `dev-pair: not a pairing link`.
+- `adb logcat -s flutter:I | grep dev-pair` says whether it paired. The
+  debug app's package is `com.agentmux.agentmux_mobile`.
+
 ## Architecture
 
 Flutter mobile companion for the AgentMux desktop fleet. Connects via
