@@ -135,6 +135,87 @@ void main() {
     expect(t.items, isEmpty);
   });
 
+  group('streaming', () {
+    String event(Map<String, Object?> e, {String? parent}) => frame({
+          'type': 'stream_event',
+          'event': e,
+          if (parent != null) 'parent_tool_use_id': parent,
+        });
+    String start(int i, String type) => event({
+          'type': 'content_block_start',
+          'index': i,
+          'content_block': {'type': type, if (type == 'text') 'text': ''},
+        });
+    String textDelta(int i, String text) => event({
+          'type': 'content_block_delta',
+          'index': i,
+          'delta': {'type': 'text_delta', 'text': text},
+        });
+    String thinkingDelta(int i) => event({
+          'type': 'content_block_delta',
+          'index': i,
+          'delta': {'type': 'thinking_delta', 'thinking': 'hmm'},
+        });
+    String stop(int i) => event({'type': 'content_block_stop', 'index': i});
+    final messageStart = event({'type': 'message_start'});
+
+    test('reply text grows as it streams, then the whole block replaces it',
+        () {
+      final t = Transcript(provider: 'claude')
+        ..addFrames([userPrompt('hi'), messageStart, start(0, 'text')])
+        ..addFrames([textDelta(0, 'Hel')]);
+      expect((t.items.last as StreamingTextItem).text, 'Hel');
+      t.addFrames([textDelta(0, 'lo')]);
+      expect((t.items.last as StreamingTextItem).text, 'Hello');
+
+      // As Claude Code writes them: the whole block, then its stop.
+      t.addFrames([assistantText('Hello'), stop(0)]);
+      expect(t.items.map((i) => i.runtimeType), [PromptItem, AssistantTextItem]);
+      expect((t.items.last as AssistantTextItem).text, 'Hello');
+    });
+
+    test('thinking shows as one line until its block arrives', () {
+      final t = Transcript(provider: 'claude')
+        ..addFrames([messageStart, start(0, 'thinking'), thinkingDelta(0)]);
+      expect(t.items.single, isA<ThinkingItem>());
+      t.addFrames([
+        assistantThinking('hmm'),
+        stop(0),
+        start(1, 'text'),
+        textDelta(1, 'Done'),
+      ]);
+      expect(t.items.single, isA<StreamingTextItem>());
+      t.addFrames([assistantText('Done'), stop(1)]);
+      expect((t.items.single as AssistantTextItem).text, 'Done');
+    });
+
+    test('a delta whose start was not sent still shows', () {
+      final t = Transcript(provider: 'claude')..addFrames([textDelta(2, 'tail')]);
+      expect((t.items.single as StreamingTextItem).text, 'tail');
+    });
+
+    test('what is left streaming goes at the next request or the turn end', () {
+      final t = Transcript(provider: 'claude')
+        ..addFrames([messageStart, start(0, 'text'), textDelta(0, 'cut off')])
+        ..addFrames([messageStart]);
+      expect(t.items, isEmpty);
+      t.addFrames([start(0, 'text'), textDelta(0, 'again'), turnResult(10)]);
+      expect(t.items.single, isA<TurnDividerItem>());
+    });
+
+    test('a subagent\'s stream is not shown', () {
+      final t = Transcript(provider: 'claude')
+        ..addFrames([
+          event({
+            'type': 'content_block_delta',
+            'index': 0,
+            'delta': {'type': 'text_delta', 'text': 'sub'},
+          }, parent: 'toolu_task'),
+        ]);
+      expect(t.items, isEmpty);
+    });
+  });
+
   test('other providers: the plain text of each frame', () {
     final t = Transcript(provider: 'codex')
       ..addFrames([

@@ -75,6 +75,17 @@ void main() {
     );
   });
 
+  test('a state that has gone drops the chip', () {
+    expect(
+      feedStateChip(
+        agent: listed,
+        status: const FeedStatus(state: null),
+        statusReceivedAt: tapped,
+      ),
+      isNull,
+    );
+  });
+
   test('not live (reconnecting, paused): muted', () {
     expect(feedStateChip(agent: listed, live: false)!.live, isFalse);
     expect(
