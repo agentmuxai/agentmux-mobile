@@ -173,6 +173,36 @@ void main() {
       expect(find.text('feed ada (ada)'), findsOneWidget);
     });
 
+    FakeResponse listed() => FakeResponse(200, json: {
+          'now_ms': 1,
+          'panes': [
+            _json(_pane('a', PaneKind.agent, view: 'agent', label: 'Ada', agent: 'ada')),
+          ],
+        });
+
+    Future<void> refresh(WidgetTester tester) async {
+      await tester.fling(find.text('Ada'), const Offset(0, 400), 1000);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a refresh that fails keeps the list, and says so', (tester) async {
+      await pump(tester, FakeAdapter([listed(), const FakeResponse(500, json: {})]));
+      expect(find.text('Ada'), findsOneWidget);
+      await refresh(tester);
+      expect(find.text('Ada'), findsOneWidget);
+      expect(
+        find.text("Couldn't refresh: can't reach the computer. This is the list from before."),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a refresh the computer refuses drops the list', (tester) async {
+      await pump(tester, FakeAdapter([listed(), const FakeResponse(401, json: {})]));
+      await refresh(tester);
+      expect(find.text('Ada'), findsNothing);
+      expect(find.text('This device was unpaired on the computer'), findsOneWidget);
+    });
+
     testWidgets('a desktop without the route asks for an update', (tester) async {
       await pump(tester, FakeAdapter([const FakeResponse(404, json: {})]));
       expect(find.text('This computer can\'t list its panes'), findsOneWidget);

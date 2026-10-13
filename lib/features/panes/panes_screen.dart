@@ -156,7 +156,9 @@ class _PanesScreenState extends ConsumerState<PanesScreen> {
   Widget _body() {
     final panes = _panes;
     final failure = _failure;
-    if (failure != null && panes == null) {
+    // Unpaired: the list is gone with the pairing (its agents' feeds would
+    // be refused). Any other failure keeps a list already shown, with a note.
+    if (failure != null && (panes == null || failure == _Failure.unpaired)) {
       final (title, detail) = switch (failure) {
         _Failure.unpaired => (
             'This device was unpaired on the computer',
@@ -200,6 +202,17 @@ class _PanesScreenState extends ConsumerState<PanesScreen> {
         padding: const EdgeInsets.only(bottom: 24),
         children: [
           if (_loading) const LinearProgressIndicator(minHeight: 2),
+          if (failure != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Text(
+                failure == _Failure.tooOld
+                    ? "Couldn't refresh: this computer can't list its panes."
+                    : "Couldn't refresh: can't reach the computer. "
+                        'This is the list from before.',
+                style: const TextStyle(fontSize: 12, color: AppColors.warning),
+              ),
+            ),
           for (final (i, w) in windows.indexed) ...[
             if (windows.length > 1)
               _Header(
