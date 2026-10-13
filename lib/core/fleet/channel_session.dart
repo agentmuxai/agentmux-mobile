@@ -278,7 +278,8 @@ class ChannelSession {
       if (a[i].name != b[i].name ||
           a[i].channel != b[i].channel ||
           a[i].kind != b[i].kind ||
-          a[i].state != b[i].state) {
+          a[i].state != b[i].state ||
+          a[i].line != b[i].line) {
         return false;
       }
     }
@@ -296,6 +297,7 @@ class ChannelSession {
             n,
             kind: s.agentKinds[n.toLowerCase()],
             status: s.agentStatus[n.toLowerCase()],
+            line: s.agentLines[n.toLowerCase()],
             nowMs: s.nowMs,
             receivedAt: receivedAt,
           ),

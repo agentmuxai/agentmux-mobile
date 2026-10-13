@@ -123,4 +123,20 @@ void main() {
       );
     });
   });
+
+
+  group('FleetSnapshot.tryParse agent lines', () {
+    test('reads agent_lines, keyed by lower-cased name', () {
+      final s = FleetSnapshot.tryParse(_body({
+        'agent_lines': {'AgentX': 'Fixing the login race', 'Camper': 'two\nlines'},
+      }))!;
+      expect(s.agentLines, {'agentx': 'Fixing the login race'});
+    });
+
+    test('an older desktop, or sharing off, has no lines', () {
+      expect(FleetSnapshot.tryParse(_body())!.agentLines, isEmpty);
+      expect(FleetSnapshot.tryParse(_body({'agent_lines': 'x'}))!.agentLines,
+          isEmpty);
+    });
+  });
 }

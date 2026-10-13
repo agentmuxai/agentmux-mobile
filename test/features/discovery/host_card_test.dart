@@ -605,4 +605,44 @@ void main() {
       expect(unpaired?.id, 'p1');
     });
   });
+
+
+  group('summary lines', () {
+    testWidgets('an agent that shares a line shows it under its name',
+        (tester) async {
+      final host = buildHostTrees([
+        _entry(agents: const [
+          LanAgent(name: 'AgentX', line: 'Fixing the login race'),
+          LanAgent(name: 'Lark'),
+        ]),
+      ]).single;
+      await tester.pumpWidget(_app(HostCard(host: host)));
+      expect(find.text('Fixing the login race'), findsOneWidget);
+      final agentX =
+          find.ancestor(of: find.text('AgentX'), matching: find.byType(ListTile));
+      expect(
+        find.descendant(of: agentX, matching: find.byKey(const ValueKey('agent-line'))),
+        findsOneWidget,
+      );
+      final lark =
+          find.ancestor(of: find.text('Lark'), matching: find.byType(ListTile));
+      expect(
+        find.descendant(of: lark, matching: find.byKey(const ValueKey('agent-line'))),
+        findsNothing,
+      );
+    });
+
+    testWidgets('a long line fits a 320 dp wide device', (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final host = buildHostTrees([
+        _entry(agents: [
+          LanAgent(name: 'AgentX', kind: AgentKind.container, state: AgentState.working, line: 'word ' * 40),
+        ]),
+      ]).single;
+      await tester.pumpWidget(_app(HostCard(host: host)));
+      expect(tester.takeException(), isNull);
+    });
+  });
 }

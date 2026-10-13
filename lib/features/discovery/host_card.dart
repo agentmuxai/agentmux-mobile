@@ -442,13 +442,38 @@ class _AgentRow extends StatelessWidget {
           if (state != null) state,
         ],
       ),
-      subtitle: lastSeen != null
-          ? Text(
-              _formatLastSeen(lastSeen),
-              style: const TextStyle(fontSize: 11, color: Colors.white38),
-            )
-          : null,
+      subtitle: _subtitle(channel.presence == Presence.live),
       onTap: () => (onTap ?? openAgent)(context, channel, agent),
+    );
+  }
+
+  /// The agent's summary line, when its desktop shares one (dimmed while
+  /// the channel isn't live), then its last-seen time, when reported.
+  Widget? _subtitle(bool live) {
+    final line = agent.line;
+    final lastSeen = agent.lastSeen;
+    final seen = lastSeen == null
+        ? null
+        : Text(
+            _formatLastSeen(lastSeen),
+            style: const TextStyle(fontSize: 11, color: Colors.white38),
+          );
+    if (line == null) return seen;
+    final summary = Text(
+      line,
+      key: const ValueKey('agent-line'),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 12,
+        fontStyle: FontStyle.italic,
+        color: live ? Colors.white60 : Colors.white38,
+      ),
+    );
+    if (seen == null) return summary;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [summary, seen],
     );
   }
 

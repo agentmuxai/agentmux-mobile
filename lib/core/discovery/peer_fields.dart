@@ -124,17 +124,46 @@ StateSince? stateSinceFrom({
   );
 }
 
-/// An agent of a LAN answer, with its kind and its reported status applied.
+/// Longest summary line kept, in characters, as the desktop bounds it.
+const maxAgentLineChars = 200;
+
+/// A summary line as a peer sent it, or null when it is not one: a string of
+/// 1 to [maxAgentLineChars] characters with no control character.
+String? parseAgentLine(Object? value) {
+  if (value is! String || value.isEmpty || hasControlChar(value)) return null;
+  return value.runes.length <= maxAgentLineChars ? value : null;
+}
+
+/// `agent_lines` (`{"name": "line"}`), keyed by lower-cased name. An entry
+/// whose name or line is out of bounds is skipped; at most [maxEntries].
+Map<String, String> parseAgentLines(Object? value, {int maxEntries = 500}) {
+  if (value is! Map) return const {};
+  final lines = <String, String>{};
+  for (final e in value.entries.take(maxEntries)) {
+    final name = e.key;
+    final line = parseAgentLine(e.value);
+    if (name is! String || name.isEmpty || name.length > 128 || line == null) {
+      continue;
+    }
+    lines[name.toLowerCase()] = line;
+  }
+  return lines;
+}
+
+/// An agent of a LAN answer, with its kind, its reported status and its
+/// summary line applied.
 LanAgent lanAgentFrom(
   String name, {
   AgentKind? kind,
   ReportedAgentStatus? status,
+  String? line,
   int? nowMs,
   required DateTime receivedAt,
 }) =>
     LanAgent(
       name: name,
       kind: kind,
+      line: line,
       state: status?.state,
       stateSince: status == null
           ? null

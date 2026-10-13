@@ -98,6 +98,11 @@ class LanAgent with _$LanAgent {
     /// For a state read from the cloud list: when the relay received that
     /// record (the relay's clock), so the chip can say how old it is.
     @JsonKey(includeFromJson: false, includeToJson: false) DateTime? stateAsOf,
+
+    /// The agent's one-line summary of what it is working on, as its
+    /// desktop shares it (`agent_lines` on the LAN, `line` in a v4 cloud
+    /// record). Null when not shared. Self-reported text: shown, never acted on.
+    @JsonKey(includeFromJson: false, includeToJson: false) String? line,
   }) = _LanAgent;
 
   factory LanAgent.fromJson(Map<String, dynamic> json) =>
