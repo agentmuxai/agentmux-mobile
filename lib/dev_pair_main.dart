@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
 import 'core/viewer/pairing_service.dart';
 import 'core/viewer/scanned_code.dart';
+import 'dev_frame_stats.dart';
 
 const _pairB64 = String.fromEnvironment('AGENTMUX_DEV_PAIR_B64');
 
@@ -31,6 +32,7 @@ String _pairUrl() {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  startFrameStats();
   final container = ProviderContainer();
   final url = _pairUrl();
   final code = url.isEmpty ? null : parseScannedCode(url);
