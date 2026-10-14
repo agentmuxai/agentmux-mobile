@@ -18,8 +18,10 @@ class SseEvent {
 /// proof the connection is alive, so heartbeats need no event of their own.
 class SseParser {
   /// A line longer than this without a terminator is not a sane event stream;
-  /// refusing it bounds memory against a misbehaving or hostile peer.
-  static const maxLineLength = 1 << 20;
+  /// refusing it bounds memory against a misbehaving or hostile peer. A
+  /// computer sends up to 1 MB of transcript or terminal output in one event,
+  /// and escaping (JSON, base64) makes it up to about twice that on the wire.
+  static const maxLineLength = 4 << 20;
 
   final _buffer = StringBuffer();
   String _event = '';

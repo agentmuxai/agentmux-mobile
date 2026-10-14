@@ -159,6 +159,11 @@ class TerminalFeedController extends ChangeNotifier {
         end = TerminalConnection.notFound;
       } on ViewerForbidden {
         end = TerminalConnection.notShared;
+      } on FormatException {
+        // An event the parser refuses (one line past its size limit).
+        // Resuming from the same place would be sent the same event again,
+        // for ever: start over from a snapshot instead.
+        _next = null;
       } catch (_) {
         // Any other failure is a lost connection: back off and retry.
       }

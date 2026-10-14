@@ -135,6 +135,23 @@ void main() {
     });
   });
 
+  test('an event the parser refuses restarts from a snapshot, not the same place', () {
+    fakeAsync((async) {
+      final c = controller()..start();
+      async.flushMicrotasks();
+      feed.last.add(_snapshot('one\r\n'));
+      async.flushMicrotasks();
+
+      feed.last.addError(const FormatException('event-stream line exceeds the size limit'));
+      async.flushMicrotasks();
+      expect(c.connection, TerminalConnection.reconnecting);
+      async.elapse(const Duration(seconds: 2));
+      // Resuming at byte 5 would be sent the same oversize event again.
+      expect(feed.connects, [null, null]);
+      c.dispose();
+    });
+  });
+
   test('not shared, on connect or while watching, ends the feed', () {
     fakeAsync((async) {
       feed.refuseWith = const ViewerForbidden();

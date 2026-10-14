@@ -181,6 +181,11 @@ class FeedController extends ChangeNotifier {
         _run++;
         _set(FeedConnection.notFound);
         return;
+      } on FormatException {
+        // An event the parser refuses (one line past its size limit).
+        // Resuming from the same place would be sent the same event again,
+        // for ever: start over from a snapshot instead.
+        _forgetPlace();
       } catch (_) {
         // Any other failure is a lost connection: back off and retry.
       }
@@ -271,12 +276,18 @@ class FeedController extends ChangeNotifier {
     _lastEventId = null;
   }
 
-  /// Drops the resume point and ends the stream; the loop reconnects and
-  /// gets a fresh snapshot.
-  void _resync(Completer<void> done) {
+  /// Drops the resume point, so the next connection gets a fresh snapshot.
+  /// What is shown stays until then.
+  void _forgetPlace() {
     _lastEventId = null;
     _gen = null;
     _nextLine = null;
+  }
+
+  /// Drops the resume point and ends the stream; the loop reconnects and
+  /// gets a fresh snapshot.
+  void _resync(Completer<void> done) {
+    _forgetPlace();
     unawaited(_sub?.cancel());
     _sub = null;
     if (!done.isCompleted) done.complete();
