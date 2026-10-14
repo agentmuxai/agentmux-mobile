@@ -63,9 +63,13 @@ No section headings: each row's icon and second line say what it is. The
 whether or not they are open on the desktop, and each has a one-line summary
 on the right.
 
-**A channel that isn't paired** lists its agents only (LAN discovery gives
-nothing else), then one muted line: "Pair to see Swarm, Sysinfo, Tower and
-terminals".
+**A channel that isn't paired** lists its agents and Swarm (both from LAN
+discovery), then one muted line: "Pair to see Sysinfo, Tower and terminals".
+A refused pairing has no such line: its channel row already says "Pair
+again".
+
+**The demo** (`/demo`, which makes no network call) shows the agents only:
+Swarm, Sysinfo and Tower read the computer live.
 
 ## 2. What exists, and what's missing
 

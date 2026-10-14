@@ -14,6 +14,8 @@ import 'package:agentmux_mobile/core/viewer/viewer_client.dart';
 import 'package:agentmux_mobile/core/viewer/paired_match.dart';
 import 'package:agentmux_mobile/features/discovery/channel_terminals.dart';
 import 'package:agentmux_mobile/features/discovery/host_card.dart';
+import 'package:agentmux_mobile/features/sysinfo/sysinfo_summary.dart';
+import 'package:agentmux_mobile/core/viewer/sysinfo_events.dart';
 import 'package:agentmux_mobile/shared/widgets/agent_state_chip.dart';
 import 'package:agentmux_mobile/shared/widgets/tag_chip.dart';
 
@@ -57,11 +59,14 @@ Widget _app(Widget child) => MaterialApp(
 
 /// Pumps [w] in a ProviderScope, with a paired channel's terminals as
 /// [panes] (none, by default).
-Future<void> _pump(WidgetTester tester, Widget w, {ChannelPanes? panes}) =>
+Future<void> _pump(WidgetTester tester, Widget w, {ChannelPanes? panes, SysinfoSummary? sysinfo}) =>
     tester.pumpWidget(ProviderScope(
       overrides: [
         channelPanesProvider.overrideWith(
           (ref, key) async => panes ?? const PanesListed([], shared: true),
+        ),
+        channelSysinfoProvider.overrideWith(
+          (ref, key) async => sysinfo ?? const SysinfoNow(null),
         ),
       ],
       child: w,
@@ -562,11 +567,57 @@ void main() {
       );
       expect(find.text('Camper'), findsOneWidget);
       expect(find.text('Swarm'), findsNothing);
+      expect(find.textContaining('Pair to see'), findsNothing);
     });
 
-    testWidgets('no Swarm without agents', (tester) async {
+    testWidgets('a paired computer has Sysinfo with its CPU and RAM, after Swarm',
+        (tester) async {
+      final host = pairedHost();
+      final r = GoRouter(routes: [
+        ...router(host).configuration.routes,
+        GoRoute(
+          path: '/viewer/:pairId/sysinfo',
+          builder: (_, state) => Text('sysinfo ${state.pathParameters['pairId']}'),
+        ),
+      ]);
+      await _pump(
+        tester,
+        MaterialApp.router(routerConfig: r),
+        panes: PanesListed([_terminal('b1', 'cargo build', 'Tab 2')], shared: true),
+        sysinfo: const SysinfoNow(SysinfoSample(ts: 1, values: {'cpu': 23.4, 'mem:used': 9.8, 'mem:total': 16})),
+      );
+      await tester.pumpAndSettle();
+      final ys = [
+        for (final t in ['Swarm', 'Sysinfo', 'cargo build']) tester.getCenter(find.text(t)).dy,
+      ];
+      expect(ys, orderedEquals([...ys]..sort()));
+      expect(find.text('CPU 23% · RAM 61%'), findsOneWidget);
+      await tester.tap(find.text('Sysinfo'));
+      await tester.pumpAndSettle();
+      expect(find.text('sysinfo p1'), findsOneWidget);
+    });
+
+    testWidgets('an unpaired channel says pairing shows the rest', (tester) async {
+      await _pump(tester, _app(HostCard(host: buildHostTrees([_entry()]).single)));
+      expect(find.text('Swarm'), findsOneWidget);
+      expect(find.text('Sysinfo'), findsNothing);
+      expect(find.text('Pair to see Sysinfo, Tower and terminals'), findsOneWidget);
+      // A refused pairing says "Pair again" instead.
+      await _pump(tester, _app(HostCard(host: pairedHost(invalid: true))));
+      expect(find.text('Pair to see Sysinfo, Tower and terminals'), findsNothing);
+    });
+
+    testWidgets('no Swarm without agents; the views of the computer stay', (tester) async {
       await _pump(tester, _app(HostCard(host: buildHostTrees([_entry(agents: const [])]).single)));
       expect(find.text('Swarm'), findsNothing);
+      expect(find.text('Pair to see Sysinfo, Tower and terminals'), findsOneWidget);
+      final paired = applyPairings(
+        buildHostTrees([_entry(hostname: 'host-a', channel: 'stable', installId: testInstallId, agents: const [])]),
+        [testPairedHost()],
+      ).single;
+      await _pump(tester, _app(HostCard(host: paired)));
+      await tester.pumpAndSettle();
+      expect(find.text('Sysinfo'), findsOneWidget);
     });
 
     testWidgets('terminals not shared: one line says how to', (tester) async {

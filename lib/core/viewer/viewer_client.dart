@@ -8,6 +8,7 @@ import '../discovery/peer_fields.dart';
 import '../fleet/sse.dart';
 import 'feed_events.dart';
 import 'pinned_tls.dart';
+import 'sysinfo_events.dart';
 import 'terminal_events.dart';
 
 /// The desktop refused the viewer token (`401`): it was revoked on the
@@ -305,6 +306,22 @@ class ViewerClient {
         '/agentmux/viewer/terminals/${Uri.encodeComponent(blockId)}/feed',
         lastEventId,
         parseTerminalEvent,
+      );
+
+  /// The computer's latest CPU and memory sample; null before its first.
+  /// Throws [ViewerNotFound] on a desktop too old to have the route.
+  Future<SysinfoSample?> sysinfo() async {
+    final data = await _get('/agentmux/viewer/sysinfo');
+    return SysinfoSample.fromJson(data);
+  }
+
+  /// The computer's samples as they're taken: first those it kept after
+  /// [since] (ms; all it kept when null), then each new one. Emits `null`
+  /// for every chunk too (heartbeats), as [feed] does.
+  Stream<SysinfoSample?> sysinfoFeed({int? since}) => _events(
+        since == null ? '/agentmux/viewer/sysinfo/feed' : '/agentmux/viewer/sysinfo/feed?since=$since',
+        null,
+        parseSysinfoEvent,
       );
 
   /// An event stream at [path], each event parsed by [parse] (null: skipped).

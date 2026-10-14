@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/discovery/host_tree.dart';
@@ -11,6 +12,7 @@ import '../../core/fleet/cloud_instance_source.dart';
 import '../../core/fleet/fleet_store.dart';
 import '../../core/viewer/paired_host.dart';
 import '../swarm/swarm_screen.dart';
+import '../sysinfo/sysinfo_summary.dart';
 import 'channel_terminals.dart';
 import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/agent_state_chip.dart';
@@ -371,6 +373,8 @@ List<Widget> _agentRows(
           style: const TextStyle(color: Colors.white38, fontSize: 13),
         ),
       ),
+      // The computer's own views don't depend on its agents.
+      ..._computerRows(channel, indent: indent, live: onAgentTap == null),
       if (terminals != null) terminals,
     ];
   }
@@ -386,8 +390,54 @@ List<Widget> _agentRows(
     // The views of the computer read it live, so a card whose taps are
     // overridden (the demo, which makes no network call) has none.
     if (onAgentTap == null) _SwarmRow(hostKey: hostKey, channel: channel, indent: indent),
+    ..._computerRows(channel, indent: indent, live: onAgentTap == null),
     if (terminals != null) terminals,
   ];
+}
+
+/// Sysinfo (and, next, Tower) for a computer this device has paired with,
+/// read through its viewer listener; for one it hasn't, one line saying
+/// pairing shows them. None where [live] is false (the demo).
+List<Widget> _computerRows(ChannelNode channel, {required double indent, required bool live}) {
+  if (!live || channel.cloudOnly) return const [];
+  final pairing = watchablePairing(channel);
+  if (pairing != null) {
+    return [ChannelSysinfoRow(key: const ValueKey('sysinfo'), pairing: pairing, indent: indent)];
+  }
+  // A refused pairing already says "Pair again" on the channel row.
+  if (channel.pairing != null) return const [];
+  return [
+    Padding(
+      key: const ValueKey('pair-to-see'),
+      padding: EdgeInsets.fromLTRB(indent, 2, 16, 10),
+      child: const Text(
+        'Pair to see Sysinfo, Tower and terminals',
+        style: TextStyle(fontSize: 12, color: Colors.white38),
+      ),
+    ),
+  ];
+}
+
+/// Sysinfo: the computer's CPU and memory, its latest sample as the summary.
+class ChannelSysinfoRow extends ConsumerWidget {
+  const ChannelSysinfoRow({super.key, required this.pairing, required this.indent});
+  final PairingMatch pairing;
+  final double indent;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final summary = ref.watch(channelSysinfoProvider(panesKeyOf(pairing))).valueOrNull;
+    return InstanceRow(
+      icon: Icons.monitor_heart_outlined,
+      title: 'Sysinfo',
+      summary: sysinfoSummaryText(summary),
+      indent: indent,
+      onTap: () => context.push(
+        '/viewer/${Uri.encodeComponent(pairing.paired.id)}/sysinfo',
+        extra: {'pairing': pairing},
+      ),
+    );
+  }
 }
 
 /// Swarm: the channel's agents on one screen. Shown while it has any.
