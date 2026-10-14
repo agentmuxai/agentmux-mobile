@@ -554,6 +554,16 @@ void main() {
       expect(find.text('swarm ${host.key} stable'), findsOneWidget);
     });
 
+    testWidgets('no Swarm where taps are overridden (the demo makes no network call)',
+        (tester) async {
+      await _pump(
+        tester,
+        _app(HostCard(host: buildHostTrees([_entry()]).single, onAgentTap: (_, __, ___) {})),
+      );
+      expect(find.text('Camper'), findsOneWidget);
+      expect(find.text('Swarm'), findsNothing);
+    });
+
     testWidgets('no Swarm without agents', (tester) async {
       await _pump(tester, _app(HostCard(host: buildHostTrees([_entry(agents: const [])]).single)));
       expect(find.text('Swarm'), findsNothing);

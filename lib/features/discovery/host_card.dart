@@ -383,7 +383,9 @@ List<Widget> _agentRows(
         indent: indent,
         onTap: onAgentTap,
       ),
-    _SwarmRow(hostKey: hostKey, channel: channel, indent: indent),
+    // The views of the computer read it live, so a card whose taps are
+    // overridden (the demo, which makes no network call) has none.
+    if (onAgentTap == null) _SwarmRow(hostKey: hostKey, channel: channel, indent: indent),
     if (terminals != null) terminals,
   ];
 }
