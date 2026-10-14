@@ -46,8 +46,6 @@ class WorkingRow extends StatefulWidget {
 bool workingRowLive(TurnInfo turn, AgentState? state) =>
     turn.open && (state == null || state == AgentState.working || state == AgentState.waiting);
 
-
-
 class _WorkingRowState extends State<WorkingRow> {
   Timer? _timer;
   int _frame = 0;

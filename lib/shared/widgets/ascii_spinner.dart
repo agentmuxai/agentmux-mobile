@@ -69,9 +69,13 @@ class _AsciiSpinnerState extends State<AsciiSpinner> {
   @override
   Widget build(BuildContext context) => SizedBox(
         width: widget.size,
-        child: Text(
-          widget.animate ? spinnerFrames[_frame % spinnerFrames.length] : spinnerStill,
-          style: TextStyle(color: widget.color, fontSize: widget.size, height: 1),
+        // A glyph that changes 8 times a second is not for a screen reader to
+        // read out: the chip's label already says the agent is working.
+        child: ExcludeSemantics(
+          child: Text(
+            widget.animate ? spinnerFrames[_frame % spinnerFrames.length] : spinnerStill,
+            style: TextStyle(color: widget.color, fontSize: widget.size, height: 1),
+          ),
         ),
       );
 }
