@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:agentmux_mobile/core/viewer/device_key_store.dart';
 import 'package:agentmux_mobile/core/viewer/paired_host.dart';
 import 'package:agentmux_mobile/core/viewer/secure_store.dart';
 import 'package:dio/dio.dart';
@@ -104,4 +105,33 @@ class FakeAdapter implements HttpClientAdapter {
 
   @override
   void close({bool force = false}) {}
+}
+
+/// A key store that keeps what it is asked to make in memory. Its "public
+/// key" is 65 made-up bytes and its "signature" is the text it was asked to
+/// sign, so a test can see what was signed.
+class FakeDeviceKeyStore implements DeviceKeyStore {
+  final keys = <String, Uint8List>{};
+  final deleted = <String>[];
+  var failCreate = false;
+
+  @override
+  Future<Uint8List> create(String alias) async {
+    if (failCreate) throw const DeviceKeyException('no key store');
+    final key = Uint8List.fromList([0x04, ...List.filled(64, keys.length + 1)]);
+    keys[alias] = key;
+    return key;
+  }
+
+  @override
+  Future<Uint8List> sign(String alias, Uint8List data) async {
+    if (!keys.containsKey(alias)) throw const DeviceKeyException('no such key');
+    return data;
+  }
+
+  @override
+  Future<void> delete(String alias) async {
+    keys.remove(alias);
+    deleted.add(alias);
+  }
 }

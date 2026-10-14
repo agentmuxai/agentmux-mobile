@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:agentmux_mobile/core/viewer/paired_host.dart';
 import 'package:agentmux_mobile/core/viewer/pairing_service.dart';
 import 'package:agentmux_mobile/core/viewer/scanned_code.dart';
@@ -19,6 +21,7 @@ void main() {
   late FakeAdapter adapter;
   late List<PairedHost> stored;
   late List<String?> pins;
+  late FakeDeviceKeyStore keys;
 
   PairingService service() => PairingService(
         clientFor: ({required host, required port, required fingerprint, token}) {
@@ -32,11 +35,13 @@ void main() {
           );
         },
         store: (h) async => stored.add(h),
+        keys: keys,
       );
 
   setUp(() {
     stored = [];
     pins = [];
+    keys = FakeDeviceKeyStore();
   });
 
   test('200: the grant is stored with the pinned fingerprint', () async {
@@ -63,10 +68,42 @@ void main() {
     expect(host.invalid, isFalse);
     // The connection was pinned to the QR code's fingerprint.
     expect(pins, [testFingerprint]);
-    // No device key until phase 5.
+    // The public half of the key made for this pairing went with the code.
     final body = adapter.bodies.single as Map;
-    expect(body.containsKey('device_key'), isFalse);
+    expect(keys.keys.keys, ['amxv-${host.id}']);
+    expect(body['device_key'], base64.encode(keys.keys['amxv-${host.id}']!));
     expect(body['device_name'], 'test device');
+  });
+
+  test('no key store: pairs without a key, for watching', () async {
+    adapter = FakeAdapter([const FakeResponse(200, json: {'token': 'amxv_dGVzdA', 'device_id': 'dev-9'})]);
+    keys.failCreate = true;
+    final host = await service().pair(_code);
+    expect(stored.single, same(host));
+    expect((adapter.bodies.single as Map).containsKey('device_key'), isFalse);
+  });
+
+  test('a computer that takes only a 32-byte key: the same code again without one', () async {
+    adapter = FakeAdapter([
+      const FakeResponse(400, json: {'error': 'device_key must be standard base64 of a 32-byte public key'}),
+      const FakeResponse(200, json: {'token': 'amxv_dGVzdA', 'device_id': 'dev-9'}),
+    ]);
+    final host = await service().pair(_code);
+    expect(adapter.bodies, hasLength(2));
+    expect((adapter.bodies[0] as Map).containsKey('device_key'), isTrue);
+    expect((adapter.bodies[1] as Map).containsKey('device_key'), isFalse);
+    expect((adapter.bodies[1] as Map)['code'], 'ABCDEFGH23', reason: 'the same code');
+    expect(stored.single, same(host));
+    expect(keys.keys, isEmpty, reason: 'the key is not kept');
+    expect(keys.deleted, ['amxv-${host.id}']);
+  });
+
+  test('a pairing that fails leaves no key behind', () async {
+    adapter = FakeAdapter([const FakeResponse(401, json: {})]);
+    await expectLater(service().pair(_code), throwsA(isA<PairingException>()));
+    expect(keys.keys, isEmpty);
+    expect(keys.deleted, hasLength(1));
+    expect(stored, isEmpty);
   });
 
   test('401: nothing is stored', () async {

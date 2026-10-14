@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
+import 'package:clock/clock.dart';
 import 'package:dio/dio.dart';
 
 import '../discovery/models/lan_instance.dart';
@@ -8,6 +10,7 @@ import '../discovery/peer_fields.dart';
 import '../fleet/sse.dart';
 import 'feed_events.dart';
 import 'pinned_tls.dart';
+import 'send_signature.dart';
 import 'sysinfo_events.dart';
 import 'terminal_events.dart';
 import 'tower_snapshot.dart';
@@ -51,6 +54,10 @@ enum PairingFailure {
 
   /// No answer, or one that is not a pairing response.
   unreachable,
+
+  /// `400` about `device_key`: an older computer that takes only a 32-byte
+  /// key. Pairing again without one still works, for watching.
+  deviceKeyRefused,
 }
 
 class PairingException implements Exception {
@@ -69,6 +76,8 @@ class PairingException implements Exception {
         PairingFailure.unreachable =>
           'Could not reach the computer. Check that this device is on the same '
               'network, then try again.',
+        PairingFailure.deviceKeyRefused =>
+          "The computer did not accept this device's key.",
       };
 
   @override
@@ -93,6 +102,21 @@ class PairResult {
   final String? installId;
 }
 
+/// Whether a computer takes messages from this device (`hello.send`).
+enum SendGrant {
+  /// Sending is on for this device and it has a key on file.
+  allowed,
+
+  /// The computer's owner has not turned sending on for this device.
+  off,
+
+  /// The computer has no key for this device: pair again.
+  pairAgain,
+
+  /// No `send` in the answer: an AgentMux from before sending existed.
+  tooOld,
+}
+
 /// `GET /agentmux/viewer/hello`.
 class ViewerHello {
   const ViewerHello({
@@ -101,12 +125,14 @@ class ViewerHello {
     this.channel,
     this.version,
     this.installId,
+    this.send = SendGrant.tooOld,
   });
   final String hostname;
   final String deviceId;
   final String? channel;
   final String? version;
   final String? installId;
+  final SendGrant send;
 }
 
 /// One entry of `GET /agentmux/viewer/agents`.
@@ -182,6 +208,92 @@ class ViewerPanes {
   final bool terminalsShared;
 }
 
+/// What `POST /agentmux/viewer/agents/:name/input` answered
+/// (`SPEC_SEND_FROM_THE_PHONE_2026_10_13.md` 5.2.1). Anything not here
+/// (`401`, no answer) is thrown: [ViewerUnauthorized] or the network error.
+sealed class SendResult {
+  const SendResult();
+}
+
+/// `202`: the computer took the message.
+class SendAccepted extends SendResult {
+  const SendAccepted({
+    required this.messageId,
+    this.queued = false,
+    this.duplicate = false,
+  });
+  final String messageId;
+
+  /// The agent is busy and reads it at its next step.
+  final bool queued;
+
+  /// A retry of a message the computer already took; nothing was sent twice.
+  final bool duplicate;
+}
+
+/// Why a send was refused.
+enum SendRefusal {
+  /// `400`: not a message the computer understands. Do not retry.
+  badRequest,
+
+  /// `403 send_off`: the owner has not turned sending on for this device.
+  sendOff,
+
+  /// `403 pair_again`: the computer has no key for this device.
+  pairAgain,
+
+  /// `403 bad_signature`.
+  badSignature,
+
+  /// `403 stale_timestamp`: this device's clock is more than a minute off.
+  staleTimestamp,
+
+  /// `404`: no such agent in this channel, or one hidden from this device.
+  noSuchAgent,
+
+  /// `409 not_running`: nothing runs the agent.
+  notRunning,
+
+  /// `409 starting`.
+  starting,
+
+  /// `409 needs_login`.
+  needsLogin,
+
+  /// `409 in_flight`: this `message_id` is being sent right now; retry in a
+  /// moment.
+  inFlight,
+
+  /// `409 not_supported`: the agent runs in a terminal pane.
+  notSupported,
+
+  /// `409 failed`: the computer could not deliver it; its `error` says why.
+  failed,
+
+  /// `413`: over 10,000 bytes (or the body over 64 KB).
+  tooLong,
+
+  /// `429`: over 30 a minute.
+  rateLimited,
+
+  /// Any other status or reason.
+  other,
+}
+
+/// A refusal, with what the computer said.
+class SendRefused extends SendResult {
+  const SendRefused(this.kind, {required this.status, this.error, this.retryAfter});
+  final SendRefusal kind;
+  final int status;
+
+  /// The computer's own words (`error`), for the cases that have no text of
+  /// their own here. Not meant to be trusted as markup.
+  final String? error;
+
+  /// For `429`: how long to wait.
+  final Duration? retryAfter;
+}
+
 /// A token is sent in a header, so only header-safe characters are kept.
 final _tokenPattern = RegExp(r'^[A-Za-z0-9._~+/=-]{1,512}$');
 
@@ -218,6 +330,7 @@ class ViewerClient {
   Future<PairResult> pair({
     required String code,
     required String deviceName,
+    String? deviceKey,
   }) async {
     final Response<Object?> res;
     try {
@@ -226,6 +339,7 @@ class ViewerClient {
         data: {
           'code': code,
           'device_name': deviceName,
+          if (deviceKey != null) 'device_key': deviceKey,
         },
       );
     } on DioException catch (e) {
@@ -235,6 +349,8 @@ class ViewerClient {
       throw PairingException(switch (e.response?.statusCode) {
         401 => PairingFailure.codeRejected,
         429 => PairingFailure.rateLimited,
+        400 when deviceKey != null && _mentionsDeviceKey(e.response?.data) =>
+          PairingFailure.deviceKeyRefused,
         _ => PairingFailure.unreachable,
       });
     }
@@ -244,6 +360,84 @@ class ViewerClient {
     }
     return result;
   }
+
+  static bool _mentionsDeviceKey(Object? body) =>
+      body is Map && body['error'] is String && (body['error'] as String).contains('device_key');
+
+  /// `POST /agentmux/viewer/agents/:name/input`: sends [message] to [agent],
+  /// signed by [sign] (this device's key over the five lines of
+  /// [signedString]). [messageId] is made once per message and reused for
+  /// every retry, so one whose answer was lost is not delivered twice.
+  /// Throws [ViewerUnauthorized] on a 401, the network error when there is no
+  /// answer; every other answer is a [SendResult].
+  Future<SendResult> sendInput(
+    String agent, {
+    required String message,
+    required String messageId,
+    required Future<Uint8List> Function(Uint8List signedString) sign,
+  }) async {
+    final path = '/agentmux/viewer/agents/${Uri.encodeComponent(agent)}/input';
+    // Hashed and sent as these exact bytes: a string body goes out as is.
+    final body = jsonEncode({'message': message, 'message_id': messageId});
+    final timestamp = clock.now().millisecondsSinceEpoch;
+    final signature = await sign(signedString(
+      method: 'POST',
+      path: path,
+      timestampMs: timestamp,
+      body: utf8.encode(body),
+    ));
+    try {
+      final res = await _dio.post<Object?>(
+        path,
+        data: body,
+        options: Options(
+          contentType: Headers.jsonContentType,
+          headers: {
+            'X-Amxv-Timestamp': '$timestamp',
+            'X-Amxv-Signature': base64.encode(signature),
+          },
+        ),
+      );
+      final data = res.data;
+      return SendAccepted(
+        messageId: data is Map && data['message_id'] is String ? data['message_id'] as String : messageId,
+        queued: data is Map && data['state'] == 'queued',
+        duplicate: data is Map && data['duplicate'] == true,
+      );
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      if (status == 401) throw const ViewerUnauthorized();
+      if (status == null) rethrow;
+      final data = e.response?.data;
+      final reason = data is Map && data['reason'] is String ? data['reason'] as String : null;
+      final error = data is Map && data['error'] is String ? data['error'] as String : null;
+      final wait = int.tryParse(e.response?.headers.value('retry-after') ?? '');
+      return SendRefused(
+        _refusal(status, reason),
+        status: status,
+        error: error == null || error.length > 300 ? null : error,
+        retryAfter: wait == null ? null : Duration(seconds: wait),
+      );
+    }
+  }
+
+  static SendRefusal _refusal(int status, String? reason) => switch ((status, reason)) {
+        (400, _) => SendRefusal.badRequest,
+        (403, 'send_off') => SendRefusal.sendOff,
+        (403, 'pair_again') => SendRefusal.pairAgain,
+        (403, 'bad_signature') => SendRefusal.badSignature,
+        (403, 'stale_timestamp') => SendRefusal.staleTimestamp,
+        (404, _) => SendRefusal.noSuchAgent,
+        (409, 'not_running') => SendRefusal.notRunning,
+        (409, 'starting') => SendRefusal.starting,
+        (409, 'needs_login') => SendRefusal.needsLogin,
+        (409, 'in_flight') => SendRefusal.inFlight,
+        (409, 'not_supported') => SendRefusal.notSupported,
+        (409, 'failed') => SendRefusal.failed,
+        (413, _) => SendRefusal.tooLong,
+        (429, _) => SendRefusal.rateLimited,
+        _ => SendRefusal.other,
+      };
 
   /// `GET /agentmux/viewer/hello`. Throws [ViewerUnauthorized] on a 401.
   Future<ViewerHello> hello() async {
@@ -443,6 +637,13 @@ class ViewerClient {
       channel: _short(json['channel']),
       version: _short(json['version']),
       installId: parseInstallId(json['install_id']),
+      send: switch (json['send']) {
+        'allowed' => SendGrant.allowed,
+        'pair_again' => SendGrant.pairAgain,
+        null => SendGrant.tooOld,
+        // `off`, and a value from a newer computer: not allowed.
+        _ => SendGrant.off,
+      },
     );
   }
 

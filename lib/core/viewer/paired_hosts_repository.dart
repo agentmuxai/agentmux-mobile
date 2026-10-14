@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../logging/app_logger.dart';
+import 'device_key_store.dart';
 import 'paired_host.dart';
 import 'secure_store.dart';
 
@@ -98,17 +99,32 @@ class PairedHostsNotifier extends Notifier<List<PairedHost>> {
   /// Stores [host], replacing any earlier pairing with the same channel of
   /// the same install.
   Future<void> add(PairedHost host) => _mutate(
-        (list) => [
-          for (final h in list)
-            if (!h.sameTarget(host)) h,
-          host,
-        ],
+        (list) {
+          // The pairing this one replaces had a key of its own.
+          for (final h in list) {
+            if (h.sameTarget(host) && h.id != host.id) _deleteKey(h.id);
+          }
+          return [
+            for (final h in list)
+              if (!h.sameTarget(host)) h,
+            host,
+          ];
+        },
       );
 
   /// Unpair: forgets the record on this device. (The grant on the computer
   /// stays until revoked there.)
-  Future<void> remove(String id) =>
-      _mutate((list) => [for (final h in list) if (h.id != id) h]);
+  Future<void> remove(String id) => _mutate((list) {
+        _deleteKey(id);
+        return [for (final h in list) if (h.id != id) h];
+      });
+
+  /// Removes the pairing's device key; the key store's failure is only logged.
+  void _deleteKey(String id) {
+    unawaited(ref.read(deviceKeyStoreProvider).delete(deviceKeyAlias(id)).catchError((Object e) {
+      AppLogger.log('Could not remove a device key: ${e.runtimeType}', name: 'PairedHosts');
+    }));
+  }
 
   /// The computer refused the token.
   Future<void> markInvalid(String id) => _mutate((list) => [
