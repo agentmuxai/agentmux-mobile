@@ -23,17 +23,20 @@ presses Enter sends**, and the message appears on both: in the desktop pane
 as a prompt, and in the phone's feed. Nothing is shared while typing; a draft
 on one side is never seen on the other.
 
-The phone can send today, but not as you. "Send a message…" posts to
-`/agentmux/reactive/inject` over plain HTTP with the `lan_key` the desktop
-broadcasts to the whole network. The agent gets a jekt from an agent called
-`mobile`, `DELIVERY=lan`, `TRUST=network-claimed`: by its own rules a message
-from an unproven agent, not the operator. Anyone on the LAN can send the same
-thing. This spec replaces it with sending over the paired, pinned-TLS viewer
-channel, as the user, for devices the owner allows.
+When this spec was written the phone could already send, but not as you.
+"Send a message…" posted to `/agentmux/reactive/inject` over plain HTTP with
+the `lan_key` the desktop broadcasts to the whole network. The agent got a
+jekt from an agent called `mobile`, `DELIVERY=lan`, `TRUST=network-claimed`:
+by its own rules a message from an unproven agent, not the operator. Anyone
+on the LAN could send the same thing. This spec replaced it with sending over
+the paired, pinned-TLS viewer channel, as the user, for devices the owner
+allows; the old path is gone (agentmux-mobile #82).
 
-## 2. Where things are today
+## 2. Where things were before (2026-10-13)
 
-| | Today | Problem |
+The baseline this spec started from; §5 and §6 say what replaced each row.
+
+| | Before | Problem |
 |---|---|---|
 | Phone → agent | `LanAgentScreen` → `POST /agentmux/reactive/inject` `{target_agent, message, source_agent: "mobile"}`, header `X-AuthKey: <lan_key>`, plain HTTP (`local_api_client.dart:142-151`) | Not you to the agent (a jekt); the key is public on the LAN; the message travels unencrypted |
 | Paired viewer channel | Pinned TLS, `amxv_` bearer token per device, revocable; GET + SSE only (`http_viewer.rs:62-78`) | Read-only by design: "never inject" (feed spec §4.1, tested §9) |
@@ -114,7 +117,8 @@ cloud route (it needs the feed's end-to-end encryption first, feed spec §7).
 - `message_id` makes it idempotent: a retry after a dropped connection is
   delivered once. The reply is `202 {message_id, state: "delivered" | "queued"}`.
 - Errors: 403 (no send grant, revoked, hidden agent), 404 (unknown agent), 409
-  (agent can't take input: stopped, still logging in), 413 (over 64 KB), 429.
+  (agent can't take input: stopped, still logging in), 413 (a message over
+  10,000 bytes, or a body over 64 KB), 429. §5.2.1 has the exact list.
 
 ### 5.2.1 The contract, exactly
 
@@ -190,7 +194,8 @@ There is one record of what was sent: the agent's transcript. Both sides
 show the message from there, so they can't disagree.
 
 - **Sent from the phone, on the desktop:** the prompt block, as if typed,
-  with a muted "From Pixel 9" note (a phone icon) above it, the treatment the
+  with a muted **"From <device>" note** above it (a phone icon, then "From
+  Pixel 9"; this spec calls it the From note), the treatment the
   broadcast note has. It comes from the stored record, never from the text,
   so it can't be forged. srv stores the user record of a phone's message
   with one extra top-level field the agent's stdin never gets:
@@ -234,11 +239,11 @@ left for later (decided, §10.4).
 | Someone on the LAN sends as the operator | Sending needs the paired device's token, its send grant and its device-key signature; the `lan_key` grants none of it |
 | A copied token | Not enough to send: requests are signed by a key that never leaves the phone's keystore |
 | A replayed request | Timestamp window and `message_id` checks |
-| A phone message forging a marker or label | Markers neutralised; the "📱 From" note comes from srv's frame metadata, not the text |
+| A phone message forging a marker or label | Markers neutralised; the From note comes from the stored record's `amx`, which only srv writes, not from the text |
 | A lost or stolen phone | Unpair on the desktop: sending stops at once; the phone lock and keystore protect the key meanwhile |
 | An agent hidden from devices | Not sendable, not listed |
 
-**The old `lan_key` send.** Once paired sending ships, the phone stops using
+**The old `lan_key` send.** With paired sending, the phone no longer uses
 `/agentmux/reactive/inject` at all: `LanAgentScreen` and its route go
 (decided, §10.3). An unpaired computer's agents are listed but can't be sent
 to; the feed's place says "Pair to watch and send".
@@ -248,24 +253,24 @@ to; the feed's place says "Pair to watch and send".
 **agentmux (srv and frontend)**
 - Device record: a `can_send` grant and the device's public key; the Paired
   devices UI to change it.
-- The viewer route `POST …/input`, signature checks, `can_send` in `hello`,
+- The viewer route `POST …/input`, signature checks, `send` in `hello`,
   and tests that it refuses a read-only device and the `lan_key`, and that a
   read-only token still opens nothing else.
-- Delivery through the user-turn path, with `via`/`device` on the
-  `user_message` frame; the pane's "📱 From" note.
+- Delivery through the user-turn path, with `amx` on the stored user
+  record; the pane's From note.
 
 **agentmux-mobile**
 - Device key generation at pairing (keystore), request signing.
 - The composer: Enter sends, the Send button, "Sending…", retry, per-agent
   unsent text.
-- Matching a sent message to its frame by `message_id`; the "📱 From" note in
+- Matching a sent message to its frame by `message_id`; the From note in
   the feed for messages sent from any phone.
 
 ## 8. Phases
 
 1. **Device keys and the send grant** (both repos): pairing registers a key;
    the desktop's Paired devices list can allow sending. No new behaviour yet.
-2. **Send as the user** (both): the route, the composer, the "📱 From" note.
+2. **Send as the user** (both): the route, the composer, the From note.
    The `lan_key` path stops being used for paired computers.
 3. **Stop**: a Stop button on the phone while the agent works, through the
    same grant (`agent.stop`).
@@ -276,7 +281,7 @@ to; the feed's place says "Pair to watch and send".
   signature, stale timestamp, replayed `message_id`, `lan_key`, hidden
   agent); a phone message lands as a plain user turn with `via: viewer`;
   markers in it are neutralised.
-- frontend: the "📱 From" note renders from metadata only.
+- frontend: the From note renders from the record's `amx` only.
 - mobile: Enter sends and clears; composer states (no grant, disconnected,
   sending, failed); a retry reuses its `message_id`; the "Sending…" line is
   replaced by the feed's frame.
@@ -293,7 +298,7 @@ sends on the phone. The questions as they were asked:
 
 1. **Should the agent know a message came from the phone?** This spec: no,
    it's the user's (a plain user turn), and only the people looking at the
-   pane see "📱 From". The alternative is a srv-written line the agent sees.
+   pane see the From note. The alternative is a srv-written line the agent sees.
 2. **Device-key signatures required to send** (this spec), or the token
    alone for a first version?
 3. **The `lan_key` send screen** for unpaired computers: remove it, or keep
