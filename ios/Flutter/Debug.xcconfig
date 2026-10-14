@@ -1,2 +1,4 @@
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
 #include "Generated.xcconfig"
+// GoogleMLKit (via mobile_scanner) has no arm64 Simulator slice; see ios/Podfile.
+EXCLUDED_ARCHS[sdk=iphonesimulator*]=arm64
