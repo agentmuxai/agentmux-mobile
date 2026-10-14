@@ -12,6 +12,8 @@ import 'features/demo/demo_agent_detail_screen.dart';
 import 'features/demo/demo_fleet_screen.dart';
 import 'core/viewer/paired_host.dart';
 import 'features/discovery/discovery_screen.dart';
+import 'core/discovery/host_tree.dart';
+import 'features/swarm/swarm_screen.dart';
 import 'features/feed/agent_feed_screen.dart';
 import 'features/feed/unpaired_agent_screen.dart';
 import 'features/lan_agent/lan_agent_screen.dart';
@@ -107,6 +109,20 @@ GoRouter _buildRouter(AsyncValue<AuthStatus> authState) {
             agent: extra['agent'] as LanAgent,
             channel: channel is String ? channel : null,
             route: route is ChannelRoute ? route : null,
+          );
+        },
+      ),
+
+      // ── A channel's Swarm: its agents, most active first ─────────────
+      GoRoute(
+        path: '/swarm/:hostKey/:channelKey',
+        builder: (_, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          final channel = extra?['channel'];
+          return SwarmScreen(
+            hostKey: state.pathParameters['hostKey']!,
+            channelKey: state.pathParameters['channelKey']!,
+            initial: channel is ChannelNode ? channel : null,
           );
         },
       ),
