@@ -249,7 +249,7 @@ class FeedController extends ChangeNotifier {
         // Lines already shown (an overlap after a resume) are skipped.
         final skip = next - event.line;
         if (skip < event.lines.length) {
-          transcript.addFrames(event.lines.skip(skip));
+          transcript.addFrames(event.lines.skip(skip), at: clock.now());
           _nextLine = event.line + event.lines.length;
         }
         _lastEventId = event.id ?? '$_gen:$_nextLine';

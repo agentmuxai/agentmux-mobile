@@ -1,7 +1,7 @@
 # Spec: the live feed renders like the desktop agent pane
 
 **Date:** 2026-10-13
-**Status:** being implemented, one phase per PR (§10). Phase 1 is done.
+**Status:** being implemented, one phase per PR (§10). Phases 1 and 2 are done.
 The open questions (§11) were answered with this spec's defaults when the
 operator asked for the full look.
 **Asked for:** "it should appear like normal AgentMux: no text bubbles, code
@@ -151,10 +151,10 @@ One line per call, as `components/ToolBlock.tsx` draws it:
 
 | Tool | Icon | Detail | Pill |
 |---|---|---|---|
-| Bash | 🔧 | the command, shell-coloured, cut from the left | exit N |
+| Bash | 🔧 | the command, shell-coloured | exit N |
 | Read | 📖 | path, cut from the left; range "120:179 of 456" | |
-| Write | 📝 | path | size |
-| Edit | ✏️ | path | N lines |
+| Write | 📝 | path, cut from the left | size |
+| Edit | ✏️ | path, cut from the left | N lines |
 | Grep | 🔍 | pattern · in dir · glob · type · flags | N matches / N files |
 | Glob | 📁 | pattern | N files |
 | Agent | 🤖 | description | |
@@ -163,8 +163,26 @@ One line per call, as `components/ToolBlock.tsx` draws it:
 | `mcp__server__tool` | 🛠️ | label "server · tool" | |
 | anything else | 🛠️ | the tool's name | |
 
-- **Duration** "(1.2s)" when known. On a narrow screen the pill drops before
-  the detail does (the desktop shows pills from 600 px wide).
+- **Only paths are cut from the left**, so the file name stays in view; a
+  command is cut at its end, as on the desktop (`detailIsPath`).
+- **Where the facts come from:** Claude Code's structured `tool_use_result`,
+  next to the result, when the message answers one call: a Read's range,
+  an Edit's or Write's patch, Bash's stdout and stderr. A Bash exit code and
+  duration come from AgentMux's `<exited N in Ts>` line, which may follow
+  Claude Code's own `Exit code N` line on a failure.
+- **Edit and Write pills:** the desktop's Claude rows say "edited" and
+  "written", because its translator never fills in a count. The phone counts
+  the patch's changed lines ("3 lines") and the content's size ("254 B"),
+  falling back to the desktop's words.
+- **Denied and cancelled:** the desktop learns "denied" from its own approval
+  panel. The phone reads Claude Code's refusal text ("The user doesn't want
+  to proceed…"). A call still running at the turn's end, or at an interrupt,
+  is cancelled.
+- **Duration** "(1.2s)" when known: Bash's exit line, the tool's own timing
+  (Glob, Agent, WebSearch), or, for a call watched live, the time between
+  its call and its result arriving. Calls in the snapshot have none. On a
+  narrow screen (under 340 px of row) the pill drops before the detail does
+  (the desktop shows pills from 600 px wide).
 - **Tool name colours**, as the desktop: shell green, read accent,
   write/edit warning, search cyan, agent magenta.
 

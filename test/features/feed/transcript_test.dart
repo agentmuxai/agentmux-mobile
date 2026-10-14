@@ -54,10 +54,10 @@ void main() {
       expect(read.result, isNull);
     });
 
-    test('a call without a result yet is running', () {
+    test('a call still running when the turn ends is cancelled', () {
       final grep = items[6] as ToolCallItem;
       expect(grep.summary, 'TODO');
-      expect(grep.state, ToolState.running);
+      expect(grep.state, ToolState.cancelled);
     });
 
     test('the turn divider carries the duration', () {

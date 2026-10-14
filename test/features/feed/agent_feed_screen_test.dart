@@ -177,6 +177,104 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('a running call is open, and stays open when it finishes on screen',
+      (tester) async {
+    final lines = [
+      userPrompt('Check the tree'),
+      toolUse('toolu_old', 'Bash', {'command': 'git log -1'}),
+      toolResult('toolu_old', '<exited 0 in 0.10s>\nabc123 last commit'),
+      toolUse('toolu_new', 'Bash', {'command': 'git status'}),
+    ];
+    adapter = FakeAdapter([
+      FakeResponse(200, keepOpen: true, chunks: [
+        _sse('snapshot', {
+          'provider': 'claude',
+          'gen': 1,
+          'from_line': 0,
+          'next_line': lines.length,
+          'lines': lines,
+        }, id: '1:${lines.length}'),
+      ]),
+    ]);
+    await pumpFeed(tester, testPairedHost());
+
+    // Finished before this device looked: closed. Running: open.
+    expect(find.textContaining('abc123'), findsNothing);
+    expect(find.text('⏳ Thinking…'), findsOneWidget);
+
+    // It finishes while on screen: it stays open, now with its output.
+    adapter.open.single.add(Uint8List.fromList(utf8.encode(_sse('append', {
+      'gen': 1,
+      'line': lines.length,
+      'lines': [toolResult('toolu_new', '<exited 0 in 1.50s>\nnothing to commit')],
+    }))));
+    await settle(tester);
+    expect(find.text('⏳ Thinking…'), findsNothing);
+    expect(find.textContaining('nothing to commit'), findsOneWidget);
+    expect(find.text('(1.5s)'), findsOneWidget);
+
+    // A tap closes it.
+    await tester.tap(find.text('git status'));
+    await tester.pump();
+    expect(find.textContaining('nothing to commit'), findsNothing);
+
+    await unmount(tester);
+  });
+
+  testWidgets('a held call stays open when it leaves the bottom, closes off the top',
+      (tester) async {
+    final lines = [
+      for (var i = 0; i < 40; i++) assistantText('Earlier reply $i'),
+      toolUse('toolu_run', 'Bash', {'command': 'make test'}),
+    ];
+    adapter = FakeAdapter([
+      FakeResponse(200, keepOpen: true, chunks: [
+        _sse('snapshot', {
+          'provider': 'claude',
+          'gen': 1,
+          'from_line': 0,
+          'next_line': lines.length,
+          'lines': lines,
+        }, id: '1:${lines.length}'),
+      ]),
+    ]);
+    await pumpFeed(tester, testPairedHost());
+    adapter.open.single.add(Uint8List.fromList(utf8.encode(_sse('append', {
+      'gen': 1,
+      'line': lines.length,
+      'lines': [toolResult('toolu_run', 'all 12 passed')],
+    }))));
+    await settle(tester);
+    expect(find.textContaining('all 12 passed'), findsOneWidget);
+
+    // Up, until the call has left the bottom and isn't laid out; back down.
+    final list = find.byType(ListView);
+    await tester.drag(list, const Offset(0, 3000));
+    await tester.pumpAndSettle();
+    expect(find.text('make test'), findsNothing);
+    await tester.drag(list, const Offset(0, -6000));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('all 12 passed'), findsOneWidget);
+
+    // More replies push it off the top: it closes.
+    adapter.open.single.add(Uint8List.fromList(utf8.encode(_sse('append', {
+      'gen': 1,
+      'line': lines.length + 1,
+      'lines': [for (var i = 0; i < 30; i++) assistantText('Later reply $i')],
+    }))));
+    await settle(tester);
+    await tester.pumpAndSettle();
+    expect(find.text('make test'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.text('make test'),
+      -300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.textContaining('all 12 passed'), findsNothing);
+
+    await unmount(tester);
+  });
+
   testWidgets('status chip: the host list state, then the feed state',
       (tester) async {
     adapter = FakeAdapter([

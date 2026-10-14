@@ -261,42 +261,10 @@ class _CodeBuilder extends MarkdownElementBuilder {
 
 /// A code block: the panel background, monospace, wrapped, highlighted when
 /// [language] is known, with a Copy button.
-class CodeBlock extends StatefulWidget {
+class CodeBlock extends StatelessWidget {
   const CodeBlock({super.key, required this.code, this.language});
   final String code;
   final String? language;
-
-  @override
-  State<CodeBlock> createState() => _CodeBlockState();
-}
-
-class _CodeBlockState extends State<CodeBlock> {
-  TextSpan? _span;
-
-  @override
-  void initState() {
-    super.initState();
-    _highlight();
-  }
-
-  @override
-  void didUpdateWidget(CodeBlock old) {
-    super.didUpdateWidget(old);
-    if (old.code != widget.code || old.language != widget.language) _highlight();
-  }
-
-  void _highlight() {
-    final code = widget.code;
-    final language = widget.language;
-    _span = CodeHighlighter.highlightSync(code, language, feedCode) ??
-        CodeHighlighter.cached(code, language);
-    if (_span != null || language == null) return;
-    unawaited(CodeHighlighter.highlightAsync(code, language, feedCode).then((span) {
-      if (!mounted || span == null) return;
-      if (widget.code != code || widget.language != language) return;
-      setState(() => _span = span);
-    }));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -307,18 +275,70 @@ class _CodeBlockState extends State<CodeBlock> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 6, 36, 6),
-            child: SelectableText.rich(
-              _span ?? TextSpan(text: widget.code, style: feedCode),
-              style: feedCode,
-            ),
+            child: HighlightedCode(code: code, language: language),
           ),
           Positioned(
             top: 0,
             right: 0,
-            child: CopyButton(text: widget.code),
+            child: CopyButton(text: code),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// [code] as selectable text, highlighted when [language] is known: at once
+/// when small, else off the UI thread, shown plain until then.
+class HighlightedCode extends StatefulWidget {
+  const HighlightedCode({
+    super.key,
+    required this.code,
+    this.language,
+    this.style = feedCode,
+  });
+  final String code;
+  final String? language;
+  final TextStyle style;
+
+  @override
+  State<HighlightedCode> createState() => _HighlightedCodeState();
+}
+
+class _HighlightedCodeState extends State<HighlightedCode> {
+  TextSpan? _span;
+
+  @override
+  void initState() {
+    super.initState();
+    _highlight();
+  }
+
+  @override
+  void didUpdateWidget(HighlightedCode old) {
+    super.didUpdateWidget(old);
+    if (old.code != widget.code || old.language != widget.language) _highlight();
+  }
+
+  void _highlight() {
+    final code = widget.code;
+    final language = widget.language;
+    final style = widget.style;
+    _span = CodeHighlighter.highlightSync(code, language, style) ??
+        CodeHighlighter.cached(code, language);
+    if (_span != null || language == null) return;
+    unawaited(CodeHighlighter.highlightAsync(code, language, style).then((span) {
+      if (!mounted || span == null) return;
+      if (widget.code != code || widget.language != language) return;
+      setState(() => _span = span);
+    }));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SelectableText.rich(
+      _span ?? TextSpan(text: widget.code, style: widget.style),
+      style: widget.style,
     );
   }
 }

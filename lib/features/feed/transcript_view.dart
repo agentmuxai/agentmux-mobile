@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'feed_theme.dart';
 import 'markdown_view.dart';
+import 'tool_block.dart';
 import 'transcript.dart';
 
 /// One transcript item on the feed screen, drawn as the desktop agent pane
@@ -22,7 +23,7 @@ class TranscriptItemView extends StatelessWidget {
 
   final TranscriptItem item;
 
-  /// For a tool call: whether its result is shown.
+  /// For a tool call: whether its preview is open.
   final bool expanded;
   final VoidCallback? onToggle;
 
@@ -42,7 +43,7 @@ class TranscriptItemView extends StatelessWidget {
           ThinkingItem(:final text, :final streaming) =>
             ThinkingBlock(text: text, streaming: streaming),
           final ToolCallItem tool =>
-            _ToolLine(tool: tool, expanded: expanded, onToggle: onToggle),
+            ToolBlock(tool: tool, open: expanded, onToggle: onToggle),
           TurnDividerItem(:final durationMs, :final error) =>
             _TurnDivider(durationMs: durationMs, error: error),
           TruncatedItem() => const _Note(text: truncatedText),
@@ -51,7 +52,7 @@ class TranscriptItemView extends StatelessWidget {
       );
 }
 
-const truncatedText = 'Output truncated (open on the computer)';
+const truncatedText = truncatedResultText;
 const thinkingText = 'Thinking…';
 
 /// Rebuilds [builder] with [value] at most every [interval], as the desktop
@@ -222,103 +223,6 @@ class ThinkingBlock extends StatelessWidget {
                     builder: (t) => FeedMarkdown(t, streaming: true, style: style),
                   )
                 : FeedMarkdown(text, style: style),
-      ),
-    );
-  }
-}
-
-class _ToolLine extends StatelessWidget {
-  const _ToolLine({required this.tool, required this.expanded, this.onToggle});
-  final ToolCallItem tool;
-  final bool expanded;
-  final VoidCallback? onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    final (icon, color, label) = switch (tool.state) {
-      ToolState.running => (Icons.more_horiz, FeedColors.warning, 'running'),
-      ToolState.done => (Icons.check, FeedColors.success, 'done'),
-      ToolState.failed => (Icons.close, FeedColors.error, 'failed'),
-    };
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        InkWell(
-          onTap: onToggle,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              children: [
-                Icon(icon, size: 14, color: color, semanticLabel: label),
-                const SizedBox(width: 8),
-                Text(
-                  tool.name,
-                  style: feedCode.copyWith(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    tool.summary,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: feedCode.copyWith(color: FeedColors.secondary),
-                  ),
-                ),
-                Icon(
-                  expanded ? Icons.expand_less : Icons.expand_more,
-                  size: 16,
-                  color: FeedColors.grey,
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (expanded) _ToolResult(tool: tool),
-      ],
-    );
-  }
-}
-
-class _ToolResult extends StatelessWidget {
-  const _ToolResult({required this.tool});
-  final ToolCallItem tool;
-
-  @override
-  Widget build(BuildContext context) {
-    final result = tool.result;
-    final String text;
-    var muted = false;
-    if (tool.truncatedBytes != null) {
-      text = truncatedText;
-      muted = true;
-    } else if (tool.state == ToolState.running) {
-      text = 'Running…';
-      muted = true;
-    } else if (result == null || result.isEmpty) {
-      text = 'No output';
-      muted = true;
-    } else {
-      text = result;
-    }
-    return Container(
-      margin: const EdgeInsets.only(left: 22, bottom: 4),
-      padding: const EdgeInsets.all(8),
-      constraints: const BoxConstraints(maxHeight: 360),
-      decoration: BoxDecoration(
-        color: FeedColors.panel,
-        border: Border.all(
-          color: tool.state == ToolState.failed
-              ? FeedColors.error.withValues(alpha: 0.5)
-              : FeedColors.border,
-        ),
-      ),
-      child: SingleChildScrollView(
-        child: SelectableText(
-          text,
-          style: feedCode.copyWith(
-            color: muted ? FeedColors.secondary : FeedColors.text,
-          ),
-        ),
       ),
     );
   }
