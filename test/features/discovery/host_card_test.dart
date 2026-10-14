@@ -607,9 +607,17 @@ void main() {
       expect(find.text('Pair to see Sysinfo, Tower and terminals'), findsNothing);
     });
 
-    testWidgets('no Swarm without agents', (tester) async {
+    testWidgets('no Swarm without agents; the views of the computer stay', (tester) async {
       await _pump(tester, _app(HostCard(host: buildHostTrees([_entry(agents: const [])]).single)));
       expect(find.text('Swarm'), findsNothing);
+      expect(find.text('Pair to see Sysinfo, Tower and terminals'), findsOneWidget);
+      final paired = applyPairings(
+        buildHostTrees([_entry(hostname: 'host-a', channel: 'stable', installId: testInstallId, agents: const [])]),
+        [testPairedHost()],
+      ).single;
+      await _pump(tester, _app(HostCard(host: paired)));
+      await tester.pumpAndSettle();
+      expect(find.text('Sysinfo'), findsOneWidget);
     });
 
     testWidgets('terminals not shared: one line says how to', (tester) async {

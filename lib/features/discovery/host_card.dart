@@ -373,6 +373,8 @@ List<Widget> _agentRows(
           style: const TextStyle(color: Colors.white38, fontSize: 13),
         ),
       ),
+      // The computer's own views don't depend on its agents.
+      ..._computerRows(channel, indent: indent, live: onAgentTap == null),
       if (terminals != null) terminals,
     ];
   }
