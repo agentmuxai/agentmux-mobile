@@ -160,6 +160,16 @@ In `ios/Runner/Info.plist`:
 </array>
 ```
 
+### iOS — Simulator on Apple Silicon
+
+`flutter build ios --simulator` and `flutter run` on an iOS Simulator work on an
+Apple Silicon Mac through Rosetta: the Simulator app is built for x86_64.
+`mobile_scanner` pulls in GoogleMLKit, which ships no arm64 iOS-Simulator slice,
+so without this the build stops with `Module 'mobile_scanner' not found`.
+`ios/Podfile` (the pods) and `ios/Flutter/Debug.xcconfig` (the Runner) exclude
+arm64 for the Simulator SDK only. Real devices and Release/Profile builds are
+unaffected; no Rosetta is needed for them.
+
 ### Cognito app client
 
 Create a **public app client** (no client secret) in the existing muxbus Cognito User Pool:
