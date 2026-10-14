@@ -133,6 +133,12 @@ on purpose: drop the streams, revoke the token, stop answering, go silent
 with the stream still open, delay replies, or append a very large update.
 `/ctl/stats` says how many streams are open and how many requests each route
 got, which is how to check that a screen stopped asking after it was left.
+It takes the device key at pairing and checks a sent message's signature
+(with `openssl`, so not with the app's own code), and adds the message to the
+feed the way the computer does. `--old-desktop` acts like an AgentMux from
+before sending. `--dart-define=AGENTMUX_DEV_SEND_TEST=<agent>` on the
+`dev_pair_main` build sends that agent one signed message after pairing and
+logs the answer (`adb logcat -s flutter:I | grep dev-pair`).
 It is not the real protocol's server: check anything that depends on the
 desktop's own behaviour against a `task dev` build.
 

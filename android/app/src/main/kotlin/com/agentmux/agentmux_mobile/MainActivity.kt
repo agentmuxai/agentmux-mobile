@@ -32,6 +32,9 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        // The device key for sending (DeviceKeyChannel.kt).
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.agentmux.agentmux_mobile/device_key")
+            .setMethodCallHandler(DeviceKeyChannel())
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
             .setMethodCallHandler { call, result ->
                 when (call.method) {

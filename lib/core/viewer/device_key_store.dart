@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'platform_device_key_store.dart';
 
 /// This device's key for one paired computer, made and kept by the platform's
 /// key store (Android Keystore, iOS Secure Enclave or keychain): ECDSA on
@@ -30,8 +33,8 @@ class DeviceKeyException implements Exception {
   String toString() => 'DeviceKeyException($message)';
 }
 
-/// For a platform with no key store here (and until the platform channel is
-/// wired in): pairing then goes ahead without a key, for watching only.
+/// For a platform with no key store here: pairing then goes ahead without a
+/// key, for watching only.
 class NoDeviceKeyStore implements DeviceKeyStore {
   const NoDeviceKeyStore();
 
@@ -47,9 +50,13 @@ class NoDeviceKeyStore implements DeviceKeyStore {
   Future<void> delete(String alias) async {}
 }
 
-/// The key store pairing and sending use; overridden in tests.
-final deviceKeyStoreProvider =
-    Provider<DeviceKeyStore>((_) => const NoDeviceKeyStore());
+/// The key store pairing and sending use: the platform's on a phone, none
+/// elsewhere (a desktop test run). Overridden in tests.
+final deviceKeyStoreProvider = Provider<DeviceKeyStore>(
+  (_) => Platform.isAndroid || Platform.isIOS
+      ? PlatformDeviceKeyStore()
+      : const NoDeviceKeyStore(),
+);
 
 /// The key store's name for a pairing's key.
 String deviceKeyAlias(String pairId) => 'amxv-$pairId';

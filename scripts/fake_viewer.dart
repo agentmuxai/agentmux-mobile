@@ -1,12 +1,16 @@
 // A stand-in for a desktop's viewer listener, for testing the phone app's
 // feeds without a desktop build and for breaking them on purpose:
 //
-//   dart run scripts/fake_viewer.dart [--port 29799] [--turns 600] [--rate-ms 200] [--host 10.0.2.2]
+//   dart run scripts/fake_viewer.dart [--port 29799] [--turns 600] [--rate-ms 200] [--host 10.0.2.2] [--old-desktop]
 //
 // It serves a made-up long transcript, a terminal and live CPU/memory over TLS
 // with a certificate made for the run, and prints an `agentmux://pair` link
 // (base64 it into `AGENTMUX_DEV_PAIR_B64`, see CLAUDE.md). `--host` is the
-// address the phone reaches this machine at (10.0.2.2 from the emulator). It
+// address the phone reaches this machine at (10.0.2.2 from the emulator).
+// It takes the phone's device key at pairing and checks the signature of a
+// message sent to an agent (needs `openssl` on the PATH), then adds it to the
+// feed as the computer does. `--old-desktop` acts like an AgentMux from before
+// sending: it refuses a 65-byte key and says nothing of `send` in hello. It
 // listens on loopback only. Control it with curl, no token:
 //
 //   /ctl/stats               open streams and request counts, as JSON
@@ -38,6 +42,11 @@ var _revoked = false;
 var _blackhole = false;
 var _mute = false;
 var _slowMs = 0;
+var _oldDesktop = false;
+
+/// The public key the phone sent at pairing (65 bytes, uncompressed P-256).
+Uint8List? _deviceKey;
+final _sent = <String, int>{};
 
 final _lines = <String>[];
 final _term = BytesBuilder();
@@ -131,6 +140,7 @@ Future<void> main(List<String> args) async {
   port = int.parse(arg('port', '29799'));
   _turns = int.parse(arg('turns', '600'));
   _rateMs = int.parse(arg('rate-ms', '200'));
+  _oldDesktop = args.contains('--old-desktop');
   final phoneHost = arg('host', '10.0.2.2');
 
   final dir = Directory('${Directory.systemTemp.path}/amx-fake-viewer')..createSync(recursive: true);
@@ -209,6 +219,20 @@ Future<void> _handle(HttpRequest req) async {
   if (path == '/agentmux/viewer/pair' && req.method == 'POST') {
     final data = jsonDecode(await utf8.decoder.bind(req).join());
     if (data is! Map || data['code'] != _code) return _json(res, {'error': 'bad code'}, status: 401);
+    final key = data['device_key'];
+    if (key != null) {
+      Uint8List? bytes;
+      try {
+        bytes = base64Decode(key as String);
+      } catch (_) {}
+      final ok = _oldDesktop ? bytes?.length == 32 : (bytes?.length == 65 && bytes![0] == 4);
+      if (!ok) {
+        return _json(res, {'error': 'device_key must be standard base64 of a 32-byte public key'}, status: 400);
+      }
+      _deviceKey = _oldDesktop ? null : bytes;
+    } else {
+      _deviceKey = null;
+    }
     _revoked = false;
     return _json(res, {
       'token': _token,
@@ -234,7 +258,13 @@ Future<void> _handle(HttpRequest req) async {
 
   switch (path) {
     case '/agentmux/viewer/hello':
-      return _json(res, {'hostname': 'fake-desk', 'device_id': 'dev-fake', 'channel': 'fake', 'version': '0.0.0-fake'});
+      return _json(res, {
+        'hostname': 'fake-desk',
+        'device_id': 'dev-fake',
+        'channel': 'fake',
+        'version': '0.0.0-fake',
+        if (!_oldDesktop) 'send': _deviceKey == null ? 'pair_again' : 'allowed',
+      });
     case '/agentmux/viewer/agents':
       final now = DateTime.now().millisecondsSinceEpoch;
       return _json(res, {
@@ -271,6 +301,8 @@ Future<void> _handle(HttpRequest req) async {
     case '/agentmux/viewer/sysinfo/feed':
       return _stream(req, 'sysinfo', (sink, resumed) => _sysinfoLoop(sink));
   }
+  final input = RegExp(r'^/agentmux/viewer/agents/([^/]+)/input$').firstMatch(path);
+  if (input != null && req.method == 'POST') return _input(req);
   final feed = RegExp(r'^/agentmux/viewer/agents/([^/]+)/feed$').firstMatch(path);
   if (feed != null) return _stream(req, 'feed', _feedLoop);
   final term = RegExp(r'^/agentmux/viewer/terminals/([^/]+)/feed$').firstMatch(path);
@@ -436,4 +468,74 @@ Future<void> _control(HttpRequest req) async {
     'blackhole': _blackhole,
     'slow_ms': _slowMs,
   });
+}
+
+/// `POST /agentmux/viewer/agents/:name/input`, as the computer answers it.
+Future<void> _input(HttpRequest req) async {
+  final res = req.response;
+  if (_oldDesktop) return _json(res, {'error': 'not found'}, status: 404);
+  final bodyBytes = await req.fold<List<int>>([], (a, b) => a..addAll(b));
+  final key = _deviceKey;
+  if (key == null) return _json(res, {'error': 'no key', 'reason': 'pair_again'}, status: 403);
+  final ts = int.tryParse(req.headers.value('x-amxv-timestamp') ?? '');
+  final sig = req.headers.value('x-amxv-signature');
+  if (ts == null || sig == null) return _json(res, {'error': 'unsigned', 'reason': 'bad_signature'}, status: 403);
+  if ((DateTime.now().millisecondsSinceEpoch - ts).abs() > 60000) {
+    return _json(res, {'error': 'stale', 'reason': 'stale_timestamp'}, status: 403);
+  }
+  final text = [
+    'amxv-sig-v1',
+    req.method,
+    req.uri.path,
+    '$ts',
+    sha256.convert(bodyBytes).toString(),
+  ].join('\n');
+  if (!await _verifies(key, utf8.encode(text), base64Decode(sig))) {
+    return _json(res, {'error': 'bad signature', 'reason': 'bad_signature'}, status: 403);
+  }
+  final Object? body;
+  try {
+    body = jsonDecode(utf8.decode(bodyBytes));
+  } catch (_) {
+    return _json(res, {'error': 'bad body'}, status: 400);
+  }
+  final message = body is Map ? body['message'] : null;
+  final id = body is Map ? body['message_id'] : null;
+  if (message is! String || message.trim().isEmpty || id is! String) return _json(res, {'error': 'bad body'}, status: 400);
+  if (utf8.encode(message).length > 10000) return _json(res, {'error': 'too long'}, status: 413);
+  final duplicate = _sent.containsKey(id);
+  _sent[id] = 1;
+  if (!duplicate) {
+    // What the computer stores for a phone's message: a user turn with `amx`.
+    _lines.add(_f({
+      'type': 'user',
+      'message': {'role': 'user', 'content': message},
+      'amx': {'via': 'viewer', 'device': 'Fake phone', 'message_id': id},
+    }));
+    _ticks.add(null);
+  }
+  return _json(res, {'message_id': id, 'state': 'delivered', if (duplicate) 'duplicate': true}, status: 202);
+}
+
+/// Checks [signature] (DER) over [message] against the P-256 point [key] with
+/// `openssl`, which is not the code under test.
+Future<bool> _verifies(Uint8List key, List<int> message, List<int> signature) async {
+  final dir = Directory.systemTemp.createTempSync('amx-sig');
+  try {
+    // The fixed SubjectPublicKeyInfo header of a P-256 key, then the point.
+    const header = '3059301306072a8648ce3d020106082a8648ce3d030107034200';
+    final der = [
+      for (var i = 0; i < header.length; i += 2) int.parse(header.substring(i, i + 2), radix: 16),
+      ...key,
+    ];
+    File('${dir.path}/key.der').writeAsBytesSync(der);
+    File('${dir.path}/msg').writeAsBytesSync(message);
+    File('${dir.path}/sig').writeAsBytesSync(signature);
+    final r = await Process.run('openssl', [
+      'dgst', '-sha256', '-verify', '${dir.path}/key.der', '-keyform', 'DER', '-signature', '${dir.path}/sig', '${dir.path}/msg',
+    ]);
+    return r.exitCode == 0;
+  } finally {
+    dir.deleteSync(recursive: true);
+  }
 }
