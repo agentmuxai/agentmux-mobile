@@ -74,8 +74,6 @@ GoRouter _buildRouter(AsyncValue<AuthStatus> authState) {
             DemoAgentDetailScreen(agentId: state.pathParameters['id']!),
       ),
 
-      // ── LAN agent detail (no auth required) ───────────────────────────
-
       // ── LAN agent of a computer this device has not paired with ────────
       GoRoute(
         path: '/instance/:addr/agent/:name/unpaired',

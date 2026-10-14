@@ -345,8 +345,8 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
         ),
         actions: [
           ConnectionIndicator(connection: connection),
-          // A paired computer discovery has not found has no fleet endpoint
-          // or key to send a message with; only its live feed.
+          // Only when the computer has said it takes no messages from this
+          // device: the menu then says why.
           if (_menuSend)
             PopupMenuButton<_FeedMenu>(
               tooltip: 'More',
