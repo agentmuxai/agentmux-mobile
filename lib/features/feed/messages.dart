@@ -324,7 +324,26 @@ String providerName(String provider) {
   if (p.startsWith('qwen')) return 'Qwen Code';
   if (p.startsWith('codex')) return 'Codex';
   if (p.startsWith('gemini')) return 'Gemini CLI';
-  return provider.isEmpty ? 'The agent' : provider;
+  // The desktop app's other harness ids (its providers/catalog.ts).
+  const names = {
+    'antigravity': 'Antigravity',
+    'agy': 'Antigravity',
+    'kimi': 'Kimi Code',
+    'pi': 'Pi',
+    'openclaw': 'OpenClaw',
+    'copilot': 'GitHub Copilot CLI',
+    'muxcode': 'Mux Code',
+    'kilo': 'Kilo Code CLI',
+    'cline': 'Cline CLI',
+    'opencode': 'OpenCode',
+    'goose': 'goose',
+    'grok': 'Grok Build',
+    'dsh': 'DeepSeek Harness',
+    'aider': 'Aider',
+    'crush': 'Crush',
+    'muse': 'Muse Code',
+  };
+  return names[p] ?? (provider.isEmpty ? 'The agent' : provider);
 }
 
 /// The compaction divider: "Context compacted — auto-compacted", and what
