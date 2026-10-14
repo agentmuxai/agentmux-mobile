@@ -10,6 +10,7 @@ import '../../core/fleet/channel_session.dart';
 import '../../core/fleet/cloud_instance_source.dart';
 import '../../core/fleet/fleet_store.dart';
 import '../../core/viewer/paired_host.dart';
+import '../swarm/swarm_screen.dart';
 import 'channel_terminals.dart';
 import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/agent_state_chip.dart';
@@ -122,13 +123,14 @@ class HostCard extends StatelessWidget {
                     for (final c in channels)
                       _ChannelTile(
                         key: PageStorageKey('channel:${host.key}/${c.key}'),
+                        hostKey: host.key,
                         channel: c,
                         showVersion: version == null,
                         onAgentTap: onAgentTap,
                       ),
                     if (hidden > 0) _HiddenChannelsLine(count: hidden),
                   ]
-                : _agentRows(only, indent: 20, onAgentTap: onAgentTap),
+                : _agentRows(only, hostKey: host.key, indent: 20, onAgentTap: onAgentTap),
           ),
         ),
       ),
@@ -185,10 +187,12 @@ void _showUnpairSheet(
 class _ChannelTile extends StatelessWidget {
   const _ChannelTile({
     super.key,
+    required this.hostKey,
     required this.channel,
     required this.showVersion,
     this.onAgentTap,
   });
+  final String hostKey;
   final ChannelNode channel;
   final bool showVersion;
   final AgentTap? onAgentTap;
@@ -230,7 +234,7 @@ class _ChannelTile extends StatelessWidget {
                 style: const TextStyle(fontSize: 11, color: Colors.white38),
               ),
         initiallyExpanded: true,
-        children: _agentRows(channel, indent: 36, onAgentTap: onAgentTap),
+        children: _agentRows(channel, hostKey: hostKey, indent: 36, onAgentTap: onAgentTap),
       ),
     );
   }
@@ -339,10 +343,12 @@ String _ago(DateTime t) {
 }
 
 /// A channel's rows, as one list (`PLAN_CHANNEL_AS_ONE_LIST_2026_10_13.md`):
-/// its agents, then, for a computer this device has paired with, its
-/// terminals in the desktop's order. Tabs don't group them.
+/// its agents, then Swarm (when it has any), then, for a computer this
+/// device has paired with, its terminals in the desktop's order. Tabs don't
+/// group them.
 List<Widget> _agentRows(
   ChannelNode channel, {
+  required String hostKey,
   required double indent,
   AgentTap? onAgentTap,
 }) {
@@ -370,19 +376,86 @@ List<Widget> _agentRows(
   }
   return [
     for (final agent in channel.agents)
-      _AgentRow(
+      AgentRow(
         key: ValueKey('agent:${agent.name.toLowerCase()}'),
         agent: agent,
         channel: channel,
         indent: indent,
         onTap: onAgentTap,
       ),
+    // The views of the computer read it live, so a card whose taps are
+    // overridden (the demo, which makes no network call) has none.
+    if (onAgentTap == null) _SwarmRow(hostKey: hostKey, channel: channel, indent: indent),
     if (terminals != null) terminals,
   ];
 }
 
-class _AgentRow extends StatelessWidget {
-  const _AgentRow({
+/// Swarm: the channel's agents on one screen. Shown while it has any.
+class _SwarmRow extends StatelessWidget {
+  const _SwarmRow({required this.hostKey, required this.channel, required this.indent});
+  final String hostKey;
+  final ChannelNode channel;
+  final double indent;
+
+  @override
+  Widget build(BuildContext context) {
+    return InstanceRow(
+      key: const ValueKey('swarm'),
+      icon: Icons.hub_outlined,
+      title: 'Swarm',
+      summary: swarmSummary(channel.agents),
+      indent: indent,
+      onTap: () => openSwarm(context, hostKey, channel),
+    );
+  }
+}
+
+/// A view of the computer itself (Swarm, Sysinfo, Tower): its name, and a
+/// one-line summary on the right.
+class InstanceRow extends StatelessWidget {
+  const InstanceRow({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.summary,
+    required this.indent,
+    this.onTap,
+  });
+  final IconData icon;
+  final String title;
+  final String summary;
+  final double indent;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.only(left: indent, right: 16),
+      leading: Icon(icon, size: 16, color: Colors.white70),
+      title: Row(
+        children: [
+          Text(title),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              summary,
+              textAlign: TextAlign.right,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, color: Colors.white54),
+            ),
+          ),
+        ],
+      ),
+      trailing: const Icon(Icons.chevron_right, size: 18),
+      onTap: onTap,
+    );
+  }
+}
+
+class AgentRow extends StatelessWidget {
+  const AgentRow({
     super.key,
     required this.agent,
     required this.channel,

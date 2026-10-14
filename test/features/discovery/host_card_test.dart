@@ -527,6 +527,48 @@ void main() {
       expect(find.text('terminal b1 "cargo build" via 198.51.100.30:29800'), findsOneWidget);
     });
 
+    testWidgets('Swarm sits between the agents and the terminals, and opens',
+        (tester) async {
+      final host = pairedHost();
+      final r = GoRouter(routes: [
+        ...router(host).configuration.routes,
+        GoRoute(
+          path: '/swarm/:hostKey/:channelKey',
+          builder: (_, state) => Text('swarm ${state.pathParameters['hostKey']} '
+              '${state.pathParameters['channelKey']}'),
+        ),
+      ]);
+      await _pump(
+        tester,
+        MaterialApp.router(routerConfig: r),
+        panes: PanesListed([_terminal('b1', 'cargo build', 'Tab 2')], shared: true),
+      );
+      await tester.pumpAndSettle();
+      final ys = [
+        for (final t in ['Camper', 'Swarm', 'cargo build']) tester.getCenter(find.text(t)).dy,
+      ];
+      expect(ys, orderedEquals([...ys]..sort()));
+      expect(find.text('3 agents'), findsOneWidget);
+      await tester.tap(find.text('Swarm'));
+      await tester.pumpAndSettle();
+      expect(find.text('swarm ${host.key} stable'), findsOneWidget);
+    });
+
+    testWidgets('no Swarm where taps are overridden (the demo makes no network call)',
+        (tester) async {
+      await _pump(
+        tester,
+        _app(HostCard(host: buildHostTrees([_entry()]).single, onAgentTap: (_, __, ___) {})),
+      );
+      expect(find.text('Camper'), findsOneWidget);
+      expect(find.text('Swarm'), findsNothing);
+    });
+
+    testWidgets('no Swarm without agents', (tester) async {
+      await _pump(tester, _app(HostCard(host: buildHostTrees([_entry(agents: const [])]).single)));
+      expect(find.text('Swarm'), findsNothing);
+    });
+
     testWidgets('terminals not shared: one line says how to', (tester) async {
       await _pump(
         tester,
