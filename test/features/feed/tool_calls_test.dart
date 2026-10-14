@@ -299,6 +299,13 @@ void main() {
       expect(_allText(tester), contains('ls'));
     });
 
+    testWidgets('a long tool name on a narrow row does not overflow', (tester) async {
+      final t = _item('mcp__a_rather_long_server_name__an_even_longer_tool_name_here', {})
+        ..durationMs = 12345;
+      await tester.pumpWidget(_host(ToolBlock(tool: t, open: false), width: 260));
+      expect(tester.takeException(), isNull);
+    });
+
     test('a long path is cut from the left', () {
       const style = TextStyle(fontSize: 12);
       const path = 'C:/Users/someone/projects/agentmux/lib/features/feed/transcript.dart';
@@ -343,6 +350,20 @@ void main() {
       expect(_allText(tester), contains('lib/a.dart'));
       final added = tester.widget<Container>(find.descendant(of: find.byWidget(rows[1]), matching: find.byType(Container)).first);
       expect(added.color, FeedColors.tint(FeedColors.successText, 0.15));
+    });
+
+    testWidgets('a rebuild keeps the built preview until the call changes', (tester) async {
+      final t = _item('Edit', {'file_path': 'a.dart', 'old_string': 'a', 'new_string': 'b'});
+      Widget view() => _host(ToolPreview(tool: t));
+      await tester.pumpWidget(view());
+      final first = tester.widget<DiffRow>(find.byType(DiffRow).first);
+      await tester.pumpWidget(view());
+      expect(tester.widget<DiffRow>(find.byType(DiffRow).first), same(first));
+      t.input = {'file_path': 'a.dart', 'old_string': 'a', 'new_string': 'c'};
+      await tester.pumpWidget(view());
+      final changed = tester.widget<DiffRow>(find.byType(DiffRow).last);
+      expect(changed, isNot(same(first)));
+      expect(changed.line.text, 'c');
     });
 
     testWidgets('Read: a line gutter, highlighted, reminders removed', (tester) async {

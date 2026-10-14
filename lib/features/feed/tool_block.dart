@@ -94,8 +94,10 @@ class ToolHeader extends StatelessWidget {
             Text(toolIcon(kind), style: _headerStyle.copyWith(fontSize: 11)),
             const SizedBox(width: FeedSpace.s1),
             if (label != null) ...[
-              Flexible(
-                flex: 0,
+              // At most 40 % of the row, so a long MCP or custom name
+              // can't push the line past the screen.
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: c.maxWidth * 0.4),
                 child: Text(
                   label,
                   maxLines: 1,
@@ -222,15 +224,56 @@ const _previewStyle = feedCode;
 final _mutedStyle = feedCode.copyWith(color: FeedColors.secondary);
 
 /// A tool call's preview, by tool.
-class ToolPreview extends StatelessWidget {
+class ToolPreview extends StatefulWidget {
   const ToolPreview({super.key, required this.tool, this.tall = false, this.onTall});
   final ToolCallItem tool;
   final bool tall;
   final VoidCallback? onTall;
 
   @override
+  State<ToolPreview> createState() => _ToolPreviewState();
+}
+
+/// Keeps the built preview until the call changes, so a feed update or a
+/// scroll doesn't diff an Edit or parse a Read again.
+class _ToolPreviewState extends State<ToolPreview> {
+  Preview? _preview;
+  List<Object?>? _builtFrom;
+
+  /// What a preview is built from. The call is mutated in place, so its
+  /// parts are compared, by identity where they are large.
+  static List<Object?> _inputsOf(ToolCallItem t) => [
+        t,
+        t.state,
+        t.result,
+        t.input,
+        t.facts,
+        t.truncatedBytes,
+        t.inputTruncatedBytes,
+      ];
+
+  static bool _same(List<Object?> a, List<Object?> b) {
+    for (var i = 0; i < a.length; i++) {
+      if (!identical(a[i], b[i]) && a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  Preview _current() {
+    final inputs = _inputsOf(widget.tool);
+    final built = _builtFrom;
+    if (_preview == null || built == null || !_same(built, inputs)) {
+      _preview = buildPreview(widget.tool);
+      _builtFrom = inputs;
+    }
+    return _preview!;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final p = buildPreview(tool);
+    final p = _current();
+    final tall = widget.tall;
+    final onTall = widget.onTall;
     final lineHeight = (_previewStyle.fontSize ?? 12) * (_previewStyle.height ?? 1.45);
     final maxHeight = lineHeight * previewLines * (tall ? 3 : 1) + 12;
     return Column(
