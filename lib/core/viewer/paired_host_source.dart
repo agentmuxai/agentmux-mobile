@@ -217,9 +217,13 @@ class PairedHostPoller {
     return until != null && clock.now().isBefore(until);
   }
 
-  /// Reads every target now (pull-to-refresh), whatever it is waiting for.
-  Future<void> pollNow() =>
-      Future.wait([for (final id in [..._targets.keys]) _poll(id)]);
+  /// Reads every target now (pull-to-refresh), whatever it is waiting for, and
+  /// forgets how often they failed: the waits start over.
+  Future<void> pollNow() {
+    _failures.clear();
+    _notBefore.clear();
+    return Future.wait([for (final id in [..._targets.keys]) _poll(id)]);
+  }
 
   /// Ends polling for good; nothing is reported after this returns.
   void stop() {
@@ -255,9 +259,8 @@ class PairedHostPoller {
     } else {
       final failures = (_failures[id] ?? 0) + 1;
       _failures[id] = failures;
-      final wait = Duration(
-        milliseconds: min(maxWait.inMilliseconds, interval.inMilliseconds * pow(2, failures - 1).toInt()),
-      );
+      final doubled = interval.inMilliseconds * pow(2, failures - 1).toInt();
+      final wait = Duration(milliseconds: min(maxWait.inMilliseconds, doubled));
       // Half an interval of slack: the timer's next tick comes a little
       // before a read that took a moment would be [wait] old.
       _notBefore[id] = started.add(wait - interval ~/ 2);
