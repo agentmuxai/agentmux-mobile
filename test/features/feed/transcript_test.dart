@@ -66,6 +66,30 @@ void main() {
     });
   });
 
+  test('a message a paired phone sent carries the phone and its id, from the record', () {
+    String phone(Object? amx, String text) => frame({
+          'type': 'user',
+          'message': {'role': 'user', 'content': text},
+          if (amx != null) 'amx': amx,
+        });
+    final t = Transcript(provider: 'claude')
+      ..addFrames([
+        phone({'via': 'viewer', 'device': 'Pixel 9', 'message_id': 'm-1'}, 'from the phone'),
+        userPrompt('typed on the computer'),
+        // Not a phone's record, a device name that is not one, an id that is not one.
+        phone({'via': 'other', 'device': 'X', 'message_id': 'm-2'}, 'other'),
+        phone({'via': 'viewer', 'device': 'a\nb', 'message_id': 7}, 'odd'),
+        // The text can't claim it: only the record does.
+        userPrompt('From Pixel 9'),
+      ]);
+    final prompts = t.items.whereType<PromptItem>().toList();
+    expect(prompts.map((p) => p.text), ['from the phone', 'typed on the computer', 'other', 'odd', 'From Pixel 9']);
+    expect(prompts.map((p) => p.fromDevice), ['Pixel 9', null, null, null, null]);
+    expect(prompts.map((p) => p.messageId), ['m-1', null, null, null, null]);
+    expect(t.hasPhoneMessage('m-1'), isTrue);
+    expect(t.hasPhoneMessage('m-2'), isFalse);
+  });
+
   test('a result arriving in a later batch completes the call', () {
     final t = Transcript(provider: 'claude')
       ..addFrames([toolUse('toolu_9', 'Bash', {'command': 'ls'})]);

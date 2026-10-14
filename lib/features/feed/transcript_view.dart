@@ -41,6 +41,7 @@ class TranscriptItemView extends StatelessWidget {
               broadcast: p.broadcast,
               recipients: p.recipients,
               attachments: p.attachments,
+              fromDevice: p.fromDevice,
             ),
           final ToolCallItem tool when answeredQuestion(tool) != null =>
             _AnsweredQuestion(answeredQuestion(tool)!),
@@ -134,8 +135,12 @@ class PromptBlock extends StatefulWidget {
     this.broadcast = false,
     this.recipients,
     this.attachments = const [],
+    this.fromDevice,
   });
   final String text;
+
+  /// The phone that sent it, when one did: a note above the text.
+  final String? fromDevice;
 
   /// Typed once in Swarm for several agents: a note above the text.
   final bool broadcast;
@@ -213,6 +218,11 @@ class _PromptBlockState extends State<PromptBlock> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (widget.fromDevice != null)
+            Text(
+              '📱 ${fromDeviceNote(widget.fromDevice!)}',
+              style: PromptBlock.style.copyWith(fontSize: 12, color: PromptBlock.noteColor),
+            ),
           if (widget.broadcast)
             Text(
               '📣 ${broadcastNote(widget.recipients)}',

@@ -3,11 +3,13 @@ import 'dart:typed_data';
 
 import 'package:agentmux_mobile/core/discovery/models/lan_instance.dart';
 import 'package:agentmux_mobile/core/fleet/fleet_store.dart';
+import 'package:agentmux_mobile/core/viewer/device_key_store.dart';
 import 'package:agentmux_mobile/core/viewer/paired_host.dart';
 import 'package:agentmux_mobile/core/viewer/paired_hosts_repository.dart';
 import 'package:agentmux_mobile/core/viewer/pairing_service.dart';
 import 'package:agentmux_mobile/core/viewer/viewer_client.dart';
 import 'package:agentmux_mobile/features/feed/agent_feed_screen.dart';
+import 'package:agentmux_mobile/features/feed/send_panel.dart';
 import 'package:agentmux_mobile/features/feed/unpaired_agent_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -41,13 +43,19 @@ Future<void> settle(WidgetTester tester) async {
 void main() {
   late InMemorySecureStore store;
   late FakeAdapter adapter;
+  late FakeDeviceKeyStore keys;
+  late Map<String, String> drafts;
 
   Future<void> pumpFeed(
     WidgetTester tester,
     PairedHost paired, {
     LanAgent agent = _agent,
     LanInstance instance = _instance,
+    String? send,
   }) async {
+    // What the computer says it lets this device do, beside the feed's own
+    // request: nothing about sending, as a computer from before it was.
+    adapter.hello ??= FakeResponse(200, json: {'hostname': 'host-a', 'device_id': 'dev-1', if (send != null) 'send': send});
     await PairedHostsRepository(store).save([paired]);
     final router = GoRouter(routes: [
       GoRoute(
@@ -73,6 +81,8 @@ void main() {
     await tester.pumpWidget(ProviderScope(
       overrides: [
         secureStoreProvider.overrideWithValue(store),
+        deviceKeyStoreProvider.overrideWithValue(keys),
+        feedDraftsProvider.overrideWithValue(drafts),
         viewerClientFactoryProvider.overrideWithValue(
           ({required host, required port, required fingerprint, token}) =>
               ViewerClient(
@@ -95,7 +105,11 @@ void main() {
     await tester.pump();
   }
 
-  setUp(() => store = InMemorySecureStore());
+  setUp(() {
+    store = InMemorySecureStore();
+    keys = FakeDeviceKeyStore();
+    drafts = {};
+  });
 
   testWidgets('renders a Claude turn, read-only, live', (tester) async {
     adapter = FakeAdapter([
@@ -406,5 +420,129 @@ void main() {
     expect(find.text('host-a isn\'t paired with this device'), findsOneWidget);
     expect(find.text('Pair this computer'), findsOneWidget);
     expect(find.byType(TextField), findsNothing);
+  });
+
+  group('sending', () {
+    final snapshot = _sse('snapshot', {
+      'provider': 'claude',
+      'gen': 1,
+      'from_line': 0,
+      'next_line': 1,
+      'lines': [userPrompt('Fix the failing test')],
+    }, id: '1:1');
+
+    FakeAdapter feedThen(List<FakeResponse> rest) =>
+        FakeAdapter([FakeResponse(200, keepOpen: true, chunks: [snapshot]), ...rest]);
+
+    testWidgets('a computer that lets this device send: the composer, Enter sends, the feed takes over', (tester) async {
+      await keys.create(deviceKeyAlias('p1'));
+      adapter = feedThen([const FakeResponse(202, json: {'message_id': 'x', 'state': 'delivered'})]);
+      await pumpFeed(tester, testPairedHost(), send: 'allowed');
+      expect(find.byType(TextField), findsOneWidget);
+      // No Send until there is something to send.
+      expect(tester.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.send)).onPressed, isNull);
+
+      await tester.enterText(find.byType(TextField), 'Run the tests again');
+      await tester.pump();
+      await tester.tap(find.widgetWithIcon(IconButton, Icons.send));
+      await settle(tester);
+
+      // Posted, signed, and shown as sending until the feed has it.
+      final post = adapter.requests.last;
+      expect(post.method, 'POST');
+      expect(post.uri.path, '/agentmux/viewer/agents/AgentA/input');
+      expect(post.headers['X-Amxv-Signature'], isNotNull);
+      final body = jsonDecode(adapter.bodies.last as String) as Map;
+      expect(body['message'], 'Run the tests again');
+      expect(find.text('Sending…'), findsOneWidget);
+      expect(find.text('Run the tests again'), findsOneWidget);
+      expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, isEmpty, reason: 'the box is clear');
+
+      // The feed shows the computer's record of it: that takes its place.
+      final frame = jsonEncode({
+        'type': 'user',
+        'message': {'role': 'user', 'content': 'Run the tests again'},
+        'amx': {'via': 'viewer', 'device': 'Pixel 9', 'message_id': body['message_id']},
+      });
+      adapter.open.first.add(Uint8List.fromList(utf8.encode(
+        _sse('append', {'gen': 1, 'line': 1, 'lines': [frame]}, id: '1:2'),
+      )));
+      await settle(tester);
+      expect(find.text('Sending…'), findsNothing);
+      expect(find.text('Run the tests again'), findsOneWidget, reason: 'now the feed\'s prompt');
+      expect(find.text('📱 From Pixel 9'), findsOneWidget);
+      await unmount(tester);
+    });
+
+    testWidgets('a refusal keeps the text with a way to try again', (tester) async {
+      await keys.create(deviceKeyAlias('p1'));
+      adapter = feedThen([
+        const FakeResponse(409, json: {'error': 'n', 'reason': 'not_running'}),
+        const FakeResponse(202, json: {'message_id': 'x', 'state': 'queued'}),
+      ]);
+      await pumpFeed(tester, testPairedHost(), send: 'allowed');
+      await tester.enterText(find.byType(TextField), 'hello');
+      await tester.pump();
+      await tester.tap(find.widgetWithIcon(IconButton, Icons.send));
+      await settle(tester);
+      expect(find.textContaining("Didn't send"), findsOneWidget);
+      expect(find.text('hello'), findsOneWidget);
+
+      await tester.tap(find.text('Try again'));
+      await settle(tester);
+      expect(find.textContaining("Didn't send"), findsNothing);
+      expect(find.text('Sending…'), findsOneWidget);
+      final ids = [for (final b in adapter.bodies.skip(1)) (jsonDecode(b as String) as Map)['message_id']];
+      expect(ids, hasLength(2));
+      expect(ids.first, ids.last, reason: 'the same message id');
+      await unmount(tester);
+    });
+
+    testWidgets('a draft is kept for the agent while the app runs', (tester) async {
+      await keys.create(deviceKeyAlias('p1'));
+      adapter = feedThen([]);
+      await pumpFeed(tester, testPairedHost(), send: 'allowed');
+      await tester.enterText(find.byType(TextField), 'half a thought');
+      await unmount(tester);
+
+      adapter = feedThen([]);
+      await pumpFeed(tester, testPairedHost(), send: 'allowed');
+      expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, 'half a thought');
+      await unmount(tester);
+    });
+
+    for (final (send, text) in [
+      ('off', 'Sending is off for this device'),
+      ('pair_again', 'no key for this device'),
+    ]) {
+      testWidgets('send $send: no composer, and the menu says why', (tester) async {
+        adapter = feedThen([]);
+        await pumpFeed(tester, testPairedHost(), send: send, instance: const LanInstance(
+          hostname: 'host-a',
+          version: '0.60.0',
+          address: '198.51.100.20',
+          port: 29700,
+          authKey: '',
+          channel: 'stable',
+          installId: testInstallId,
+        ));
+        expect(find.byType(TextField), findsNothing);
+        await tester.tap(find.byTooltip('More'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.tap(find.text('Send a message…'));
+        await tester.pump();
+        expect(find.textContaining(text), findsOneWidget);
+        await unmount(tester);
+      });
+    }
+
+    testWidgets('a computer from before sending: no composer, the old menu', (tester) async {
+      adapter = feedThen([]);
+      await pumpFeed(tester, testPairedHost());
+      expect(find.byType(TextField), findsNothing);
+      expect(find.byTooltip('More'), findsOneWidget, reason: 'the LAN send screen is still there');
+      await unmount(tester);
+    });
   });
 }

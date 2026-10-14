@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../core/discovery/peer_fields.dart' show hasControlChar;
 import 'messages.dart';
 
 export 'messages.dart' show Delivered, Jekt, NoticeTone;
@@ -20,7 +21,15 @@ sealed class TranscriptItem {
 /// Something the user sent: their own words, without the blocks AgentMux
 /// or Claude Code added (those are their own items).
 class PromptItem extends TranscriptItem {
-  PromptItem(super.key, this.text, {this.broadcast = false, this.recipients, this.attachments = const []});
+  PromptItem(
+    super.key,
+    this.text, {
+    this.broadcast = false,
+    this.recipients,
+    this.attachments = const [],
+    this.fromDevice,
+    this.messageId,
+  });
   final String text;
 
   /// Typed once in Swarm and sent to several agents.
@@ -31,6 +40,15 @@ class PromptItem extends TranscriptItem {
 
   /// The names of files attached to it; they are on the computer.
   final List<String> attachments;
+
+  /// The name of the phone that sent it, from the computer's own record of
+  /// the message (never from its text, so it can't be forged); null for a
+  /// message typed on the computer.
+  final String? fromDevice;
+
+  /// The id that phone gave the message, for matching it to what the phone
+  /// is showing as "Sending…".
+  final String? messageId;
 }
 
 enum ContextKind {
@@ -349,6 +367,14 @@ class Transcript {
   /// Claude Code is compacting the conversation.
   bool get compacting => _compacting != null;
 
+  /// Whether the feed has the message a phone sent with [messageId].
+  bool hasPhoneMessage(String messageId) {
+    for (final item in _items.reversed) {
+      if (item is PromptItem && item.messageId == messageId) return true;
+    }
+    return false;
+  }
+
   /// The tool call running now: the latest one, if any.
   ToolCallItem? get runningTool {
     for (final item in _items.reversed) {
@@ -631,6 +657,7 @@ class Transcript {
       return;
     }
     final broadcast = parseBroadcast(text);
+    final (device, messageId) = _sentFromPhone(f);
     final (withoutBlocks, blocks) = splitWrappers(broadcast?.body ?? text);
     final (words, named) = splitAttachments(withoutBlocks);
     final attachments = [...named, ...images];
@@ -642,6 +669,8 @@ class Transcript {
         broadcast: broadcast != null,
         recipients: broadcast?.recipients,
         attachments: attachments,
+        fromDevice: device,
+        messageId: messageId,
       ));
     }
     for (final b in blocks) {
@@ -660,6 +689,16 @@ class Transcript {
               personalCount: counts.personal,
             ));
     }
+  }
+
+  /// Who sent the user turn in [f], when it was a paired phone: the computer
+  /// stores `amx: {via: viewer, device, message_id}` on the turn's record.
+  static (String?, String?) _sentFromPhone(Map f) {
+    final amx = f['amx'];
+    if (amx is! Map || amx['via'] != 'viewer') return (null, null);
+    String? field(Object? v, int max) =>
+        v is String && v.isNotEmpty && v.length <= max && !hasControlChar(v) ? v : null;
+    return (field(amx['device'], 80), field(amx['message_id'], 64));
   }
 
   /// A raw API event inside a `stream_event` frame: reply text and thinking

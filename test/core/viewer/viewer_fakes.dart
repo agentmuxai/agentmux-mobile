@@ -76,17 +76,31 @@ class FakeAdapter implements HttpClientAdapter {
   final bodies = <Object?>[];
   final open = <StreamController<Uint8List>>[];
 
+  /// When set, every `hello` is answered with this and is not counted in
+  /// [requests] or taken from [script]: a screen that asks the computer what
+  /// it may do, beside the request the test is about.
+  FakeResponse? hello;
+  var helloRequests = 0;
+
   @override
   Future<ResponseBody> fetch(
     RequestOptions options,
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
+    final helloAnswer = hello;
+    if (helloAnswer != null && options.path.endsWith('/agentmux/viewer/hello')) {
+      helloRequests++;
+      return _answer(helloAnswer, track: false);
+    }
     requests.add(options);
     bodies.add(options.data);
-    final r = script[(requests.length - 1).clamp(0, script.length - 1)];
+    return _answer(script[(requests.length - 1).clamp(0, script.length - 1)]);
+  }
+
+  ResponseBody _answer(FakeResponse r, {bool track = true}) {
     final c = StreamController<Uint8List>();
-    open.add(c);
+    if (track) open.add(c);
     final chunks = r.chunks ?? [if (r.json != null) jsonEncode(r.json)];
     for (final chunk in chunks) {
       c.add(Uint8List.fromList(utf8.encode(chunk)));
