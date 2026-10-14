@@ -132,7 +132,9 @@ void main() {
     expect(find.text('git status'), findsOneWidget);
     expect(find.text('Edit'), findsOneWidget);
     expect(find.text('lib/app.dart'), findsOneWidget);
-    expect(find.text('Turn ended · 1m 05s'), findsOneWidget);
+    // No divider per turn: the working row says how the last one went.
+    expect(find.textContaining('Turn ended'), findsNothing);
+    expect(find.text('✓ Worked · 1m 5s'), findsOneWidget);
 
     // A tool's result opens on tap.
     expect(find.textContaining('On branch main'), findsNothing);

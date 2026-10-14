@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -18,10 +19,12 @@ import '../../shared/widgets/tag_chip.dart';
 import '../discovery/host_card.dart';
 import '../discovery/qr_scan_screen.dart';
 import 'feed_controller.dart';
+import 'feed_theme.dart';
 import 'feed_disclosure.dart';
 import 'tool_meta.dart';
 import 'transcript.dart';
 import 'transcript_view.dart';
+import 'working_row.dart';
 
 /// One agent's pane, live and read-only, over the pinned connection of a
 /// paired computer (`SPEC_AGENT_STATUS_AND_LIVE_PANE_FEED_2026_10_07.md` 6.2).
@@ -75,9 +78,9 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
   final _anchors = <int, GlobalKey>{};
   final _listKey = GlobalKey();
 
-  /// Where each held call's row last was: its bottom against the viewport,
-  /// at that scroll offset.
-  final _heldLastSeen = <int, ({double bottom, double offset})>{};
+  /// Where each held row's bottom last was in the list's content: the
+  /// scroll offset at which it leaves the top.
+  final _heldBottom = <int, double>{};
 
   /// The transcript the state above belongs to. A snapshot or reset makes a
   /// new transcript whose item keys start again at 0, so it is dropped with
@@ -149,7 +152,7 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
       _disclosure.clear();
       _seen.clear();
       _anchors.clear();
-      _heldLastSeen.clear();
+      _heldBottom.clear();
       _jekts.clear();
       _disclosureFor = transcript;
       if (transcript == null) return;
@@ -176,14 +179,14 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
           !isDismissed(item.state) &&
           _onScreen(item.key)) {
         _disclosure.hold(item.key);
-        _heldLastSeen.remove(item.key);
+        _heldBottom.remove(item.key);
       }
     }
     _seen.removeWhere((k, _) => !live.contains(k));
     _anchors.removeWhere((k, _) =>
         (!live.contains(k) && !_jekts.contains(k)) ||
         (_seen[k] != ToolState.running && !_disclosure.held.contains(k)));
-    _heldLastSeen.removeWhere((k, _) => !_disclosure.held.contains(k));
+    _heldBottom.removeWhere((k, _) => !_disclosure.held.contains(k));
   }
 
   /// Where row [key] is against the list's viewport: null when not laid out.
@@ -197,6 +200,16 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
     return (top: top, bottom: top + row.size.height, height: list.size.height);
   }
 
+  /// Where row [key]'s bottom is in the list's content (the scroll offset at
+  /// which it leaves the top), or null when it isn't laid out.
+  double? _rowContentBottom(int key) {
+    final row = _anchors[key]?.currentContext?.findRenderObject();
+    if (row is! RenderBox || !row.attached) return null;
+    final viewport = RenderAbstractViewport.maybeOf(row);
+    if (viewport == null) return null;
+    return viewport.getOffsetToReveal(row, 0).offset + row.size.height;
+  }
+
   bool _onScreen(int key) {
     final b = _rowBox(key);
     return b != null && b.bottom > 0 && b.top < b.height;
@@ -206,26 +219,21 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
     if (!_scroll.hasClients) return;
     final p = _scroll.position;
     final atEnd = p.pixels >= p.maxScrollExtent - 48;
-    // A held call closes once it scrolls off the top, not the bottom. The
-    // list drops rows past either edge, so a row that is no longer laid out
-    // is placed from where it last was and how far the list has scrolled.
+    // A held row closes once it scrolls off the top, not the bottom. The
+    // list drops rows past either edge, so its place is kept in content
+    // terms, which don't depend on the scroll offset. (A scroll
+    // notification comes before the list is laid out at the new offset, so
+    // a row's place in the viewport is a frame behind the offset.)
     final gone = <int>[];
     for (final k in _disclosure.held) {
-      final box = _rowBox(k);
-      final double bottom;
-      if (box != null) {
-        bottom = box.bottom;
-        _heldLastSeen[k] = (bottom: bottom, offset: p.pixels);
-      } else {
-        final seen = _heldLastSeen[k];
-        if (seen == null) continue;
-        bottom = seen.bottom - (p.pixels - seen.offset);
-      }
-      if (bottom < 0) gone.add(k);
+      final contentBottom = _rowContentBottom(k) ?? _heldBottom[k];
+      if (contentBottom == null) continue;
+      _heldBottom[k] = contentBottom;
+      if (contentBottom - p.pixels < 0) gone.add(k);
     }
     for (final k in gone) {
       _disclosure.release(k);
-      _heldLastSeen.remove(k);
+      _heldBottom.remove(k);
     }
     if (atEnd != _follow || gone.isNotEmpty) setState(() => _follow = atEnd);
   }
@@ -325,6 +333,32 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
     );
   }
 
+  /// The row at the bottom: what the agent is doing, or how the last turn
+  /// went. The agent's state comes from the feed's `status` events, timed
+  /// on this device's clock as the header's chip is.
+  Widget _workingRow(Transcript transcript) {
+    final feed = _feed;
+    final status = feed?.status;
+    final receivedAt = feed?.statusReceivedAt;
+    final state = status == null ? null : parseAgentState(status.state);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: FeedSpace.s3),
+      child: WorkingRow(
+        turn: transcript.turn,
+        runningTool: transcript.runningTool,
+        compacting: transcript.compacting,
+        state: state,
+        since: status == null || receivedAt == null
+            ? null
+            : stateSinceFrom(
+                sinceMs: parseUnixMs(status.sinceMs),
+                nowMs: parseUnixMs(status.nowMs),
+                receivedAt: receivedAt,
+              ),
+      ),
+    );
+  }
+
   Widget _body(FeedConnection connection, Transcript? transcript) {
     switch (connection) {
       case FeedConnection.unauthorized:
@@ -371,8 +405,10 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
           key: _listKey,
           controller: _scroll,
           padding: const EdgeInsets.only(top: 8, bottom: 24),
-          itemCount: items.length,
+          // The working row comes last.
+          itemCount: items.length + 1,
           itemBuilder: (_, i) {
+            if (i == items.length) return _workingRow(transcript);
             final item = items[i];
             if (!FeedDisclosure.opens(item)) {
               return TranscriptItemView(key: ValueKey(item.key), item: item);

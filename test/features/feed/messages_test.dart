@@ -219,7 +219,7 @@ void main() {
     final e = items.first as ErrorItem;
     expect(e.code, 401);
     expect(e.message, 'Invalid API key');
-    expect((items.last as TurnDividerItem).failed, isTrue);
+    expect(items, hasLength(1));
   });
 
   test('an answered question: the question and the answer', () {
