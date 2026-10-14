@@ -190,8 +190,10 @@ Future<void> main(List<String> args) async {
     ..writeln('pair link: $link')
     ..writeln('base64:    ${base64.encode(utf8.encode(link))}');
   await for (final req in server) {
-    unawaited(_handle(req).catchError((Object e) {
+    unawaited(_handle(req).catchError((Object e, StackTrace st) {
+      stderr.writeln('fake viewer: ${req.method} ${req.uri.path}: $e\n$st');
       try {
+        req.response.statusCode = 500;
         req.response.close();
       } catch (_) {}
     }));
@@ -464,6 +466,7 @@ Future<void> _control(HttpRequest req) async {
     'open': _open,
     'requests': _requests,
     'lines': _lines.length,
+    'sent': _sent.keys.toList(),
     'revoked': _revoked,
     'blackhole': _blackhole,
     'slow_ms': _slowMs,
