@@ -119,6 +119,30 @@ is a dev-only entrypoint (never the release target) that pairs with the
 - `adb logcat -s flutter:I | grep dev-pair` says whether it paired. The
   debug app's package is `com.agentmux.agentmux_mobile`.
 
+### A fake desktop, for long feeds and for breaking things
+
+`dart run scripts/fake_viewer.dart` is a stand-in for a desktop's viewer
+listener: a long made-up transcript that keeps growing, a terminal and live
+CPU and memory, over TLS with a certificate made for the run. It needs no
+desktop build and no token minting: it prints the pairing link and its
+base64 for `AGENTMUX_DEV_PAIR_B64` (`--host 10.0.2.2` is the default, the
+emulator's address for this machine). Start it with `Shell`, like the emulator.
+
+Its `/ctl/` routes (listed at the top of the script, no token) break the link
+on purpose: drop the streams, revoke the token, stop answering, go silent
+with the stream still open, delay replies, or append a very large update.
+`/ctl/stats` says how many streams are open and how many requests each route
+got, which is how to check that a screen stopped asking after it was left.
+It is not the real protocol's server: check anything that depends on the
+desktop's own behaviour against a `task dev` build.
+
+To see where frames go in a profile build, add
+`--dart-define=AGENTMUX_FRAME_STATS=true` to the `-t lib/dev_pair_main.dart`
+build: it logs build and raster times every 5 seconds
+(`adb logcat -s flutter:I | grep frame-stats`). Raster times on the
+emulator are its software renderer's, not a phone's; the build times are
+the ones to read there.
+
 ## Architecture
 
 Flutter mobile companion for the AgentMux desktop fleet. Connects via
