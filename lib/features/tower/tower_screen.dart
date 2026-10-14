@@ -33,6 +33,11 @@ class TowerUnreachable extends TowerSummary {
   const TowerUnreachable();
 }
 
+/// The computer refused this device's token (401): it was unpaired there.
+class TowerUnpaired extends TowerSummary {
+  const TowerUnpaired();
+}
+
 /// The desktop's own words for the setting, in Tower's menu.
 const towerShareSetting = "Share this computer's processes with paired devices";
 
@@ -71,6 +76,7 @@ String towerSummaryText(TowerSummary? s) => switch (s) {
       TowerNotShared() => 'Not shared',
       TowerTooOld() => 'Needs a newer AgentMux',
       TowerUnreachable() => "Can't reach it",
+      TowerUnpaired() => 'Pair again',
     };
 
 /// A paired computer's Tower, read-only (step 4): its totals, each task (an
@@ -90,7 +96,13 @@ class _TowerScreenState extends ConsumerState<TowerScreen> {
   Timer? _timer;
   bool _paused = false;
   bool _loading = false;
-  String _filter = '';
+
+  /// Asked for while a request was in flight: run once it finishes.
+  bool _again = false;
+
+  /// The filter box's text, kept here so a refresh that rebuilds the list
+  /// never clears it while it still filters.
+  final _filterBox = TextEditingController();
   AppLifecycleListener? _lifecycle;
 
   @override
@@ -113,14 +125,20 @@ class _TowerScreenState extends ConsumerState<TowerScreen> {
   void dispose() {
     _lifecycle?.dispose();
     _timer?.cancel();
+    _filterBox.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
-    if (_loading || _paused) return;
+    if (_paused || _state is TowerUnpaired) return;
+    if (_loading) {
+      _again = true;
+      return;
+    }
     _timer?.cancel();
     final paired = widget.pairing.paired;
     _loading = true;
+    _again = false;
     final client = ref.read(viewerClientFactoryProvider)(
       host: widget.pairing.host,
       port: widget.pairing.port,
@@ -129,14 +147,13 @@ class _TowerScreenState extends ConsumerState<TowerScreen> {
     );
     TowerSummary next;
     try {
-      next = TowerNow(await client.procs(filter: _filter));
+      next = TowerNow(await client.procs(filter: _filterBox.text.trim()));
     } on ViewerForbidden {
       next = const TowerNotShared();
     } on ViewerNotFound {
       next = const TowerTooOld();
     } on ViewerUnauthorized {
-      unawaited(ref.read(pairedHostsProvider.notifier).markInvalid(paired.id));
-      next = const TowerUnreachable();
+      next = const TowerUnpaired();
     } catch (_) {
       next = const TowerUnreachable();
     } finally {
@@ -144,7 +161,17 @@ class _TowerScreenState extends ConsumerState<TowerScreen> {
       _loading = false;
     }
     if (!mounted) return;
+    if (next is TowerUnpaired) {
+      // The token is dead: say so, and stop asking with it.
+      unawaited(ref.read(pairedHostsProvider.notifier).markInvalid(paired.id));
+      setState(() => _state = next);
+      return;
+    }
     setState(() => _state = next);
+    if (_again) {
+      unawaited(_load());
+      return;
+    }
     // Sharing can be turned on while the screen is open: keep asking.
     final every = next is TowerNow ? next.snapshot.intervalMs.clamp(2000, 10000) : 5000;
     if (!_paused) _timer = Timer(Duration(milliseconds: every), () => unawaited(_load()));
@@ -175,12 +202,13 @@ class _TowerScreenState extends ConsumerState<TowerScreen> {
           ),
         TowerTooOld() => const _Message('Update AgentMux on the computer to see its Tower here.'),
         TowerUnreachable() => const _Message("Can't reach the computer. Retrying…"),
+        TowerUnpaired() => const _Message(
+            'This device was unpaired on the computer.\n\nPair again to see its Tower.',
+          ),
         TowerNow(:final snapshot) => _Snapshot(
             snapshot: snapshot,
-            onFilter: (f) {
-              _filter = f;
-              unawaited(_load());
-            },
+            filterBox: _filterBox,
+            onFilter: () => unawaited(_load()),
           ),
       },
     );
@@ -188,9 +216,10 @@ class _TowerScreenState extends ConsumerState<TowerScreen> {
 }
 
 class _Snapshot extends StatelessWidget {
-  const _Snapshot({required this.snapshot, required this.onFilter});
+  const _Snapshot({required this.snapshot, required this.filterBox, required this.onFilter});
   final TowerSnapshot snapshot;
-  final ValueChanged<String> onFilter;
+  final TextEditingController filterBox;
+  final VoidCallback onFilter;
 
   String _cpu(double? cores) => cores == null ? '—' : '${snapshot.percentOfMachine(cores).toStringAsFixed(1)}%';
 
@@ -235,12 +264,14 @@ class _Snapshot extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
           child: TextField(
+            key: const ValueKey('tower-filter'),
+            controller: filterBox,
             decoration: const InputDecoration(
               isDense: true,
               prefixIcon: Icon(Icons.search, size: 18),
               hintText: 'Filter by name or PID',
             ),
-            onSubmitted: onFilter,
+            onSubmitted: (_) => onFilter(),
           ),
         ),
         if (host != null && host.matched != host.total)

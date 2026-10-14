@@ -92,6 +92,32 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('a revoked token says pair again, and stops asking', (tester) async {
+    final adapter = FakeAdapter([const FakeResponse(401)]);
+    await tester.pumpWidget(_screen(adapter));
+    await _settle(tester);
+    expect(find.textContaining('This device was unpaired on the computer.'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 30));
+    expect(adapter.requests, hasLength(1));
+    expect(towerSummaryText(const TowerUnpaired()), 'Pair again');
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('the filter keeps its text when a refresh changes the list', (tester) async {
+    final fewer = Map<String, Object?>.of(_snapshot)..['tasks'] = <Object?>[];
+    final adapter = FakeAdapter([FakeResponse(200, json: _snapshot), FakeResponse(200, json: fewer)]);
+    await tester.pumpWidget(_screen(adapter));
+    await _settle(tester);
+    await tester.enterText(find.byKey(const ValueKey('tower-filter')), 'cargo');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await _settle(tester);
+    expect(adapter.requests.last.uri.toString(), endsWith('/agentmux/viewer/procs?filter=cargo'));
+    expect(find.text('Clamk'), findsNothing, reason: 'the refresh changed the task list');
+    final field = tester.widget<TextField>(find.byKey(const ValueKey('tower-filter')));
+    expect(field.controller!.text, 'cargo');
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('shared: totals, tasks that open, busiest first', (tester) async {
     final adapter = FakeAdapter([FakeResponse(200, json: _snapshot)]);
     await tester.pumpWidget(_screen(adapter));
