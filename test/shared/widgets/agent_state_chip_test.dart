@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:agentmux_mobile/core/discovery/models/lan_instance.dart';
 import 'package:agentmux_mobile/shared/theme/app_theme.dart';
 import 'package:agentmux_mobile/shared/widgets/agent_state_chip.dart';
+import 'package:agentmux_mobile/shared/widgets/ascii_spinner.dart';
 import 'package:agentmux_mobile/shared/widgets/tag_chip.dart';
 
 final t0 = DateTime(2026, 10, 7, 12);
@@ -25,16 +26,16 @@ TagChip _tag(WidgetTester tester) => tester.widget<TagChip>(
   ),
 );
 
-double _dotOpacity(WidgetTester tester) =>
+/// The glyph the working chip shows now.
+String _glyph(WidgetTester tester) =>
     tester
-        .widget<FadeTransition>(
+        .widget<Text>(
           find.descendant(
-            of: find.byType(AgentStateChip),
-            matching: find.byType(FadeTransition),
+            of: find.byType(AsciiSpinner),
+            matching: find.byType(Text),
           ),
         )
-        .opacity
-        .value;
+        .data!;
 
 void main() {
   group('formatStateDuration', () {
@@ -177,11 +178,11 @@ void main() {
         final tag = _tag(tester);
         expect(tag.color, color, reason: '$state');
         expect(tag.filled, filled, reason: '$state');
-        // Only a working agent has the dot.
+        // Only a working agent has the spinner.
         expect(
           find.descendant(
             of: find.byType(AgentStateChip),
-            matching: find.byType(FadeTransition),
+            matching: find.byType(AsciiSpinner),
           ),
           state == AgentState.working ? findsOneWidget : findsNothing,
           reason: '$state',
@@ -217,16 +218,22 @@ void main() {
       expect(tester.widget<Opacity>(find.byType(Opacity)).opacity, 0.55);
     });
 
-    testWidgets('the dot pulses while working', (tester) async {
+    testWidgets('the spinner turns while working', (tester) async {
       await tester.pumpWidget(
         _app(const AgentStateChip(state: AgentState.working)),
       );
-      final start = _dotOpacity(tester);
-      await tester.pump(const Duration(milliseconds: 450));
-      expect(_dotOpacity(tester), isNot(start));
+      expect(_glyph(tester), spinnerFrames.first);
+      await tester.pump(spinnerFrameTime);
+      expect(_glyph(tester), spinnerFrames[1]);
+      await tester.pump(spinnerFrameTime * 3);
+      expect(_glyph(tester), spinnerFrames[4]);
+      // Leaving the screen stops it.
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(spinnerFrameTime * 3);
+      expect(tester.binding.hasScheduledFrame, isFalse);
     });
 
-    testWidgets('no pulse when the platform asks for no animations', (
+    testWidgets('it stays still when the platform asks for no animations', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -235,18 +242,18 @@ void main() {
           disableAnimations: true,
         ),
       );
-      expect(_dotOpacity(tester), 1);
-      await tester.pump(const Duration(milliseconds: 450));
-      expect(_dotOpacity(tester), 1);
+      expect(_glyph(tester), spinnerStill);
+      await tester.pump(spinnerFrameTime * 4);
+      expect(_glyph(tester), spinnerStill);
       expect(tester.binding.hasScheduledFrame, isFalse);
     });
 
-    testWidgets('no pulse for a channel gone quiet', (tester) async {
+    testWidgets('it stays still for a channel gone quiet', (tester) async {
       await tester.pumpWidget(
         _app(const AgentStateChip(state: AgentState.working, live: false)),
       );
-      await tester.pump(const Duration(milliseconds: 450));
-      expect(_dotOpacity(tester), 1);
+      await tester.pump(spinnerFrameTime * 4);
+      expect(_glyph(tester), spinnerStill);
     });
   });
 }
