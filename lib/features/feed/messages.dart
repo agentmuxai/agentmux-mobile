@@ -129,6 +129,9 @@ Broadcast? parseBroadcast(String text) {
 String broadcastNote(int? recipients) =>
     recipients != null && recipients > 1 ? 'Broadcast · $recipients agents' : 'Broadcast';
 
+/// The note over a message a paired phone sent.
+String fromDeviceNote(String device) => 'From $device';
+
 /// The context AgentMux gives an agent when it starts.
 bool isSessionContext(String text) => RegExp(r'^# Session Context\b').hasMatch(text);
 

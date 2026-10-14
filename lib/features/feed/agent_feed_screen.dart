@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/discovery/models/lan_instance.dart';
 import '../../core/discovery/peer_fields.dart';
 import '../../core/fleet/fleet_store.dart';
+import '../../core/viewer/device_key_store.dart';
 import '../../core/viewer/paired_host.dart';
 import '../../core/viewer/paired_hosts_repository.dart';
 import '../../core/viewer/pairing_service.dart';
@@ -19,6 +20,8 @@ import '../../shared/widgets/tag_chip.dart';
 import '../discovery/host_card.dart';
 import '../discovery/qr_scan_screen.dart';
 import 'feed_controller.dart';
+import 'send_controller.dart';
+import 'send_panel.dart';
 import 'feed_theme.dart';
 import 'feed_disclosure.dart';
 import 'tool_meta.dart';
@@ -87,6 +90,9 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
   /// the old one rather than opening unrelated tool calls.
   Transcript? _disclosureFor;
 
+  /// Sends this agent messages; null while the pairing is refused.
+  SendController? _send;
+
   @override
   void initState() {
     super.initState();
@@ -126,10 +132,23 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
     )..addListener(_onFeed);
     _client = client;
     _feed = feed;
+    _send = SendController(
+      clientFor: ref.read(viewerClientFactoryProvider),
+      pairing: _pairing,
+      agent: widget.agent.name,
+      keys: ref.read(deviceKeyStoreProvider),
+      onUnauthorized: () => unawaited(
+        ref.read(pairedHostsProvider.notifier).markInvalid(paired.id),
+      ),
+    );
+    _send!.addListener(_onSend);
+    unawaited(_send!.checkGrant());
     feed.start();
   }
 
   void _disconnect() {
+    _send?.dispose();
+    _send = null;
     _feed
       ?..removeListener(_onFeed)
       ..dispose();
@@ -138,9 +157,28 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
     _client = null;
   }
 
+  /// The grant or what was sent changed: the menu follows the grant.
+  void _onSend() {
+    if (mounted) setState(() {});
+  }
+
+  FeedConnection? _lastConnection;
+
   void _onFeed() {
     if (!mounted) return;
-    _trackTools(_feed?.transcript);
+    final transcript = _feed?.transcript;
+    // What this phone sent is no longer "Sending…" once the feed shows it.
+    if (transcript != null && _send?.messages.isNotEmpty == true) {
+      _send!.shown(transcript.hasPhoneMessage);
+    }
+    // Back from a lost connection: the computer's answer on sending may have
+    // changed (it was switched on, or this device was paired again).
+    final connection = _feed?.connection;
+    if (connection == FeedConnection.live && _lastConnection != FeedConnection.live && _send?.grant != SendGrant.allowed) {
+      unawaited(_send?.checkGrant());
+    }
+    _lastConnection = connection;
+    _trackTools(transcript);
     setState(() {});
     if (_follow) _scrollToEndAfterFrame();
   }
@@ -309,16 +347,11 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
           ConnectionIndicator(connection: connection),
           // A paired computer discovery has not found has no fleet endpoint
           // or key to send a message with; only its live feed.
-          if (widget.instance.authKey.isNotEmpty)
+          if (_menuSend)
             PopupMenuButton<_FeedMenu>(
               tooltip: 'More',
               onSelected: (action) => switch (action) {
-                _FeedMenu.sendMessage => openMessageScreen(
-                    context,
-                    widget.instance,
-                    widget.agent,
-                    route: widget.route,
-                  ),
+                _FeedMenu.sendMessage => _sendFromMenu(),
               },
               itemBuilder: (_) => const [
                 PopupMenuItem(
@@ -329,8 +362,47 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
             ),
         ],
       ),
-      body: _body(connection, feed?.transcript),
+      body: Column(
+        children: [
+          Expanded(child: _body(connection, feed?.transcript)),
+          if (_send != null && !_pairing.paired.invalid)
+            SendPanel(
+              controller: _send!,
+              draftKey: '${_pairing.paired.id}/${widget.agent.name}',
+              canSend: connection == FeedConnection.live,
+              agentWorking: parseAgentState(feed?.status?.state) == AgentState.working,
+              onSent: _jumpToLatest,
+            ),
+        ],
+      ),
     );
+  }
+
+  /// Whether the header has a "Send a message…" menu: not when the composer
+  /// is there. A computer that says why this device can't send gets it so it
+  /// can say so; the old send screen is for one discovery found that knows
+  /// nothing of this.
+  bool get _menuSend {
+    final grant = _send?.grant;
+    if (grant == SendGrant.allowed) return false;
+    return grant == SendGrant.off ||
+        grant == SendGrant.pairAgain ||
+        widget.instance.authKey.isNotEmpty;
+  }
+
+  void _sendFromMenu() {
+    final grant = _send?.grant;
+    final why = sendGrantText(grant);
+    if (grant == SendGrant.off || grant == SendGrant.pairAgain) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(why!),
+        action: grant == SendGrant.pairAgain
+            ? SnackBarAction(label: 'Pair again', onPressed: _pairAgain)
+            : null,
+      ));
+      return;
+    }
+    openMessageScreen(context, widget.instance, widget.agent, route: widget.route);
   }
 
   /// The row at the bottom: what the agent is doing, or how the last turn
