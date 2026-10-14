@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/fleet/channel_session.dart' show fullJitterBackoff;
 import '../../core/viewer/paired_host.dart';
 import '../../core/viewer/paired_hosts_repository.dart';
 import '../../core/viewer/pairing_service.dart';
@@ -15,8 +17,11 @@ import '../../shared/theme/app_theme.dart';
 /// as charts, and each core under a tap. Read-only; kept in memory only, and
 /// paused while the app is in the background.
 class SysinfoScreen extends ConsumerStatefulWidget {
-  const SysinfoScreen({super.key, required this.pairing});
+  const SysinfoScreen({super.key, required this.pairing, this.random});
   final PairingMatch pairing;
+
+  /// For the reconnect wait; tests give a fixed one.
+  final Random? random;
 
   @override
   ConsumerState<SysinfoScreen> createState() => _SysinfoScreenState();
@@ -33,6 +38,10 @@ class _SysinfoScreenState extends ConsumerState<SysinfoScreen> {
   ViewerClient? _client;
   StreamSubscription<SysinfoSample?>? _sub;
   Timer? _retry;
+  late final Random _random = widget.random ?? Random();
+
+  /// Failed connections in a row, for the wait before the next.
+  int _attempt = 0;
   AppLifecycleListener? _lifecycle;
   bool _paused = false;
 
@@ -90,7 +99,10 @@ class _SysinfoScreenState extends ConsumerState<SysinfoScreen> {
         if (!mounted) return;
         setState(() {
           _connection = SysinfoConnection.live;
-          if (sample != null) addSample(_samples, sample);
+          if (sample != null) {
+            _attempt = 0;
+            addSample(_samples, sample);
+          }
         });
       },
       onError: (Object e) {
@@ -117,7 +129,12 @@ class _SysinfoScreenState extends ConsumerState<SysinfoScreen> {
     if (!mounted || _paused) return;
     setState(() => _connection = SysinfoConnection.reconnecting);
     _retry?.cancel();
-    _retry = Timer(const Duration(seconds: 3), _open);
+    // Backs off with jitter, as the feeds do: a computer that is off is not
+    // asked every 3 seconds for as long as the screen is open.
+    _retry = Timer(
+      fullJitterBackoff(_attempt++, _random, base: const Duration(seconds: 2), cap: const Duration(seconds: 30)),
+      _open,
+    );
   }
 
   @override

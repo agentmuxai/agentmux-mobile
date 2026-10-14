@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:agentmux_mobile/core/fleet/sse.dart';
@@ -20,6 +21,16 @@ String _sample(int ts, double cpu, {double used = 8, double total = 16}) => 'eve
       'values': {'cpu': cpu, 'cpu:0': cpu, 'cpu:1': cpu / 2, 'mem:used': used, 'mem:total': total},
       'uptime_secs': 60,
     })}\n\n';
+
+/// Always the top of the backoff range, so waits are predictable.
+class _MaxRandom implements Random {
+  @override
+  int nextInt(int max) => max - 1;
+  @override
+  double nextDouble() => 0.999;
+  @override
+  bool nextBool() => true;
+}
 
 void main() {
   group('a sample', () {
@@ -136,6 +147,32 @@ void main() {
       await tester.pump(const Duration(milliseconds: 10));
     }
     expect(find.text('90%'), findsWidgets);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a computer that keeps failing is asked less and less often', (tester) async {
+    // Every connection fails, as one to a computer that is switched off does.
+    final adapter = FakeAdapter([const FakeResponse(500)]);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        viewerClientFactoryProvider.overrideWithValue(
+          ({required host, required port, required fingerprint, token}) =>
+              ViewerClient(host: host, port: port, fingerprint: fingerprint, token: token, adapter: adapter),
+        ),
+      ],
+      child: MaterialApp(
+        home: SysinfoScreen(
+          pairing: PairingMatch(paired: testPairedHost(), host: '198.51.100.30', port: 29800),
+          random: _MaxRandom(),
+        ),
+      ),
+    ));
+    for (var i = 0; i < 50; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    // At 0 s, then after 2, 4, 8 and 16 s more; a retry every 3 s made 17.
+    expect(adapter.requests, hasLength(5));
+    expect(find.text('Reconnecting…'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
