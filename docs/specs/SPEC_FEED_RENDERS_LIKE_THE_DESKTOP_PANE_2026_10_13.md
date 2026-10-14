@@ -311,8 +311,9 @@ result's text.
 
 - **No divider per turn.** The latest turn's summary sits at the bottom of
   the transcript, as the desktop's working row: "✓ Worked · 42s · 2.4k
-  tokens", from the `result` frame's `duration_ms` and `usage.output_tokens`
-  (else the output counted while it streamed). Earlier turns get nothing, as
+  tokens": the `result` frame's `duration_ms`, and the output counted while
+  the turn streamed (the `result`'s `usage.output_tokens` only when nothing
+  was counted, since it can cover the session). Earlier turns get nothing, as
   on the desktop. A turn that ended in an error or an interrupt gets no
   Worked line: its error block or "⏹ Interrupted by user" says how it ended.
   The draft's "$0.41 · 9 steps" line is left out: the desktop doesn't show

@@ -92,6 +92,23 @@ void main() {
       expect(t.turn.last, (durationMs: 42000, outputTokens: 2400));
     });
 
+    test('the Worked line counts this turn, not the session', () {
+      final t = Transcript(provider: 'claude')
+        ..addFrames([
+          userPrompt('Again'),
+          _messageStart('m9'),
+          _messageDelta(300),
+          _messageStop,
+          frame({
+            'type': 'result',
+            'duration_ms': 5000,
+            // Session-wide in streaming-input mode.
+            'usage': {'output_tokens': 98000},
+          }),
+        ]);
+      expect(t.turn.last, (durationMs: 5000, outputTokens: 300));
+    });
+
     test('a rate limit, until the next request starts', () {
       final at = DateTime(2026, 10, 13, 12);
       final t = Transcript(provider: 'claude')

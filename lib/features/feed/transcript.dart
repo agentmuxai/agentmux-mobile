@@ -477,7 +477,12 @@ class Transcript {
           ? null
           : (
               durationMs: duration is num ? duration.toInt() : null,
-              outputTokens: tokens is num ? tokens.toInt() : (turn.outputTokens > 0 ? turn.outputTokens : null),
+              // What this turn wrote, counted as it streamed; the result's
+              // figure can cover the whole session, so it is only the
+              // fallback.
+              outputTokens: turn.outputTokens > 0
+                  ? turn.outputTokens
+                  : (tokens is num ? tokens.toInt() : null),
             );
   }
 
