@@ -4,6 +4,7 @@ import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/discovery/models/lan_instance.dart';
+import '../../shared/widgets/ascii_spinner.dart';
 import 'feed_theme.dart';
 import 'messages.dart';
 import 'tool_meta.dart';
@@ -45,8 +46,6 @@ class WorkingRow extends StatefulWidget {
 bool workingRowLive(TurnInfo turn, AgentState? state) =>
     turn.open && (state == null || state == AgentState.working || state == AgentState.waiting);
 
-const _spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-
 class _WorkingRowState extends State<WorkingRow> {
   Timer? _timer;
   int _frame = 0;
@@ -68,7 +67,7 @@ class _WorkingRowState extends State<WorkingRow> {
   /// Ticks only while a turn runs: the spinner and the elapsed time.
   void _sync() {
     if (_live && _timer == null) {
-      _timer = Timer.periodic(const Duration(milliseconds: 120), (_) {
+      _timer = Timer.periodic(spinnerFrameTime, (_) {
         if (mounted) setState(() => _frame++);
       });
     } else if (!_live) {
@@ -102,7 +101,7 @@ class _WorkingRowState extends State<WorkingRow> {
             SizedBox(
               width: 16,
               child: Text(
-                _spinner[_frame % _spinner.length],
+                spinnerFrames[_frame % spinnerFrames.length],
                 style: style.copyWith(color: FeedColors.accent),
               ),
             ),

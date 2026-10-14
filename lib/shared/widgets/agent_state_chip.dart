@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/discovery/models/lan_instance.dart';
 import '../theme/app_theme.dart';
+import 'ascii_spinner.dart';
 import 'tag_chip.dart';
 
 /// A cloud state older than this says how old it is
@@ -100,7 +101,7 @@ class _AgentStateChipState extends State<AgentStateChip> {
       tooltip: view.tooltip,
       leading:
           widget.state == AgentState.working
-              ? _Dot(color: color, animate: animate)
+              ? AsciiSpinner(color: color, animate: animate)
               : null,
     );
     return view.muted ? Opacity(opacity: 0.55, child: chip) : chip;
@@ -210,62 +211,3 @@ Color agentStateColor(AgentState state) => switch (state) {
   AgentState.idle || AgentState.stopped => AppColors.textSecondary,
   AgentState.error => AppColors.error,
 };
-
-/// The working chip's dot: it pulses while the agent works, unless the
-/// platform asks for no animations or the state is not current.
-class _Dot extends StatefulWidget {
-  const _Dot({required this.color, required this.animate});
-  final Color color;
-  final bool animate;
-
-  @override
-  State<_Dot> createState() => _DotState();
-}
-
-class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-    lowerBound: 0.3,
-  );
-
-  @override
-  void initState() {
-    super.initState();
-    _sync();
-  }
-
-  @override
-  void didUpdateWidget(_Dot oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.animate != widget.animate) _sync();
-  }
-
-  void _sync() {
-    if (widget.animate) {
-      _controller.repeat(reverse: true);
-    } else {
-      _controller
-        ..stop()
-        ..value = 1;
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _controller,
-      child: Container(
-        width: 6,
-        height: 6,
-        decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
-      ),
-    );
-  }
-}
