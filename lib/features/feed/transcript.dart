@@ -248,13 +248,46 @@ class ToolFacts {
   }
 }
 
-/// The end of a turn. An error it ended in is an [ErrorItem] before it.
-class TurnDividerItem extends TranscriptItem {
-  TurnDividerItem(super.key, {this.durationMs, this.failed = false});
-  final int? durationMs;
+/// What the agent is doing in the current turn.
+enum TurnPhase {
+  /// A request is in flight: nothing streams yet.
+  requesting,
+  thinking,
+  writing,
 
-  /// The turn ended in an error.
-  final bool failed;
+  /// Between blocks, or building a tool call.
+  composing,
+}
+
+/// The latest turn, for the working row at the bottom
+/// (`SPEC_FEED_RENDERS_LIKE_THE_DESKTOP_PANE_2026_10_13.md` §8): while it
+/// runs, what the agent is doing and how much it has written; once done,
+/// how long it took.
+class TurnInfo {
+  /// A turn is running: a prompt or the agent's output came after the last
+  /// `result`.
+  bool open = false;
+
+  /// When this device saw the turn start; null when it started before the
+  /// snapshot.
+  DateTime? startedAt;
+  TurnPhase phase = TurnPhase.requesting;
+
+  /// The model's output so far this turn, in tokens: finished messages plus
+  /// the one streaming.
+  int outputTokens = 0;
+  int _doneTokens = 0;
+
+  /// The API refused for now: Claude Code retries.
+  bool rateLimited = false;
+
+  /// When it retries, by this device's clock.
+  DateTime? retryAt;
+
+  /// The last finished turn: how long it took and what it wrote. Null while
+  /// none has, or when it ended in an error or an interrupt (their own rows
+  /// say so).
+  ({int? durationMs, int? outputTokens})? last;
 }
 
 /// A frame the desktop cut because it was too large, not attributable to a
@@ -290,6 +323,13 @@ class Transcript {
   static const maxSummaryChars = 200;
 
   late final bool _claude = isClaudeShaped(provider);
+
+  /// The latest turn, for the working row.
+  final TurnInfo turn = TurnInfo();
+
+  /// Messages whose output was counted from their stream, so their whole
+  /// `assistant` frame isn't counted again.
+  final Set<String> _streamedMessages = {};
   final List<TranscriptItem> _items = [];
   final Map<String, ToolCallItem> _tools = {};
   int _nextKey = 0;
@@ -302,6 +342,17 @@ class Transcript {
   final Set<TranscriptItem> _live = Set.identity();
 
   List<TranscriptItem> get items => List.unmodifiable(_items);
+
+  /// Claude Code is compacting the conversation.
+  bool get compacting => _compacting != null;
+
+  /// The tool call running now: the latest one, if any.
+  ToolCallItem? get runningTool {
+    for (final item in _items.reversed) {
+      if (item is ToolCallItem && item.state == ToolState.running) return item;
+    }
+    return null;
+  }
   int get length => _items.length;
 
   /// When the frames being added arrived; null for a snapshot's, which
@@ -354,9 +405,21 @@ class Transcript {
     if (parent is String && parent.isNotEmpty) return;
     switch (type) {
       case 'stream_event':
+        _openTurn();
+        _turnEvent(f['event']);
         _streamEvent(f['event']);
+      case 'rate_limit_event':
+        final info = f['rate_limit_info'];
+        if (info is Map && info['status'] == 'rejected') {
+          turn.rateLimited = true;
+          final ms = f['retry_after_ms'];
+          final at = _at;
+          turn.retryAt = ms is num && at != null ? at.add(Duration(milliseconds: ms.toInt())) : null;
+        }
       case 'assistant':
         if (f['partial'] == true) return;
+        _openTurn();
+        _countAssistant(f['message']);
         // The whole block: what streamed of it is replaced. Claude Code
         // writes it before the block's `content_block_stop`, and the next
         // block starts after that stop, so every live item is this block's.
@@ -375,18 +438,95 @@ class Transcript {
         _dropLive(_live);
         _cancelRunning();
         _dropCompacting();
-        final duration = f['duration_ms'];
         final failed = f['is_error'] == true;
         if (failed) _items.add(_error(f));
-        _items.add(TurnDividerItem(
-          _nextKey++,
-          durationMs: duration is num ? duration.toInt() : null,
-          failed: failed,
-        ));
+        _endTurn(f, failed: failed);
       case 'system':
         _system(f);
     }
     // Rate limits and the rest show nothing in the transcript.
+  }
+
+  /// A prompt (or another agent's message) starts a turn.
+  void _startTurn() {
+    turn
+      ..open = true
+      ..startedAt = _at
+      ..phase = TurnPhase.requesting
+      ..outputTokens = 0
+      .._doneTokens = 0
+      ..rateLimited = false
+      ..retryAt = null;
+    _streamedMessages.clear();
+  }
+
+  /// The agent's output with no prompt seen: a turn started before the
+  /// snapshot, or by something the transcript doesn't record.
+  void _openTurn() {
+    if (!turn.open) _startTurn();
+  }
+
+  void _endTurn(Map f, {required bool failed}) {
+    final duration = f['duration_ms'];
+    final usage = f['usage'];
+    final tokens = usage is Map ? usage['output_tokens'] : null;
+    turn
+      ..open = false
+      ..rateLimited = false
+      ..last = failed
+          ? null
+          : (
+              durationMs: duration is num ? duration.toInt() : null,
+              outputTokens: tokens is num ? tokens.toInt() : (turn.outputTokens > 0 ? turn.outputTokens : null),
+            );
+  }
+
+  /// What a raw API event says about the turn: its phase and token count.
+  void _turnEvent(Object? event) {
+    if (event is! Map) return;
+    switch (event['type']) {
+      case 'message_start':
+        final message = event['message'];
+        if (message is Map) {
+          final id = message['id'];
+          if (id is String) _streamedMessages.add(id);
+          final usage = message['usage'];
+          final out = usage is Map ? usage['output_tokens'] : null;
+          if (out is num) turn.outputTokens = turn._doneTokens + out.toInt();
+        }
+        turn
+          ..phase = TurnPhase.composing
+          ..rateLimited = false
+          ..retryAt = null;
+      case 'content_block_start':
+        final block = event['content_block'];
+        turn.phase = switch (block is Map ? block['type'] : null) {
+          'thinking' || 'redacted_thinking' => TurnPhase.thinking,
+          'text' => TurnPhase.writing,
+          _ => TurnPhase.composing,
+        };
+      case 'message_delta':
+        final usage = event['usage'];
+        final out = usage is Map ? usage['output_tokens'] : null;
+        if (out is num) turn.outputTokens = turn._doneTokens + out.toInt();
+      case 'message_stop':
+        turn
+          .._doneTokens = turn.outputTokens
+          ..phase = TurnPhase.requesting;
+    }
+  }
+
+  /// A whole message's output, when its stream wasn't seen.
+  void _countAssistant(Object? message) {
+    if (message is! Map) return;
+    final id = message['id'];
+    if (id is String && !_streamedMessages.add(id)) return;
+    final usage = message['usage'];
+    final out = usage is Map ? usage['output_tokens'] : null;
+    if (out is! num) return;
+    turn
+      .._doneTokens += out.toInt()
+      ..outputTokens = turn._doneTokens;
   }
 
   /// The turn's error, as the desktop's `agent_error` row
@@ -452,6 +592,7 @@ class Transcript {
     final jekt = parseJekt(text);
     if (jekt != null) {
       _items.add(JektItem(_nextKey++, jekt));
+      _startTurn();
       return;
     }
     if (isSessionContext(text)) {
@@ -469,6 +610,7 @@ class Transcript {
     final (words, named) = splitAttachments(withoutBlocks);
     final attachments = [...named, ...images];
     if (words.trim().isNotEmpty || attachments.isNotEmpty || broadcast != null) {
+      _startTurn();
       _items.add(PromptItem(
         _nextKey++,
         words.trim(),
@@ -629,6 +771,9 @@ class Transcript {
       if (texts.any((t) => t.startsWith('[Request interrupted by user'))) {
         _cancelRunning();
         _items.add(NoticeItem(_nextKey++, '⏹ Interrupted by user'));
+        turn
+          ..open = false
+          ..last = null;
         return;
       }
       // A prompt with an image is an array; text-only arrays are Claude

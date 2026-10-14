@@ -58,8 +58,6 @@ class TranscriptItemView extends StatelessWidget {
             ThinkingBlock(text: text, streaming: streaming),
           final ToolCallItem tool =>
             ToolBlock(tool: tool, open: expanded, onToggle: onToggle),
-          TurnDividerItem(:final durationMs, :final failed) =>
-            _TurnDivider(durationMs: durationMs, failed: failed),
           TruncatedItem() => const _Note(text: truncatedText),
           PlainTextItem(:final text) => SelectableText(text, style: feedCode),
         },
@@ -275,39 +273,6 @@ class ThinkingBlock extends StatelessWidget {
   }
 }
 
-class _TurnDivider extends StatelessWidget {
-  const _TurnDivider({this.durationMs, this.failed = false});
-  final int? durationMs;
-  final bool failed;
-
-  @override
-  Widget build(BuildContext context) {
-    final ms = durationMs;
-    final label = failed
-        ? 'Turn ended with an error'
-        : (ms == null ? 'Turn ended' : 'Turn ended · ${formatTurnDuration(ms)}');
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          const Expanded(child: Divider(color: FeedColors.border)),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                color: failed ? FeedColors.errorText : FeedColors.secondary,
-              ),
-            ),
-          ),
-          const Expanded(child: Divider(color: FeedColors.border)),
-        ],
-      ),
-    );
-  }
-}
-
 /// An answered question: the question as Markdown, the answer as the
 /// user's input block.
 class _AnsweredQuestion extends StatelessWidget {
@@ -345,11 +310,3 @@ class _Note extends StatelessWidget {
   }
 }
 
-/// `4.2s`, `38s`, `3m 05s`, `1h 02m`.
-String formatTurnDuration(int ms) {
-  if (ms < 10000) return '${(ms / 1000).toStringAsFixed(1)}s';
-  final s = ms ~/ 1000;
-  if (s < 60) return '${s}s';
-  if (s < 3600) return '${s ~/ 60}m ${(s % 60).toString().padLeft(2, '0')}s';
-  return '${s ~/ 3600}h ${((s % 3600) ~/ 60).toString().padLeft(2, '0')}m';
-}

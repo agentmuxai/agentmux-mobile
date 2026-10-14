@@ -12,7 +12,7 @@ void main() {
       items = (Transcript(provider: 'claude')..addFrames(claudeTurn)).items;
     });
 
-    test('in order: prompt, thinking, text, tools, text, divider', () {
+    test('in order: prompt, thinking, text, tools, text; no divider', () {
       expect(items.map((i) => i.runtimeType), [
         PromptItem,
         ThinkingItem,
@@ -22,7 +22,6 @@ void main() {
         ToolCallItem,
         ToolCallItem,
         AssistantTextItem,
-        TurnDividerItem,
       ]);
       expect((items[0] as PromptItem).text, 'Fix the failing test');
       final thinking = items[1] as ThinkingItem;
@@ -60,14 +59,10 @@ void main() {
       expect(grep.state, ToolState.cancelled);
     });
 
-    test('the turn divider carries the duration', () {
-      final d = items.last as TurnDividerItem;
-      expect(d.durationMs, 65000);
-      expect(d.failed, isFalse);
-      expect(formatTurnDuration(65000), '1m 05s');
-      expect(formatTurnDuration(4200), '4.2s');
-      expect(formatTurnDuration(38000), '38s');
-      expect(formatTurnDuration(3720000), '1h 02m');
+    test('the turn\'s end is kept for the working row', () {
+      final t = Transcript(provider: 'claude')..addFrames(claudeTurn);
+      expect(t.turn.open, isFalse);
+      expect(t.turn.last?.durationMs, 65000);
     });
   });
 
@@ -94,8 +89,9 @@ void main() {
   test('a turn that ended in an error says so', () {
     final t = Transcript(provider: 'claude')
       ..addFrames([turnResult(1000, isError: true, result: 'API error 529')]);
-    expect((t.items.first as ErrorItem).message, 'API error 529');
-    expect((t.items.last as TurnDividerItem).failed, isTrue);
+    expect((t.items.single as ErrorItem).message, 'API error 529');
+    // The error block says how it ended: no Worked line.
+    expect(t.turn.last, isNull);
   });
 
   test('skipped: partial, stream deltas, subagent steps, meta lines, junk', () {
@@ -226,7 +222,7 @@ void main() {
         ..addFrames([messageStart]);
       expect(t.items, isEmpty);
       t.addFrames([start(0, 'text'), textDelta(0, 'again'), turnResult(10)]);
-      expect(t.items.single, isA<TurnDividerItem>());
+      expect(t.items, isEmpty);
     });
 
     test('a subagent\'s stream is not shown', () {

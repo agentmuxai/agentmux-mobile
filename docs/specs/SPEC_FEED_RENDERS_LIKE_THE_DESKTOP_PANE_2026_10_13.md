@@ -1,7 +1,7 @@
 # Spec: the live feed renders like the desktop agent pane
 
 **Date:** 2026-10-13
-**Status:** being implemented, one phase per PR (§10). Phases 1–3 are done.
+**Status:** being implemented, one phase per PR (§10). Phases 1–4 are done.
 The open questions (§11) were answered with this spec's defaults when the
 operator asked for the full look.
 **Asked for:** "it should appear like normal AgentMux: no text bubbles, code
@@ -311,18 +311,32 @@ result's text.
 
 - **No divider per turn.** The latest turn's summary sits at the bottom of
   the transcript, as the desktop's working row: "✓ Worked · 42s · 2.4k
-  tokens" (output tokens), and under it "$0.41 · 9 steps" when the `result`
-  frame has them. Earlier turns get nothing, as on the desktop.
-- **Errors:** a red block "Error" (or "HTTP 401") and the message, with a
-  2 px red bar and a red tint, in the transcript where the turn failed.
-- **Compaction:** "Compacting conversation…" while it runs, then a centered
-  divider "Context compacted", with the summary as a collapsed card.
-- **The live status line**, at the bottom while the agent works: an ASCII
-  spinner and what it is doing ("Thinking", "Writing the reply", the running
-  tool's label, "Rate limited — retrying"), and "↓ 2.4k tokens · 1m 5s".
-  Built from the same frames the desktop's `present-status.ts` uses: token
-  counts from `message_start` / `message_delta`, the running tool from the
-  open tool call, rate limits from `rate_limit_event`.
+  tokens", from the `result` frame's `duration_ms` and `usage.output_tokens`
+  (else the output counted while it streamed). Earlier turns get nothing, as
+  on the desktop. A turn that ended in an error or an interrupt gets no
+  Worked line: its error block or "⏹ Interrupted by user" says how it ended.
+  The draft's "$0.41 · 9 steps" line is left out: the desktop doesn't show
+  it, and in Claude Code's streaming-input mode the `result`'s cost and turn
+  count can cover the whole session rather than the turn.
+- **Errors and compaction:** built in phase 3 (§7).
+- **The live status line**, at the bottom while the agent works: a spinner,
+  what it is doing, and "↓ 2.4k tokens · 1m 5s" ("↑" while a request is in
+  flight, as the desktop marks it). What it is doing, most urgent first, in
+  the desktop's words (`row-status.ts`, `present-status.ts`): "Waiting for
+  your answer on the computer", "Compacting…", "Rate limited — retrying in
+  12s", the running tool ("Bash · make test", with its time once it passes
+  10 s), "Thinking", "Writing the reply", "Preparing the next step",
+  "Working…". Built from the frames: token counts from `message_start` /
+  `message_delta` (a whole `assistant` message counts only when its stream
+  wasn't seen), the phase from `content_block_start`, the running tool from
+  the open tool call, rate limits from a `rejected` `rate_limit_event`. The
+  elapsed time is the feed's `status` (`since_ms`, timed on this device's
+  clock as the header chip is), else the time since this device saw the turn
+  start.
+- **When it shows:** a turn is open from a prompt (or another agent's
+  message, or output with no prompt seen) until its `result`. The row shows
+  it only while the agent's own state, when the feed has sent one, is
+  working or waiting, so an agent that died mid-turn doesn't spin forever.
 
 ## 9. Other providers
 
