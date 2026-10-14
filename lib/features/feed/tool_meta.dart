@@ -182,6 +182,11 @@ class ToolPill {
 String _plural(int n, String one, [String? many]) => '$n ${n == 1 ? one : (many ?? '${one}s')}';
 
 ToolPill? toolPill(ToolCallItem tool) {
+  // An Agent call counts its subagent's steps, while it runs too.
+  if (toolKind(tool.name) == ToolKind.agent) {
+    final n = tool.steps.length;
+    return n == 0 ? null : ToolPill(_plural(n, 'step'), FeedColors.termMagenta);
+  }
   if (tool.state != ToolState.done && tool.state != ToolState.failed) return null;
   final result = tool.result;
   switch (toolKind(tool.name)) {

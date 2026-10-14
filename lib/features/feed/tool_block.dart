@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'code_highlight.dart';
 import 'feed_theme.dart';
+import 'feed_disclosure.dart';
 import 'line_diff.dart';
 import 'markdown_view.dart';
 import 'tool_meta.dart';
@@ -43,12 +44,71 @@ class _ToolBlockState extends State<ToolBlock> {
             onTap: widget.onToggle,
             child: ToolHeader(tool: tool, open: widget.open),
           ),
+          if (widget.open && tool.steps.isNotEmpty) SubagentSteps(agent: tool),
           if (widget.open)
             ToolPreview(
               tool: tool,
               tall: _tall,
               onTall: () => setState(() => _tall = !_tall),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// An Agent call's subagent's own tool calls (spec §6.4): "▸ 12 steps",
+/// with the one running now, opening to a row per call. The desktop shows
+/// them unnested; the phone keeps them under the call that started them.
+class SubagentSteps extends StatefulWidget {
+  const SubagentSteps({super.key, required this.agent});
+  final ToolCallItem agent;
+
+  @override
+  State<SubagentSteps> createState() => _SubagentStepsState();
+}
+
+class _SubagentStepsState extends State<SubagentSteps> {
+  bool _open = false;
+
+  /// Which steps are open, by the same rules as the feed's rows.
+  final _disclosure = FeedDisclosure();
+
+  @override
+  Widget build(BuildContext context) {
+    final steps = widget.agent.steps;
+    final now = Transcript.runningStep(widget.agent);
+    final nowText = now == null
+        ? ''
+        : ' · now: ${[toolLabel(now, toolDetail(now)) ?? '', toolDetail(now)].where((s) => s.isNotEmpty).join(' · ')}';
+    return Padding(
+      padding: const EdgeInsets.only(left: FeedSpace.s3, bottom: FeedSpace.s1),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: () => setState(() => _open = !_open),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Text(
+                '${_open ? '▾' : '▸'} ${steps.length} ${steps.length == 1 ? 'step' : 'steps'}$nowText',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: _mutedStyle,
+              ),
+            ),
+          ),
+          if (_open)
+            for (final step in steps)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: ToolBlock(
+                  key: ValueKey(step.key),
+                  tool: step,
+                  open: _disclosure.isOpen(step),
+                  onToggle: () => setState(() => _disclosure.toggle(step)),
+                ),
+              ),
         ],
       ),
     );

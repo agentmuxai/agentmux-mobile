@@ -166,6 +166,9 @@ class ToolCallItem extends TranscriptItem {
 
   /// When this device received the call, for a live call's duration.
   DateTime? receivedAt;
+
+  /// An Agent call's subagent's own tool calls, in order.
+  final List<ToolCallItem> steps = [];
 }
 
 /// The parts of Claude Code's structured `tool_use_result` the previews and
@@ -353,6 +356,15 @@ class Transcript {
     }
     return null;
   }
+
+  /// A running Agent call's own running step, if any.
+  static ToolCallItem? runningStep(ToolCallItem? agent) {
+    if (agent == null) return null;
+    for (final step in agent.steps.reversed) {
+      if (step.state == ToolState.running) return step;
+    }
+    return null;
+  }
   int get length => _items.length;
 
   /// When the frames being added arrived; null for a snapshot's, which
@@ -373,7 +385,12 @@ class Transcript {
     if (_items.length > maxItems) {
       final drop = _items.length - maxItems;
       for (final item in _items.take(drop)) {
-        if (item is ToolCallItem) _tools.remove(item.id);
+        if (item is ToolCallItem) {
+          _tools.remove(item.id);
+          for (final step in item.steps) {
+            _tools.remove(step.id);
+          }
+        }
       }
       _items.removeRange(0, drop);
     }
@@ -400,9 +417,12 @@ class Transcript {
       _truncated(f);
       return;
     }
-    // A subagent's own steps belong to its Task call, not the main thread.
+    // A subagent's own steps belong to its Agent call, not the main thread.
     final parent = f['parent_tool_use_id'];
-    if (parent is String && parent.isNotEmpty) return;
+    if (parent is String && parent.isNotEmpty) {
+      _subagentFrame(f, parent);
+      return;
+    }
     switch (type) {
       case 'stream_event':
         _openTurn();
@@ -710,6 +730,46 @@ class Transcript {
     _liveBlocks.removeWhere((_, item) => drop.contains(item));
   }
 
+  /// A subagent's frame: its tool calls go under the Agent call that
+  /// started it, and their results onto them. Its text, thinking and
+  /// stream aren't shown: its final report is the Agent call's result.
+  void _subagentFrame(Map f, String parentId) {
+    final parent = _tools[parentId];
+    // The Agent call came before this device's snapshot.
+    if (parent == null) return;
+    final message = f['message'];
+    if (message is! Map) return;
+    final content = message['content'];
+    if (content is! List) return;
+    switch (f['type']) {
+      case 'assistant' when f['partial'] != true:
+        for (final block in content) {
+          if (block is! Map || block['type'] != 'tool_use') continue;
+          final id = block['id'];
+          final name = block['name'];
+          if (id is! String || name is! String || _tools.containsKey(id)) continue;
+          final input = block['input'];
+          final step = ToolCallItem(
+            _nextKey++,
+            id: id,
+            name: name,
+            summary: toolSummary(name, input),
+            input: input is Map<String, dynamic> ? input : null,
+          )..receivedAt = _at;
+          _tools[id] = step;
+          parent.steps.add(step);
+        }
+      case 'user':
+        _applyResults(
+          [
+            for (final b in content)
+              if (b is Map && b['type'] == 'tool_result') b,
+          ],
+          f['tool_use_result'],
+        );
+    }
+  }
+
   void _assistant(Object? content) {
     if (content is String) {
       if (content.trim().isNotEmpty) {
@@ -792,6 +852,11 @@ class Transcript {
       );
       return;
     }
+    _applyResults(results, structured);
+  }
+
+  /// Tool results onto their calls.
+  void _applyResults(List<Map> results, Object? structured) {
     for (final block in results) {
       final tool = _tools[block['tool_use_id']];
       if (tool == null) continue;

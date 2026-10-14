@@ -167,7 +167,12 @@ String workingText(
   if (tool != null) {
     final detail = toolDetail(tool);
     final label = toolLabel(tool, detail) ?? '';
-    final head = [label, detail].where((s) => s.isNotEmpty).join(' · ');
+    // A subagent's running step says more than its Agent call does.
+    final step = Transcript.runningStep(tool);
+    final stepText = step == null
+        ? ''
+        : [toolLabel(step, toolDetail(step)) ?? '', toolDetail(step)].where((s) => s.isNotEmpty).join(' · ');
+    final head = [label, detail, stepText].where((s) => s.isNotEmpty).join(' · ');
     final started = tool.receivedAt;
     final age = started == null ? null : now.difference(started);
     return age != null && age >= const Duration(seconds: 10) ? '$head · ${formatElapsed(age)}' : head;
