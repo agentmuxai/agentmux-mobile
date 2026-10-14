@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:agentmux_mobile/core/discovery/models/lan_instance.dart';
 import 'package:agentmux_mobile/core/fleet/channel_session.dart';
 import 'package:agentmux_mobile/core/fleet/fleet_store.dart';
@@ -187,6 +188,39 @@ void main() {
         poller.stop();
         async.elapse(const Duration(minutes: 1));
         expect(reads, hasLength(2));
+      });
+    });
+
+    test('a computer that does not answer is read less often, until it does', () {
+      fakeAsync((async) {
+        var up = false;
+        final reads = <int>[];
+        final results = <PairedPollResult>[];
+        final poller = PairedHostPoller(
+          fetch: (_) async {
+            reads.add(async.elapsed.inSeconds);
+            if (!up) throw StateError('down');
+            return _snapshot();
+          },
+          onResult: (_, r) => results.add(r),
+        );
+        poller.sync([testPairedHost()]);
+        async.elapse(const Duration(seconds: 70));
+        // At once, then 10 s, 20 s and 40 s apart (every 10 s made 8).
+        expect(reads, [0, 10, 30, 70]);
+
+        // Pull-to-refresh asks whatever the wait, and starts the waits over
+        // (still down: the next read is 10 s on, not 40).
+        unawaited(poller.pollNow());
+        async.elapse(const Duration(seconds: 10));
+        expect(reads, [0, 10, 30, 70, 70, 80]);
+
+        // An answer starts over too: every 10 s again.
+        up = true;
+        unawaited(poller.pollNow());
+        async.elapse(const Duration(seconds: 30));
+        expect(reads, [0, 10, 30, 70, 70, 80, 80, 90, 100, 110]);
+        poller.stop();
       });
     });
 

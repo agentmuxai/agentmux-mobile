@@ -136,7 +136,7 @@ final discoveryProvider =
 /// tree joins a cloud channel to a LAN one only by install id.
 ///
 /// A paired computer always shows: one that discovery has not found is read
-/// over its pinned viewer listener by a [PairedHostPoller] (every 10 s) and
+/// over its pinned viewer listener by a [PairedHostPoller] (every 10 s, less often while it does not answer) and
 /// joins the tree as its own channel; once discovery finds the same channel
 /// (install id, else hostname and channel), the discovered one is shown
 /// instead.

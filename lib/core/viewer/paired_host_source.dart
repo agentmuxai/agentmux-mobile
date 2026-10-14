@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:clock/clock.dart';
 
@@ -159,7 +160,9 @@ FleetEntry? pairedFleetEntry(
 }
 
 /// Polls the paired computers discovery has not found, every [interval]
-/// while it runs; a newly added target is read at once. One-shot like a
+/// while it runs; a newly added target is read at once. A computer that does
+/// not answer is asked less often (see [maxWait]), so one that is off or away
+/// does not keep the radio busy every 10 seconds. One-shot like a
 /// channel session: the owner stops it in the background and starts a new
 /// one on return. Timing reads `Timer`, so tests drive it with `fake_async`.
 class PairedHostPoller {
@@ -170,9 +173,15 @@ class PairedHostPoller {
 
   static const interval = Duration(seconds: 10);
 
+  /// The longest wait between reads of a computer that keeps failing: its
+  /// waits double, 10, 20, 40 s. One answer, or pull-to-refresh, starts over.
+  static const maxWait = Duration(seconds: 40);
+
   final _targets = <String, PairedHost>{};
   final _inFlight = <String>{};
   final _lastLogged = <String, String>{};
+  final _failures = <String, int>{};
+  final _notBefore = <String, DateTime>{};
   Timer? _timer;
   bool _stopped = false;
 
@@ -189,15 +198,32 @@ class PairedHostPoller {
       ..clear()
       ..addAll(next);
     _lastLogged.removeWhere((id, _) => !next.containsKey(id));
-    _timer ??= Timer.periodic(interval, (_) => unawaited(pollNow()));
+    _failures.removeWhere((id, _) => !next.containsKey(id));
+    _notBefore.removeWhere((id, _) => !next.containsKey(id));
+    _timer ??= Timer.periodic(interval, (_) => unawaited(_tick()));
     for (final t in added) {
       unawaited(_poll(t.id));
     }
   }
 
-  /// Reads every target now (pull-to-refresh).
-  Future<void> pollNow() =>
-      Future.wait([for (final id in [..._targets.keys]) _poll(id)]);
+  /// Reads the targets whose wait is over.
+  Future<void> _tick() => Future.wait([
+        for (final id in [..._targets.keys])
+          if (!_waiting(id)) _poll(id),
+      ]);
+
+  bool _waiting(String id) {
+    final until = _notBefore[id];
+    return until != null && clock.now().isBefore(until);
+  }
+
+  /// Reads every target now (pull-to-refresh), whatever it is waiting for, and
+  /// forgets how often they failed: the waits start over.
+  Future<void> pollNow() {
+    _failures.clear();
+    _notBefore.clear();
+    return Future.wait([for (final id in [..._targets.keys]) _poll(id)]);
+  }
 
   /// Ends polling for good; nothing is reported after this returns.
   void stop() {
@@ -210,6 +236,7 @@ class PairedHostPoller {
   Future<void> _poll(String id) async {
     final host = _targets[id];
     if (_stopped || host == null || !_inFlight.add(id)) return;
+    final started = clock.now();
     PairedPollResult result;
     try {
       result = PairedPollOk(await fetch(host));
@@ -226,6 +253,18 @@ class PairedHostPoller {
     }
     // Not reported once stopped, or once no longer a target.
     if (_stopped || !_targets.containsKey(id)) return;
+    if (result is PairedPollOk) {
+      _failures.remove(id);
+      _notBefore.remove(id);
+    } else {
+      final failures = (_failures[id] ?? 0) + 1;
+      _failures[id] = failures;
+      final doubled = interval.inMilliseconds * pow(2, failures - 1).toInt();
+      final wait = Duration(milliseconds: min(maxWait.inMilliseconds, doubled));
+      // Half an interval of slack: the timer's next tick comes a little
+      // before a read that took a moment would be [wait] old.
+      _notBefore[id] = started.add(wait - interval ~/ 2);
+    }
     onResult(host, result);
   }
 
