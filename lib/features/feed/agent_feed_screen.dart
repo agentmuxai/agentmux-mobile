@@ -72,6 +72,10 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
   final _anchors = <int, GlobalKey>{};
   final _listKey = GlobalKey();
 
+  /// Where each held call's row last was: its bottom against the viewport,
+  /// at that scroll offset.
+  final _heldLastSeen = <int, ({double bottom, double offset})>{};
+
   /// The transcript the state above belongs to. A snapshot or reset makes a
   /// new transcript whose item keys start again at 0, so it is dropped with
   /// the old one rather than opening unrelated tool calls.
@@ -189,13 +193,26 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
     if (!_scroll.hasClients) return;
     final p = _scroll.position;
     final atEnd = p.pixels >= p.maxScrollExtent - 48;
-    // A held call closes once it scrolls off the top.
-    final gone = [
-      for (final k in _disclosure.held)
-        if ((_rowBox(k)?.bottom ?? -1) < 0) k,
-    ];
+    // A held call closes once it scrolls off the top, not the bottom. The
+    // list drops rows past either edge, so a row that is no longer laid out
+    // is placed from where it last was and how far the list has scrolled.
+    final gone = <int>[];
+    for (final k in _disclosure.held) {
+      final box = _rowBox(k);
+      final double bottom;
+      if (box != null) {
+        bottom = box.bottom;
+        _heldLastSeen[k] = (bottom: bottom, offset: p.pixels);
+      } else {
+        final seen = _heldLastSeen[k];
+        if (seen == null) continue;
+        bottom = seen.bottom - (p.pixels - seen.offset);
+      }
+      if (bottom < 0) gone.add(k);
+    }
     for (final k in gone) {
       _disclosure.release(k);
+      _heldLastSeen.remove(k);
     }
     if (atEnd != _follow || gone.isNotEmpty) setState(() => _follow = atEnd);
   }
