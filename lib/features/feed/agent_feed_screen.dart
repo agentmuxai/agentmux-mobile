@@ -146,6 +146,7 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
       _disclosure.clear();
       _seen.clear();
       _anchors.clear();
+      _heldLastSeen.clear();
       _disclosureFor = transcript;
       if (transcript == null) return;
       for (final item in transcript.items) {
@@ -165,12 +166,14 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
           !isDismissed(item.state) &&
           _onScreen(item.key)) {
         _disclosure.hold(item.key);
+        _heldLastSeen.remove(item.key);
       }
     }
     _seen.removeWhere((k, _) => !live.contains(k));
     _anchors.removeWhere((k, _) =>
         !live.contains(k) ||
         (_seen[k] != ToolState.running && !_disclosure.held.contains(k)));
+    _heldLastSeen.removeWhere((k, _) => !_disclosure.held.contains(k));
   }
 
   /// Where row [key] is against the list's viewport: null when not laid out.
