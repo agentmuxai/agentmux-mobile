@@ -209,7 +209,6 @@ lib/
 │   ├── injection/                 # Injection bottom sheet + provider
 │   ├── usage/                     # Usage & billing screen + provider
 │   ├── discovery/                 # LAN discovery, QR pairing, manual-add screens
-│   ├── lan_agent/                 # Agent view served over the direct LAN connection
 │   ├── debug/                     # In-app debug log viewer (AppLogger ring buffer)
 │   └── settings/                  # Sign-out + version info
 └── shared/

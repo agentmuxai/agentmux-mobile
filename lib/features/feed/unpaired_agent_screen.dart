@@ -65,16 +65,6 @@ class UnpairedAgentScreen extends StatelessWidget {
             ],
           ],
         ),
-        actions: [
-          PopupMenuButton<int>(
-            tooltip: 'More',
-            onSelected: (_) =>
-                openMessageScreen(context, instance, agent, route: route),
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 0, child: Text('Send a message…')),
-            ],
-          ),
-        ],
       ),
       body: Center(
         child: Padding(
@@ -91,8 +81,8 @@ class UnpairedAgentScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               const Text(
-                'To watch this agent live, choose "Pair a device" in AgentMux '
-                'on the computer and scan the code it shows.',
+                'To watch and send to this agent, choose "Pair a device" in '
+                'AgentMux on the computer and scan the code it shows.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white54, fontSize: 13),
               ),

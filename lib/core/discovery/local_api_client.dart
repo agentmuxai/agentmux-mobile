@@ -138,16 +138,4 @@ class LocalApiClient {
             ))
         .toList();
   }
-
-  /// POST /agentmux/reactive/inject — send a message to an agent on this instance.
-  Future<void> inject({
-    required String targetAgent,
-    required String message,
-  }) async {
-    await _dio.post<void>('/agentmux/reactive/inject', data: {
-      'target_agent': targetAgent,
-      'message': message,
-      'source_agent': 'mobile',
-    });
-  }
 }

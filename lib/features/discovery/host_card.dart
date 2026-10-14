@@ -684,7 +684,7 @@ String agentLocation(ChannelNode channel, LanAgent agent) {
     return '/viewer/${Uri.encodeComponent(pairing.paired.id)}/agent/$name';
   }
   if (channel.route == ChannelRoute.cloud) return '/agents/$name';
-  return '${messageLocation(channel.via, agent)}/unpaired';
+  return '${agentPath(channel.via, agent)}/unpaired';
 }
 
 /// The pairing a channel's terminals are read through: only a channel this
@@ -698,8 +698,8 @@ PairingMatch? watchablePairing(ChannelNode channel) {
   return pairing;
 }
 
-/// Today's "send a message" screen for [agent] of [instance].
-String messageLocation(LanInstance instance, LanAgent agent) =>
+/// The path of [agent] of [instance], for the routes about one agent.
+String agentPath(LanInstance instance, LanAgent agent) =>
     '/instance/${Uri.encodeComponent('${instance.address}:${instance.port}')}'
     '/agent/${Uri.encodeComponent(agent.name)}';
 
@@ -715,19 +715,5 @@ void openAgent(BuildContext context, ChannelNode channel, LanAgent agent) {
     'route': channel.route,
     'channel': channel.name,
     if (channel.pairing != null) 'pairing': channel.pairing,
-  });
-}
-
-/// Opens the "send a message" screen (the feed screen's menu).
-void openMessageScreen(
-  BuildContext context,
-  LanInstance instance,
-  LanAgent agent, {
-  ChannelRoute? route,
-}) {
-  context.push(messageLocation(instance, agent), extra: {
-    'instance': instance,
-    'agent': agent,
-    'route': route,
   });
 }

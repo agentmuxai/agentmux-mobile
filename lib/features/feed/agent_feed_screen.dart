@@ -17,7 +17,6 @@ import '../../core/viewer/feed_events.dart';
 import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/agent_state_chip.dart';
 import '../../shared/widgets/tag_chip.dart';
-import '../discovery/host_card.dart';
 import '../discovery/qr_scan_screen.dart';
 import 'feed_controller.dart';
 import 'send_controller.dart';
@@ -32,7 +31,8 @@ import 'working_row.dart';
 /// One agent's pane, live and read-only, over the pinned connection of a
 /// paired computer (`SPEC_AGENT_STATUS_AND_LIVE_PANE_FEED_2026_10_07.md` 6.2).
 ///
-/// No composer: "Send a message…" in the menu opens today's message screen.
+/// A computer that takes messages from this device gets a composer under the
+/// feed; one that does not says why in the menu's "Send a message…".
 /// The stream stops in the background and resumes where it left off on
 /// return. What it shows stays in memory and is dropped with the screen.
 class AgentFeedScreen extends ConsumerStatefulWidget {
@@ -48,7 +48,7 @@ class AgentFeedScreen extends ConsumerStatefulWidget {
   final PairingMatch pairing;
   final LanAgent agent;
 
-  /// The discovered channel the agent was tapped in, for "Send a message…".
+  /// The discovered channel the agent was tapped in.
   final LanInstance instance;
   final String? channel;
   final ChannelRoute? route;
@@ -345,8 +345,8 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
         ),
         actions: [
           ConnectionIndicator(connection: connection),
-          // A paired computer discovery has not found has no fleet endpoint
-          // or key to send a message with; only its live feed.
+          // Only when the computer has said it takes no messages from this
+          // device: the menu then says why.
           if (_menuSend)
             PopupMenuButton<_FeedMenu>(
               tooltip: 'More',
@@ -378,31 +378,21 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
     );
   }
 
-  /// Whether the header has a "Send a message…" menu: not when the composer
-  /// is there. A computer that says why this device can't send gets it so it
-  /// can say so; the old send screen is for one discovery found that knows
-  /// nothing of this.
-  bool get _menuSend {
-    final grant = _send?.grant;
-    if (grant == SendGrant.allowed) return false;
-    return grant == SendGrant.off ||
-        grant == SendGrant.pairAgain ||
-        widget.instance.authKey.isNotEmpty;
-  }
+  /// Whether the header has a "Send a message…" menu: when the computer has
+  /// said it takes none from this device, so the menu can say why. With the
+  /// composer there is no menu.
+  bool get _menuSend => sendGrantText(_send?.grant) != null;
 
   void _sendFromMenu() {
     final grant = _send?.grant;
     final why = sendGrantText(grant);
-    if (grant == SendGrant.off || grant == SendGrant.pairAgain) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(why!),
-        action: grant == SendGrant.pairAgain
-            ? SnackBarAction(label: 'Pair again', onPressed: _pairAgain)
-            : null,
-      ));
-      return;
-    }
-    openMessageScreen(context, widget.instance, widget.agent, route: widget.route);
+    if (why == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(why),
+      action: grant == SendGrant.pairAgain
+          ? SnackBarAction(label: 'Pair again', onPressed: _pairAgain)
+          : null,
+    ));
   }
 
   /// The row at the bottom: what the agent is doing, or how the last turn
