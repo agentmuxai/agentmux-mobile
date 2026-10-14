@@ -119,6 +119,33 @@ void main() {
     expect(p.attachments, ['Image 1']);
   });
 
+  String imageTurn(List<Map<String, Object?>> text) => frame({
+        'type': 'user',
+        'message': {
+          'content': [
+            ...text,
+            {'type': 'image', 'source': {'type': 'base64', 'data': 'x'}},
+          ],
+        },
+      });
+
+  test('an image-only prompt is its own prompt, not the one before it', () {
+    final items = _items([userPrompt('First'), imageTurn([])]);
+    expect(items.map((i) => (i as PromptItem).text), ['First', '']);
+    expect((items[0] as PromptItem).attachments, isEmpty);
+    expect((items[1] as PromptItem).attachments, ['Image 1']);
+  });
+
+  test('an image beside a reminder stays on its prompt', () {
+    final items = _items([
+      imageTurn([
+        {'type': 'text', 'text': 'Look\n<system-reminder>\nx\n</system-reminder>'},
+      ]),
+    ]);
+    expect(items.map((i) => i.runtimeType), [PromptItem, ContextItem]);
+    expect((items[0] as PromptItem).attachments, ['Image 1']);
+  });
+
   group('compaction', () {
     test('compacting, then the divider, then the summary card', () {
       final t = Transcript(provider: 'claude')

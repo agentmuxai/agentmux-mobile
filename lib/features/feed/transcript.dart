@@ -444,11 +444,11 @@ class Transcript {
   /// A user turn's text, split into what the user wrote and what was added
   /// to it (§7): a jekt, a broadcast, the startup context, Claude Code's
   /// compaction summary, reminders, AgentMux's record of an earlier session,
-  /// attachments.
-  void _userText(String text, Map f) {
+  /// attachments. [images] names images the turn carries beside its text.
+  void _userText(String text, Map f, {List<String> images = const []}) {
     final afterBoundary = _afterBoundary;
     _afterBoundary = false;
-    if (text.trim().isEmpty) return;
+    if (text.trim().isEmpty && images.isEmpty) return;
     final jekt = parseJekt(text);
     if (jekt != null) {
       _items.add(JektItem(_nextKey++, jekt));
@@ -466,7 +466,8 @@ class Transcript {
     }
     final broadcast = parseBroadcast(text);
     final (withoutBlocks, blocks) = splitWrappers(broadcast?.body ?? text);
-    final (words, attachments) = splitAttachments(withoutBlocks);
+    final (words, named) = splitAttachments(withoutBlocks);
+    final attachments = [...named, ...images];
     if (words.trim().isNotEmpty || attachments.isNotEmpty || broadcast != null) {
       _items.add(PromptItem(
         _nextKey++,
@@ -634,19 +635,11 @@ class Transcript {
       // Code's meta lines, which the desktop doesn't show either.
       final images = content.where((b) => b is Map && b['type'] == 'image').length;
       if (images == 0) return;
-      _userText(texts.join('\n\n'), frame);
-      final last = _items.lastOrNull;
-      if (last is PromptItem && last.attachments.isEmpty) {
-        _items[_items.length - 1] = PromptItem(
-          last.key,
-          last.text,
-          broadcast: last.broadcast,
-          recipients: last.recipients,
-          attachments: [for (var i = 1; i <= images; i++) 'Image $i'],
-        );
-      } else if (texts.isEmpty) {
-        _items.add(PromptItem(_nextKey++, '', attachments: [for (var i = 1; i <= images; i++) 'Image $i']));
-      }
+      _userText(
+        texts.join('\n\n'),
+        frame,
+        images: [for (var i = 1; i <= images; i++) 'Image $i'],
+      );
       return;
     }
     for (final block in results) {
