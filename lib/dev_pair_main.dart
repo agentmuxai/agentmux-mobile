@@ -12,11 +12,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
+import 'core/viewer/device_key_store.dart';
+import 'core/viewer/paired_host.dart';
 import 'core/viewer/pairing_service.dart';
 import 'core/viewer/scanned_code.dart';
+import 'core/viewer/viewer_client.dart';
 import 'dev_frame_stats.dart';
 
 const _pairB64 = String.fromEnvironment('AGENTMUX_DEV_PAIR_B64');
+
+/// An agent name: after pairing, send it one signed message and log what the
+/// computer answered (`dev-pair: send -> ...`).
+const _sendTest = String.fromEnvironment('AGENTMUX_DEV_SEND_TEST');
 
 /// The link, decoded; '' when none was given or it isn't valid base64 (said
 /// in the log, and the app still starts).
@@ -40,6 +47,7 @@ Future<void> main() async {
     try {
       final host = await container.read(pairingServiceProvider).pair(code);
       debugPrint('dev-pair: paired with ${host.hostname} at ${host.host}:${host.port}');
+      if (_sendTest.isNotEmpty) await _sendSelfTest(container, host, _sendTest);
     } catch (e) {
       debugPrint('dev-pair: failed: $e');
     }
@@ -47,4 +55,32 @@ Future<void> main() async {
     debugPrint('dev-pair: not a pairing link');
   }
   runApp(UncontrolledProviderScope(container: container, child: const AgentMuxApp()));
+}
+
+Future<void> _sendSelfTest(ProviderContainer container, PairedHost host, String agent) async {
+  final client = container.read(viewerClientFactoryProvider)(
+    host: host.host,
+    port: host.port,
+    fingerprint: host.fingerprint,
+    token: host.token,
+  );
+  try {
+    final hello = await client.hello();
+    debugPrint('dev-pair: hello.send = ${hello.send.name}');
+    final keys = container.read(deviceKeyStoreProvider);
+    final result = await client.sendInput(
+      agent,
+      message: 'self test from dev-pair',
+      messageId: 'dev-${DateTime.now().millisecondsSinceEpoch}',
+      sign: (text) => keys.sign(deviceKeyAlias(host.id), text),
+    );
+    debugPrint('dev-pair: send -> ${switch (result) {
+      SendAccepted(:final queued) => queued ? 'accepted (queued)' : 'accepted',
+      SendRefused(:final kind, :final status) => 'refused ${kind.name} ($status)',
+    }}');
+  } catch (e) {
+    debugPrint('dev-pair: send failed: $e');
+  } finally {
+    client.close();
+  }
 }
