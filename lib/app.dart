@@ -18,7 +18,6 @@ import 'features/sysinfo/sysinfo_screen.dart';
 import 'features/tower/tower_screen.dart';
 import 'features/feed/agent_feed_screen.dart';
 import 'features/feed/unpaired_agent_screen.dart';
-import 'features/lan_agent/lan_agent_screen.dart';
 import 'features/login/login_screen.dart';
 import 'features/terminal/terminal_screen.dart';
 import 'features/settings/settings_screen.dart';
@@ -76,23 +75,6 @@ GoRouter _buildRouter(AsyncValue<AuthStatus> authState) {
       ),
 
       // ── LAN agent detail (no auth required) ───────────────────────────
-      GoRoute(
-        path: '/instance/:addr/agent/:name',
-        builder: (_, state) {
-          final extra = state.extra as Map<String, dynamic>?;
-          if (extra == null ||
-              extra['instance'] is! LanInstance ||
-              extra['agent'] is! LanAgent) {
-            return const DiscoveryScreen();
-          }
-          final route = extra['route'];
-          return LanAgentScreen(
-            instance: extra['instance'] as LanInstance,
-            agent: extra['agent'] as LanAgent,
-            route: route is ChannelRoute ? route : null,
-          );
-        },
-      ),
 
       // ── LAN agent of a computer this device has not paired with ────────
       GoRoute(

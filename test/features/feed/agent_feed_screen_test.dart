@@ -72,11 +72,6 @@ void main() {
           route: ChannelRoute.lan,
         ),
       ),
-      GoRoute(
-        path: '/instance/:addr/agent/:name',
-        builder: (_, state) =>
-            Text('message screen ${state.pathParameters['name']}'),
-      ),
     ]);
     await tester.pumpWidget(ProviderScope(
       overrides: [
@@ -367,14 +362,16 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Send a message…'));
     await tester.pumpAndSettle();
-    expect(find.text('message screen AgentA'), findsOneWidget);
+    // The old LAN screen is gone: the menu says why this computer takes none.
+    expect(find.text('Update AgentMux on the computer to send messages from here.'), findsOneWidget);
     await unmount(tester);
   });
 
-  testWidgets('a paired computer discovery has not found has no message menu',
+  testWidgets('a computer that has not said what it allows has no message menu yet',
       (tester) async {
     adapter = FakeAdapter([const FakeResponse(200, keepOpen: true, chunks: [])]);
-    // As the paired-host card hands it over: the viewer listener, no key.
+    // No answer to hello: nothing is known, so nothing is offered.
+    adapter.hello = const FakeResponse(500);
     await pumpFeed(
       tester,
       testPairedHost(),
