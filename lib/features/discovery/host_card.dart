@@ -10,6 +10,7 @@ import '../../core/fleet/channel_session.dart';
 import '../../core/fleet/cloud_instance_source.dart';
 import '../../core/fleet/fleet_store.dart';
 import '../../core/viewer/paired_host.dart';
+import 'channel_terminals.dart';
 import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/agent_state_chip.dart';
 import '../../shared/widgets/tag_chip.dart';
@@ -337,14 +338,22 @@ String _ago(DateTime t) {
   return '${diff.inHours} h ago';
 }
 
+/// A channel's rows, as one list (`PLAN_CHANNEL_AS_ONE_LIST_2026_10_13.md`):
+/// its agents, then, for a computer this device has paired with, its
+/// terminals in the desktop's order. Tabs don't group them.
 List<Widget> _agentRows(
   ChannelNode channel, {
   required double indent,
   AgentTap? onAgentTap,
 }) {
-  final panes = panesLocation(channel) == null
+  final pairing = watchablePairing(channel);
+  final terminals = pairing == null
       ? null
-      : _PanesRow(channel: channel, indent: indent);
+      : ChannelTerminals(
+          key: ValueKey('terminals:${pairing.paired.id}'),
+          pairing: pairing,
+          indent: indent,
+        );
   if (channel.agents.isEmpty) {
     // An unreadable channel already says why in its status line; this line
     // is only for a channel that answered and has no agents.
@@ -356,7 +365,7 @@ List<Widget> _agentRows(
           style: const TextStyle(color: Colors.white38, fontSize: 13),
         ),
       ),
-      if (panes != null) panes,
+      if (terminals != null) terminals,
     ];
   }
   return [
@@ -368,32 +377,8 @@ List<Widget> _agentRows(
         indent: indent,
         onTap: onAgentTap,
       ),
-    if (panes != null) panes,
+    if (terminals != null) terminals,
   ];
-}
-
-/// "All panes": every pane of a paired computer, terminals and the rest.
-class _PanesRow extends StatelessWidget {
-  const _PanesRow({required this.channel, required this.indent});
-  final ChannelNode channel;
-  final double indent;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      key: const ValueKey('panes'),
-      dense: true,
-      contentPadding: EdgeInsets.symmetric(horizontal: indent),
-      leading: const Icon(Icons.dashboard_outlined, size: 16, color: Colors.white54),
-      title: const Text('All panes', style: TextStyle(fontSize: 14)),
-      subtitle: const Text(
-        'Terminals and everything else open on this computer',
-        style: TextStyle(fontSize: 12, color: Colors.white38),
-      ),
-      trailing: const Icon(Icons.chevron_right, size: 18),
-      onTap: () => openPanes(context, channel),
-    );
-  }
 }
 
 class _AgentRow extends StatelessWidget {
@@ -553,26 +538,15 @@ String agentLocation(ChannelNode channel, LanAgent agent) {
   return '${messageLocation(channel.via, agent)}/unpaired';
 }
 
-/// Where "All panes" leads: only for a channel this device has paired with,
-/// over the LAN (the list comes from the computer's viewer listener), and
-/// whose pairing the computer still accepts.
-String? panesLocation(ChannelNode channel) {
+/// The pairing a channel's terminals are read through: only a channel this
+/// device has paired with, over the LAN (the computer's viewer listener),
+/// and whose pairing the computer still accepts.
+PairingMatch? watchablePairing(ChannelNode channel) {
   final pairing = channel.pairing;
   if (pairing == null || pairing.paired.invalid || channel.cloudOnly) {
     return null;
   }
-  return '/viewer/${Uri.encodeComponent(pairing.paired.id)}/panes';
-}
-
-void openPanes(BuildContext context, ChannelNode channel) {
-  final location = panesLocation(channel);
-  if (location == null) return;
-  context.push(location, extra: {
-    'pairing': channel.pairing,
-    'instance': channel.via,
-    'route': channel.route,
-    'channel': channel.name,
-  });
+  return pairing;
 }
 
 /// Today's "send a message" screen for [agent] of [instance].

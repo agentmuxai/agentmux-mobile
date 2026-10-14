@@ -87,7 +87,8 @@ no reason to read that file, and this cost real debugging time on 2026-09-08.
 
 **The app lists every AgentMux channel on the host, and each channel's agents,
 from LAN discovery alone. No pairing is needed for that.** Pairing (the viewer
-token) is only needed to *watch*: an agent's live feed, All panes, terminals.
+token) is only needed to *watch*: an agent's live feed, and the terminals in a
+channel's list.
 
 In the emulator, LAN discovery only works while `scripts/discovery_relay.dart`
 runs on the host (the emulator's NAT can't receive LAN broadcasts; see "Known
