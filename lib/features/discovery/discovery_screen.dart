@@ -8,6 +8,7 @@ import '../../core/discovery/discovery_telemetry.dart';
 import '../../core/discovery/host_tree.dart';
 import '../../core/fleet/cloud_instance_source.dart';
 import '../../core/viewer/paired_hosts_repository.dart';
+import '../sysinfo/sysinfo_summary.dart';
 import 'channel_terminals.dart';
 import 'host_card.dart';
 import 'manual_add_sheet.dart';
@@ -36,6 +37,7 @@ class DiscoveryScreen extends ConsumerWidget {
             icon: const Icon(Icons.refresh),
             onPressed: () {
               ref.invalidate(channelPanesProvider);
+              ref.invalidate(channelSysinfoProvider);
               ref.read(discoveryProvider.notifier).refresh();
             },
           ),
@@ -219,6 +221,7 @@ class _ResultsView extends ConsumerWidget {
       onRefresh: () {
         // A paired channel's terminals are read again too.
         ref.invalidate(channelPanesProvider);
+        ref.invalidate(channelSysinfoProvider);
         return ref.read(discoveryProvider.notifier).refresh();
       },
       child: ListView.builder(
