@@ -1,7 +1,7 @@
 # Spec: the live feed renders like the desktop agent pane
 
 **Date:** 2026-10-13
-**Status:** being implemented, one phase per PR (§10). Phases 1–4 are done.
+**Status:** phases 1–5 implemented (§10); other providers (§9) are still to do.
 The open questions (§11) were answered with this spec's defaults when the
 operator asked for the full look.
 **Asked for:** "it should appear like normal AgentMux: no text bubbles, code
@@ -232,6 +232,15 @@ only its status line and activity dock follow them). The phone instead nests
 a subagent's tool calls under its Agent call, collapsed, with a count
 ("12 steps"), opened by a tap. This is the one place the phone goes beyond
 the desktop; see §11.
+
+As built: the Agent call's header has a "12 steps" pill, while it runs too.
+Opened, its preview starts with "▸ 12 steps · now: Bash · make test", which
+opens to one tool row per step; each step opens by the same rules as the
+feed's rows. A subagent's prompt, text, thinking and stream aren't shown:
+its final report is the Agent call's result. The working row names the
+running step ("Agent · Find the flaky test · Bash · make test"). Steps of an
+Agent call from before the snapshot are dropped, since there's no call to
+put them under.
 
 ## 7. System reminders, and messages that aren't the user's
 
