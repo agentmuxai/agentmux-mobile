@@ -98,6 +98,31 @@ void main() {
     });
   });
 
+  test('an event the parser refuses restarts from a snapshot, not the same place', () {
+    fakeAsync((async) {
+      final c = controller()..start();
+      async.flushMicrotasks();
+      feed.last.add(_snapshot());
+      async.flushMicrotasks();
+
+      feed.last.addError(const FormatException('event-stream line exceeds the size limit'));
+      async.flushMicrotasks();
+      expect(c.connection, FeedConnection.reconnecting);
+      async.elapse(const Duration(seconds: 1));
+      // Resuming from 1:3 would be sent the same oversize event again.
+      expect(feed.connects, [null, null]);
+      expect(_texts(c), ['one', 'two', 'three'], reason: 'content stays meanwhile');
+
+      feed.last
+        ..add(null)
+        ..add(_snapshot(gen: '2', next: 1, lines: [userPrompt('fresh')]));
+      async.flushMicrotasks();
+      expect(_texts(c), ['fresh']);
+      expect(c.connection, FeedConnection.live);
+      c.dispose();
+    });
+  });
+
   test('a dropped stream resumes with Last-Event-ID, without repeats', () {
     fakeAsync((async) {
       final c = controller()..start();
