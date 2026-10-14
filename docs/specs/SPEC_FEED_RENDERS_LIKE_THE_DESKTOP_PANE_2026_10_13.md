@@ -1,7 +1,7 @@
 # Spec: the live feed renders like the desktop agent pane
 
 **Date:** 2026-10-13
-**Status:** being implemented, one phase per PR (§10). Phases 1 and 2 are done.
+**Status:** being implemented, one phase per PR (§10). Phases 1–3 are done.
 The open questions (§11) were answered with this spec's defaults when the
 operator asked for the full look.
 **Asked for:** "it should appear like normal AgentMux: no text bubbles, code
@@ -248,6 +248,17 @@ blocks are dropped, and any other reminder shows as raw text. The phone:
 - never shows a reminder inside a prompt block: it is split out and shown
   after it.
 
+**A reinjection message is split, not hidden.** The desktop turns a whole
+user turn that starts with the reinjection reminder into its 🧠 line, and
+hides everything after it until the next real prompt. When AgentMux puts the
+user's own words (and an `<agentmux-continuation>` record) in the same turn,
+the desktop hides those too. The phone splits the turn: the user's words as a
+prompt, the 🧠 line (counts from the `# Global/Personal Memory (N entries)`
+headings, tokens estimated at four characters each), and the continuation
+record as its own collapsed line. The reply after it is shown, as the agent
+did write it. The 🧠 line opens to the reminder's text on a tap, because
+the phone has no hover tooltip.
+
 Open question §11: whether the desktop should adopt the same collapsed line.
 
 **Other agents' messages (jekts).** A user turn that is a whole
@@ -264,9 +275,26 @@ starts open. The phone reads the same marker the desktop parses
 **The startup context** (a user turn starting `# Session Context`): one
 collapsed line "Session context" that opens to its text.
 
-**AgentMux's own notes:** `cli_notice` and session outcome as a centered
-divider with a pill label; context delivery as a card; the interrupted marker
-"⏹ Interrupted by user".
+**AgentMux's own notes:** `system` frames, as the desktop reads them
+(`cli-notice.ts`, `session-outcome.ts`): CLI installs and version changes,
+AgentMux tools' health, a failed compaction, and a `fresh` session outcome
+("New session started" or "Session continued · reconstructed context") as a
+centred divider in their tone's colour with a detail line. Context delivery
+(`agentmux_memory_injected`) is a card titled as the desktop titles it
+("Given to the agent · new session · 17 items"), opening to one row per item
+with its chip. The desktop adds "⏹ Interrupted by user" itself when its stop
+button ends a turn. The phone has no stop button, so it shows that line where
+Claude Code wrote `[Request interrupted by user]`.
+
+**Errors and compaction** (moved here from phase 4): a turn that ended in an
+error gets the desktop's error block ("HTTP 401" or "Error", the message, a
+red bar on a red tint), from the `result` frame's `api_error_status`,
+`result`, `error` and `errors`. A `status: compacting` frame shows
+"Compacting conversation…" until the `compact_boundary` replaces it with
+"Context compacted — auto-compacted" (or "— you ran /compact") and "Earlier
+history summarized · 150.0k tokens summarized to 9.0k · took 41.0s". The
+summary Claude Code then sends is a collapsed "📋 Agent given a summary of
+the conversation" line with its first meaningful line as an excerpt.
 
 **Attachments** (`<attached_files>` / `<attached_images>` in a prompt):
 split off and shown as a line of file names above the prompt (the images are
@@ -274,7 +302,10 @@ on the computer).
 
 **Questions** (AskUserQuestion): while waiting, the tool row reads "❓ Waiting
 for an answer on the computer". Once answered, the question as Markdown and
-the answer in a prompt block, as the desktop does.
+the answer in a prompt block, as the desktop does. The desktop knows the
+answer because its own panel took it. The phone reads it from the result
+Claude Code writes (`"question"="answer"` pairs), and falls back to the
+result's text.
 
 ## 8. Turn ends, errors and the live status
 

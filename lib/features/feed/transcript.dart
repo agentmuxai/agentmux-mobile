@@ -1,5 +1,9 @@
 import 'dart:convert';
 
+import 'messages.dart';
+
+export 'messages.dart' show Delivered, Jekt, NoticeTone;
+
 /// The feed screen's document: an agent's transcript frames turned into
 /// what the screen shows (`SPEC_AGENT_STATUS_AND_LIVE_PANE_FEED_2026_10_07.md`
 /// 6.2). Claude-shaped streams (Claude Code, and Qwen Code, which writes the
@@ -13,10 +17,79 @@ sealed class TranscriptItem {
   final int key;
 }
 
-/// Something the user (or another agent) sent.
+/// Something the user sent: their own words, without the blocks AgentMux
+/// or Claude Code added (those are their own items).
 class PromptItem extends TranscriptItem {
-  PromptItem(super.key, this.text);
+  PromptItem(super.key, this.text, {this.broadcast = false, this.recipients, this.attachments = const []});
   final String text;
+
+  /// Typed once in Swarm and sent to several agents.
+  final bool broadcast;
+
+  /// How many agents a broadcast went to, when known.
+  final int? recipients;
+
+  /// The names of files attached to it; they are on the computer.
+  final List<String> attachments;
+}
+
+enum ContextKind {
+  /// Claude Code's or AgentMux's `<system-reminder>`.
+  systemReminder,
+
+  /// AgentMux reinjected the agent's memory.
+  memory,
+
+  /// The context AgentMux gives an agent when it starts (`# Session Context`).
+  sessionContext,
+
+  /// AgentMux's record of an earlier session (`<agentmux-continuation>`).
+  continuation,
+
+  /// Claude Code's summary of the conversation after a compaction.
+  compactSummary,
+}
+
+/// Text given to the agent that isn't anyone's message: one collapsed line
+/// that opens to the text.
+class ContextItem extends TranscriptItem {
+  ContextItem(super.key, this.kind, this.text, {this.globalCount, this.personalCount});
+  final ContextKind kind;
+  final String text;
+
+  /// A memory reinjection's entry counts.
+  final int? globalCount;
+  final int? personalCount;
+}
+
+/// A message from another agent.
+class JektItem extends TranscriptItem {
+  JektItem(super.key, this.jekt);
+  final Jekt jekt;
+}
+
+/// An AgentMux note about the session: a centred divider with a label.
+class NoticeItem extends TranscriptItem {
+  NoticeItem(super.key, this.label, {this.detail, this.tone = NoticeTone.info});
+  final String label;
+  final String? detail;
+  final NoticeTone tone;
+}
+
+/// The turn ended in an error.
+class ErrorItem extends TranscriptItem {
+  ErrorItem(super.key, this.message, {this.code});
+
+  /// The HTTP status, when the API gave one.
+  final int? code;
+  final String message;
+}
+
+/// What AgentMux gave the agent: memory, a summary, startup files.
+class DeliveryItem extends TranscriptItem {
+  DeliveryItem(super.key, this.title, this.entries);
+  final String title;
+  final List<Delivered> entries;
 }
 
 /// The assistant's text, Markdown source.
@@ -175,13 +248,13 @@ class ToolFacts {
   }
 }
 
-/// The end of a turn.
+/// The end of a turn. An error it ended in is an [ErrorItem] before it.
 class TurnDividerItem extends TranscriptItem {
-  TurnDividerItem(super.key, {this.durationMs, this.error});
+  TurnDividerItem(super.key, {this.durationMs, this.failed = false});
   final int? durationMs;
 
-  /// The turn's error text, when it ended in one.
-  final String? error;
+  /// The turn ended in an error.
+  final bool failed;
 }
 
 /// A frame the desktop cut because it was too large, not attributable to a
@@ -293,29 +366,133 @@ class Transcript {
       case 'user':
         if (f['isMeta'] == true) return;
         final message = f['message'];
-        if (message is Map) _user(message['content'], f['tool_use_result']);
+        if (message is Map) _user(message['content'], f['tool_use_result'], f);
       case 'user_message':
         // AgentMux's own normalised record of a sent message.
         final m = f['message'];
-        if (m is String && m.trim().isNotEmpty) {
-          _items.add(PromptItem(_nextKey++, m));
-        }
+        if (m is String) _userText(m, f);
       case 'result':
         _dropLive(_live);
         _cancelRunning();
+        _dropCompacting();
         final duration = f['duration_ms'];
-        String? error;
-        if (f['is_error'] == true) {
-          final r = f['result'];
-          error = r is String && r.isNotEmpty ? r : 'The turn ended with an error';
-        }
+        final failed = f['is_error'] == true;
+        if (failed) _items.add(_error(f));
         _items.add(TurnDividerItem(
           _nextKey++,
           durationMs: duration is num ? duration.toInt() : null,
-          error: error,
+          failed: failed,
         ));
+      case 'system':
+        _system(f);
     }
-    // `system` (init), rate limits and the rest show nothing.
+    // Rate limits and the rest show nothing in the transcript.
+  }
+
+  /// The turn's error, as the desktop's `agent_error` row
+  /// (`claude-translator.ts`).
+  ErrorItem _error(Map f) {
+    final code = f['api_error_status'];
+    final err = f['error'];
+    final errors = f['errors'];
+    String? pick(Object? v) => v is String && v.isNotEmpty ? v : null;
+    final message = pick(f['result']) ??
+        (err is Map ? pick(err['message']) : null) ??
+        pick(err) ??
+        (errors is List ? errors.map(pick).whereType<String>().firstOrNull : null) ??
+        (code is num ? 'API error ${code.toInt()}' : 'Agent encountered an error');
+    return ErrorItem(_nextKey++, message, code: code is num && code > 0 ? code.toInt() : null);
+  }
+
+  /// Right after a compaction, the next user turn may be its summary.
+  bool _afterBoundary = false;
+
+  /// "Compacting conversation…" while Claude Code compacts.
+  NoticeItem? _compacting;
+
+  void _dropCompacting() {
+    final c = _compacting;
+    if (c == null) return;
+    _items.remove(c);
+    _compacting = null;
+  }
+
+  void _system(Map f) {
+    switch (f['subtype']) {
+      case 'compact_boundary':
+        _dropCompacting();
+        final b = compactBoundary(f);
+        _items.add(NoticeItem(_nextKey++, b.label, detail: b.detail));
+        _afterBoundary = true;
+        return;
+      case 'status' when f['status'] == 'compacting':
+        if (_compacting != null) return;
+        _compacting = NoticeItem(_nextKey++, 'Compacting conversation…');
+        _items.add(_compacting!);
+        return;
+      case 'status' when f['compact_result'] == 'failed':
+        _dropCompacting();
+      case 'agentmux_memory_injected':
+        final d = contextDelivery(f);
+        if (d != null && d.items.isNotEmpty) _items.add(DeliveryItem(_nextKey++, d.title, d.items));
+        return;
+    }
+    final n = systemNotice(f, provider);
+    if (n != null) _items.add(NoticeItem(_nextKey++, n.label, detail: n.detail, tone: n.tone));
+  }
+
+  /// A user turn's text, split into what the user wrote and what was added
+  /// to it (§7): a jekt, a broadcast, the startup context, Claude Code's
+  /// compaction summary, reminders, AgentMux's record of an earlier session,
+  /// attachments. [images] names images the turn carries beside its text.
+  void _userText(String text, Map f, {List<String> images = const []}) {
+    final afterBoundary = _afterBoundary;
+    _afterBoundary = false;
+    if (text.trim().isEmpty && images.isEmpty) return;
+    final jekt = parseJekt(text);
+    if (jekt != null) {
+      _items.add(JektItem(_nextKey++, jekt));
+      return;
+    }
+    if (isSessionContext(text)) {
+      _items.add(ContextItem(_nextKey++, ContextKind.sessionContext, text));
+      return;
+    }
+    final synthetic = f['isSynthetic'] == true || f['isCompactSummary'] == true;
+    final lead = text.startsWith(compactSummaryLead);
+    if (afterBoundary ? (synthetic || lead) : (synthetic && lead)) {
+      _items.add(ContextItem(_nextKey++, ContextKind.compactSummary, text));
+      return;
+    }
+    final broadcast = parseBroadcast(text);
+    final (withoutBlocks, blocks) = splitWrappers(broadcast?.body ?? text);
+    final (words, named) = splitAttachments(withoutBlocks);
+    final attachments = [...named, ...images];
+    if (words.trim().isNotEmpty || attachments.isNotEmpty || broadcast != null) {
+      _items.add(PromptItem(
+        _nextKey++,
+        words.trim(),
+        broadcast: broadcast != null,
+        recipients: broadcast?.recipients,
+        attachments: attachments,
+      ));
+    }
+    for (final b in blocks) {
+      if (b.kind == WrapperKind.continuation) {
+        _items.add(ContextItem(_nextKey++, ContextKind.continuation, b.text));
+        continue;
+      }
+      final counts = memoryCounts(b.text);
+      _items.add(counts == null
+          ? ContextItem(_nextKey++, ContextKind.systemReminder, b.text)
+          : ContextItem(
+              _nextKey++,
+              ContextKind.memory,
+              b.text,
+              globalCount: counts.global,
+              personalCount: counts.personal,
+            ));
+    }
   }
 
   /// A raw API event inside a `stream_event` frame: reply text and thinking
@@ -433,24 +610,36 @@ class Transcript {
     }
   }
 
-  void _user(Object? content, Object? structured) {
+  void _user(Object? content, Object? structured, Map frame) {
     if (content is String) {
-      if (content.trim().isNotEmpty) _items.add(PromptItem(_nextKey++, content));
+      _userText(content, frame);
       return;
     }
     if (content is! List) return;
-    // Text-only arrays are Claude Code's meta lines; like the desktop pane,
-    // only tool results are taken, and an interrupt ends what was running.
     final results = [
       for (final b in content)
         if (b is Map && b['type'] == 'tool_result') b,
     ];
     if (results.isEmpty) {
-      final interrupted = content.any((b) =>
-          b is Map &&
-          b['text'] is String &&
-          (b['text'] as String).startsWith('[Request interrupted by user'));
-      if (interrupted) _cancelRunning();
+      final texts = [
+        for (final b in content)
+          if (b is Map && b['type'] == 'text' && b['text'] is String) b['text'] as String,
+      ];
+      // An interrupt ends what was running, and says so.
+      if (texts.any((t) => t.startsWith('[Request interrupted by user'))) {
+        _cancelRunning();
+        _items.add(NoticeItem(_nextKey++, '⏹ Interrupted by user'));
+        return;
+      }
+      // A prompt with an image is an array; text-only arrays are Claude
+      // Code's meta lines, which the desktop doesn't show either.
+      final images = content.where((b) => b is Map && b['type'] == 'image').length;
+      if (images == 0) return;
+      _userText(
+        texts.join('\n\n'),
+        frame,
+        images: [for (var i = 1; i <= images; i++) 'Image $i'],
+      );
       return;
     }
     for (final block in results) {

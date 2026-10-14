@@ -18,7 +18,7 @@ import '../../shared/widgets/tag_chip.dart';
 import '../discovery/host_card.dart';
 import '../discovery/qr_scan_screen.dart';
 import 'feed_controller.dart';
-import 'tool_disclosure.dart';
+import 'feed_disclosure.dart';
 import 'tool_meta.dart';
 import 'transcript.dart';
 import 'transcript_view.dart';
@@ -61,8 +61,11 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
   /// Scrolled to the bottom: new output scrolls into view.
   bool _follow = true;
 
-  /// Which tool calls are open (the desktop's rules).
-  final _disclosure = ToolDisclosure();
+  /// Which rows are open (the desktop's rules).
+  final _disclosure = FeedDisclosure();
+
+  /// The jekts already shown, to see which just arrived.
+  final _jekts = <int>{};
 
   /// Each tool call's state at the last update, to see which just finished.
   final _seen = <int, ToolState>{};
@@ -147,16 +150,23 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
       _seen.clear();
       _anchors.clear();
       _heldLastSeen.clear();
+      _jekts.clear();
       _disclosureFor = transcript;
       if (transcript == null) return;
       for (final item in transcript.items) {
         if (item is ToolCallItem) _seen[item.key] = item.state;
+        if (item is JektItem) _jekts.add(item.key);
       }
       return;
     }
     if (transcript == null) return;
     final live = <int>{};
     for (final item in transcript.items) {
+      // A jekt that arrives while the latest output is in view is held open
+      // until it scrolls off, as on the desktop.
+      if (item is JektItem && _jekts.add(item.key) && _follow) {
+        _disclosure.hold(item.key);
+      }
       if (item is! ToolCallItem) continue;
       live.add(item.key);
       final before = _seen[item.key];
@@ -171,7 +181,7 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
     }
     _seen.removeWhere((k, _) => !live.contains(k));
     _anchors.removeWhere((k, _) =>
-        !live.contains(k) ||
+        (!live.contains(k) && !_jekts.contains(k)) ||
         (_seen[k] != ToolState.running && !_disclosure.held.contains(k)));
     _heldLastSeen.removeWhere((k, _) => !_disclosure.held.contains(k));
   }
@@ -364,10 +374,10 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
           itemCount: items.length,
           itemBuilder: (_, i) {
             final item = items[i];
-            if (item is! ToolCallItem) {
+            if (!FeedDisclosure.opens(item)) {
               return TranscriptItemView(key: ValueKey(item.key), item: item);
             }
-            final anchor = item.state == ToolState.running ||
+            final anchor = (item is ToolCallItem && item.state == ToolState.running) ||
                     _disclosure.held.contains(item.key)
                 ? _anchors.putIfAbsent(item.key, GlobalKey.new)
                 : null;

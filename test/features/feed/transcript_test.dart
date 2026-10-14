@@ -63,7 +63,7 @@ void main() {
     test('the turn divider carries the duration', () {
       final d = items.last as TurnDividerItem;
       expect(d.durationMs, 65000);
-      expect(d.error, isNull);
+      expect(d.failed, isFalse);
       expect(formatTurnDuration(65000), '1m 05s');
       expect(formatTurnDuration(4200), '4.2s');
       expect(formatTurnDuration(38000), '38s');
@@ -94,7 +94,8 @@ void main() {
   test('a turn that ended in an error says so', () {
     final t = Transcript(provider: 'claude')
       ..addFrames([turnResult(1000, isError: true, result: 'API error 529')]);
-    expect((t.items.single as TurnDividerItem).error, 'API error 529');
+    expect((t.items.first as ErrorItem).message, 'API error 529');
+    expect((t.items.last as TurnDividerItem).failed, isTrue);
   });
 
   test('skipped: partial, stream deltas, subagent steps, meta lines, junk', () {
@@ -133,7 +134,8 @@ void main() {
         'not json',
         '',
       ]);
-    expect(t.items, isEmpty);
+    // The interrupt is shown as the desktop shows its own marker.
+    expect(t.items.map((i) => (i as NoticeItem).label), ['⏹ Interrupted by user']);
   });
 
   group('streaming', () {
