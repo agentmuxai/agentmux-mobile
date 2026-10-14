@@ -8,6 +8,7 @@ import '../../core/discovery/discovery_telemetry.dart';
 import '../../core/discovery/host_tree.dart';
 import '../../core/fleet/cloud_instance_source.dart';
 import '../../core/viewer/paired_hosts_repository.dart';
+import 'channel_terminals.dart';
 import 'host_card.dart';
 import 'manual_add_sheet.dart';
 import 'muxbus_account_bar.dart';
@@ -33,7 +34,10 @@ class DiscoveryScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => ref.read(discoveryProvider.notifier).refresh(),
+            onPressed: () {
+              ref.invalidate(channelPanesProvider);
+              ref.read(discoveryProvider.notifier).refresh();
+            },
           ),
           IconButton(
             icon: const Icon(Icons.qr_code_scanner),
@@ -212,7 +216,11 @@ class _ResultsView extends ConsumerWidget {
     // The list never implies it is everything (spec section 3.5).
     final note = cloudNoteText(cloud);
     return RefreshIndicator(
-      onRefresh: () => ref.read(discoveryProvider.notifier).refresh(),
+      onRefresh: () {
+        // A paired channel's terminals are read again too.
+        ref.invalidate(channelPanesProvider);
+        return ref.read(discoveryProvider.notifier).refresh();
+      },
       child: ListView.builder(
         padding: const EdgeInsets.all(12),
         itemCount: hosts.length + (note == null ? 0 : 1),

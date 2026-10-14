@@ -1,5 +1,6 @@
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:agentmux_mobile/core/demo/demo_data.dart';
@@ -11,6 +12,7 @@ import 'package:agentmux_mobile/core/viewer/paired_host.dart';
 import 'package:agentmux_mobile/core/viewer/paired_host_source.dart';
 import 'package:agentmux_mobile/core/viewer/viewer_client.dart';
 import 'package:agentmux_mobile/core/viewer/paired_match.dart';
+import 'package:agentmux_mobile/features/discovery/channel_terminals.dart';
 import 'package:agentmux_mobile/features/discovery/host_card.dart';
 import 'package:agentmux_mobile/shared/widgets/agent_state_chip.dart';
 import 'package:agentmux_mobile/shared/widgets/tag_chip.dart';
@@ -53,11 +55,36 @@ Widget _app(Widget child) => MaterialApp(
       home: Scaffold(body: SingleChildScrollView(child: child)),
     );
 
+/// Pumps [w] in a ProviderScope, with a paired channel's terminals as
+/// [panes] (none, by default).
+Future<void> _pump(WidgetTester tester, Widget w, {ChannelPanes? panes}) =>
+    tester.pumpWidget(ProviderScope(
+      overrides: [
+        channelPanesProvider.overrideWith(
+          (ref, key) async => panes ?? const PanesListed([], shared: true),
+        ),
+      ],
+      child: w,
+    ));
+
+ViewerPane _terminal(String id, String label, String tab, {bool? running, String? parent}) => ViewerPane(
+      blockId: id,
+      view: 'term',
+      kind: PaneKind.terminal,
+      label: label,
+      windowId: 'w1',
+      window: 'Main',
+      tabId: 't-$tab',
+      tab: tab,
+      running: running,
+      parentBlockId: parent,
+    );
+
 void main() {
   testWidgets('host row: name, platform, route and version; no address',
       (tester) async {
     final host = buildHostTrees([_entry()]).single;
-    await tester.pumpWidget(_app(HostCard(host: host)));
+    await _pump(tester, _app(HostCard(host: host)));
 
     expect(find.text('narko'), findsOneWidget);
     expect(find.text('Windows'), findsOneWidget);
@@ -69,7 +96,7 @@ void main() {
   testWidgets('agents carry HOST / SANDBOX, and no tag when unknown',
       (tester) async {
     final host = buildHostTrees([_entry()]).single;
-    await tester.pumpWidget(_app(HostCard(host: host)));
+    await _pump(tester, _app(HostCard(host: host)));
 
     expect(find.text('HOST'), findsOneWidget);
     expect(find.text('SANDBOX'), findsOneWidget);
@@ -85,7 +112,7 @@ void main() {
 
   testWidgets('an unknown platform shows no platform tag', (tester) async {
     final host = buildHostTrees([_entry(os: 'freebsd')]).single;
-    await tester.pumpWidget(_app(HostCard(host: host)));
+    await _pump(tester, _app(HostCard(host: host)));
     expect(find.text('freebsd'), findsNothing);
     // Only the route tag and the agents' tags remain.
     expect(find.text('LAN'), findsOneWidget);
@@ -94,7 +121,7 @@ void main() {
   testWidgets('one visible channel of three: its name and the +N line',
       (tester) async {
     final host = buildHostTrees([_entry(channelsRunning: 3)]).single;
-    await tester.pumpWidget(_app(HostCard(host: host)));
+    await _pump(tester, _app(HostCard(host: host)));
 
     expect(find.text('local-main'), findsOneWidget);
     expect(find.text('+2 channels not shared on LAN'), findsOneWidget);
@@ -105,7 +132,7 @@ void main() {
   testWidgets('a lone channel with no count shows no channel name',
       (tester) async {
     final host = buildHostTrees([_entry()]).single;
-    await tester.pumpWidget(_app(HostCard(host: host)));
+    await _pump(tester, _app(HostCard(host: host)));
     expect(find.text('local-main'), findsNothing);
     expect(find.textContaining('not shared on LAN'), findsNothing);
   });
@@ -120,7 +147,7 @@ void main() {
         installId: 'cccccccccccccccccccccccccc',
       ),
     ]).single;
-    await tester.pumpWidget(_app(HostCard(host: host)));
+    await _pump(tester, _app(HostCard(host: host)));
 
     expect(find.text('LAN'), findsOneWidget);
     expect(find.text('Cloud'), findsOneWidget);
@@ -149,7 +176,7 @@ void main() {
             Text('cloud agent ${state.pathParameters['id']}'),
       ),
     ]);
-    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await _pump(tester, MaterialApp.router(routerConfig: router));
 
     expect(find.text('Cloud'), findsOneWidget);
     expect(find.text('macOS'), findsOneWidget);
@@ -189,7 +216,7 @@ void main() {
     testWidgets('a lone channel says so on the host row', (tester) async {
       final host =
           buildHostTrees(entries(cloudAge: const Duration(minutes: 7))).single;
-      await tester.pumpWidget(_app(HostCard(host: host)));
+      await _pump(tester, _app(HostCard(host: host)));
       expect(find.text('this computer has not published for 7 min'),
           findsOneWidget);
       // Still a live LAN host: not dimmed, and the badge is plain LAN.
@@ -205,7 +232,7 @@ void main() {
         cloudAge: const Duration(minutes: 4),
         otherChannel: 'stable',
       )).single;
-      await tester.pumpWidget(_app(HostCard(host: host)));
+      await _pump(tester, _app(HostCard(host: host)));
       expect(find.text('2 channels'), findsOneWidget);
       expect(find.text('this computer has not published for 4 min'),
           findsOneWidget);
@@ -216,7 +243,7 @@ void main() {
         cloudAge: const Duration(seconds: 30),
         cloudPresence: Presence.live,
       )).single;
-      await tester.pumpWidget(_app(HostCard(host: host)));
+      await _pump(tester, _app(HostCard(host: host)));
       expect(find.textContaining('has not published'), findsNothing);
       expect(find.text('LAN + Cloud'), findsOneWidget);
     });
@@ -276,7 +303,7 @@ void main() {
         ],
       ),
     ]).single;
-    await tester.pumpWidget(_app(HostCard(host: host)));
+    await _pump(tester, _app(HostCard(host: host)));
     expect(tester.takeException(), isNull);
     expect(find.text('LAN + Cloud'), findsNWidgets(2));
     expect(find.text('working 59m'), findsOneWidget);
@@ -298,7 +325,7 @@ void main() {
   });
 
   testWidgets('the demo fleet shows every platform and route', (tester) async {
-    await tester.pumpWidget(_app(Column(children: [
+    await _pump(tester, _app(Column(children: [
       for (final h in buildDemoHosts()) HostCard(host: h),
     ])));
 
@@ -348,7 +375,7 @@ void main() {
           const LanAgent(name: 'Lark', state: AgentState.idle),
         ]),
       ]).single;
-      await tester.pumpWidget(_app(HostCard(host: host)));
+      await _pump(tester, _app(HostCard(host: host)));
 
       final working = find.descendant(
         of: rowOf('Camper'),
@@ -366,7 +393,7 @@ void main() {
 
     testWidgets('no state, no chip', (tester) async {
       final host = buildHostTrees([_entry()]).single;
-      await tester.pumpWidget(_app(HostCard(host: host)));
+      await _pump(tester, _app(HostCard(host: host)));
       expect(find.byType(AgentStateChip), findsNothing);
     });
 
@@ -379,7 +406,7 @@ void main() {
           LanAgent(name: 'Mid', state: AgentState.working),
         ]),
       ]).single;
-      await tester.pumpWidget(_app(HostCard(host: host)));
+      await _pump(tester, _app(HostCard(host: host)));
       final ys = [
         for (final n in ['Alpha', 'Mid', 'Zed']) tester.getCenter(find.text(n)).dy,
       ];
@@ -403,7 +430,7 @@ void main() {
           ],
         ),
       ]).single;
-      await tester.pumpWidget(_app(HostCard(host: host)));
+      await _pump(tester, _app(HostCard(host: host)));
       expect(find.text('working'), findsOneWidget);
       expect(find.text('working 3m'), findsNothing);
       expect(
@@ -461,51 +488,95 @@ void main() {
                 Text('cloud agent ${state.pathParameters['id']}'),
           ),
           GoRoute(
-            path: '/viewer/:pairId/panes',
+            path: '/viewer/:pairId/terminal/:blockId',
             builder: (_, state) {
               final extra = state.extra! as Map<String, dynamic>;
               final pairing = extra['pairing'] as PairingMatch;
-              return Text('panes of ${extra['channel']} '
-                  'via ${pairing.host}:${pairing.port}');
+              return Text('terminal ${state.pathParameters['blockId']} '
+                  '"${extra['label']}" via ${pairing.host}:${pairing.port}');
             },
           ),
         ]);
 
-    testWidgets('a paired host offers all its panes', (tester) async {
-      await tester.pumpWidget(
-          MaterialApp.router(routerConfig: router(pairedHost())));
-      await tester.tap(find.text('All panes'));
+    testWidgets('one list: the agents, then the terminals in the desktop order',
+        (tester) async {
+      await _pump(
+        tester,
+        MaterialApp.router(routerConfig: router(pairedHost())),
+        panes: PanesListed([
+          _terminal('b1', 'cargo build', 'Tab 2', running: true),
+          _terminal('b2', 'pwsh — agentmux', 'Tab 1'),
+          _terminal('b3', '', 'Build', running: false, parent: 'a1'),
+        ], shared: true),
+      );
       await tester.pumpAndSettle();
-      expect(find.text('panes of stable via 198.51.100.30:29800'), findsOneWidget);
+      // No headings, no "All panes".
+      expect(find.text('All panes'), findsNothing);
+      final ys = [
+        for (final t in ['Camper', 'cargo build', 'pwsh — agentmux', "Agent's shell"])
+          tester.getCenter(find.text(t)).dy,
+      ];
+      expect(ys, orderedEquals([...ys]..sort()));
+      // The tab is a label, not a group: Tab 2 comes before Tab 1 here.
+      expect(find.text('Tab 2'), findsOneWidget);
+      expect(find.text('Tab 1'), findsOneWidget);
+      expect(find.text('running · watch live'), findsOneWidget);
+      expect(find.text('stopped · watch live'), findsOneWidget);
+      await tester.tap(find.text('cargo build'));
+      await tester.pumpAndSettle();
+      expect(find.text('terminal b1 "cargo build" via 198.51.100.30:29800'), findsOneWidget);
     });
 
-    testWidgets('no panes row while unpaired or refused', (tester) async {
-      await tester.pumpWidget(_app(HostCard(host: buildHostTrees([_entry()]).single)));
-      expect(find.text('All panes'), findsNothing);
-      await tester.pumpWidget(_app(HostCard(host: pairedHost(invalid: true))));
-      expect(find.text('All panes'), findsNothing);
+    testWidgets('terminals not shared: one line says how to', (tester) async {
+      await _pump(
+        tester,
+        _app(HostCard(host: pairedHost())),
+        panes: PanesListed([
+          _terminal('b1', 'cargo build', 'Tab 2'),
+          _terminal('b2', 'pwsh', 'Tab 1'),
+        ], shared: false),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('cargo build'), findsNothing);
+      expect(
+        find.text('2 terminals · turn on Share terminals on the computer to watch them here'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a computer that can\'t be reached offers to try again', (tester) async {
+      await _pump(tester, _app(HostCard(host: pairedHost())), panes: const PanesUnreachable());
+      await tester.pumpAndSettle();
+      expect(find.text("Couldn't list terminals · tap to try again"), findsOneWidget);
+    });
+
+    testWidgets('no terminals while unpaired or refused', (tester) async {
+      await _pump(tester, _app(HostCard(host: buildHostTrees([_entry()]).single)));
+      expect(find.byType(ChannelTerminals), findsNothing);
+      await _pump(tester, _app(HostCard(host: pairedHost(invalid: true))));
+      expect(find.byType(ChannelTerminals), findsNothing);
     });
 
     testWidgets('a paired host says so', (tester) async {
-      await tester.pumpWidget(_app(HostCard(host: pairedHost())));
+      await _pump(tester, _app(HostCard(host: pairedHost())));
       expect(find.text('Paired'), findsOneWidget);
     });
 
     testWidgets('a pairing the computer refused asks to pair again',
         (tester) async {
-      await tester.pumpWidget(_app(HostCard(host: pairedHost(invalid: true))));
+      await _pump(tester, _app(HostCard(host: pairedHost(invalid: true))));
       expect(find.text('Pair again'), findsOneWidget);
       expect(find.text('Paired'), findsNothing);
     });
 
     testWidgets('an unpaired host has no tag', (tester) async {
-      await tester.pumpWidget(_app(HostCard(host: buildHostTrees([_entry()]).single)));
+      await _pump(tester, _app(HostCard(host: buildHostTrees([_entry()]).single)));
       expect(find.text('Paired'), findsNothing);
     });
 
     testWidgets('tapping an agent of a paired channel opens its feed',
         (tester) async {
-      await tester.pumpWidget(
+      await _pump(tester, 
           MaterialApp.router(routerConfig: router(pairedHost())));
       await tester.tap(find.text('Camper'));
       await tester.pumpAndSettle();
@@ -516,7 +587,7 @@ void main() {
     testWidgets('tapping an agent of an unpaired channel opens the pair prompt',
         (tester) async {
       final host = buildHostTrees([_entry()]).single;
-      await tester.pumpWidget(MaterialApp.router(routerConfig: router(host)));
+      await _pump(tester, MaterialApp.router(routerConfig: router(host)));
       await tester.tap(find.text('Camper'));
       await tester.pumpAndSettle();
       expect(find.text('pair prompt Camper'), findsOneWidget);
@@ -535,7 +606,7 @@ void main() {
         ]),
         [testPairedHost()],
       ).single;
-      await tester.pumpWidget(MaterialApp.router(routerConfig: router(host)));
+      await _pump(tester, MaterialApp.router(routerConfig: router(host)));
       await tester.tap(find.text('AgentA'));
       await tester.pumpAndSettle();
       expect(find.text('cloud agent AgentA'), findsOneWidget);
@@ -574,7 +645,7 @@ void main() {
 
     testWidgets('a paired-only computer: name, Paired, LAN, version, states',
         (tester) async {
-      await tester.pumpWidget(_app(HostCard(host: pairedOnlyHost())));
+      await _pump(tester, _app(HostCard(host: pairedOnlyHost())));
       expect(find.text('host-a'), findsOneWidget);
       expect(find.text('Paired'), findsOneWidget);
       expect(find.text('LAN'), findsOneWidget);
@@ -585,7 +656,7 @@ void main() {
 
     testWidgets('tapping an agent of a paired-only computer opens its feed',
         (tester) async {
-      await tester.pumpWidget(
+      await _pump(tester, 
           MaterialApp.router(routerConfig: router(pairedOnlyHost())));
       await tester.tap(find.text('Camper'));
       await tester.pumpAndSettle();
@@ -595,7 +666,7 @@ void main() {
 
     testWidgets('long-press offers Unpair', (tester) async {
       PairedHost? unpaired;
-      await tester.pumpWidget(MaterialApp.router(
+      await _pump(tester, MaterialApp.router(
         routerConfig: router(pairedHost(), onUnpair: (p) => unpaired = p),
       ));
       await tester.longPress(find.text('host-a'));
@@ -616,7 +687,7 @@ void main() {
           LanAgent(name: 'Lark'),
         ]),
       ]).single;
-      await tester.pumpWidget(_app(HostCard(host: host)));
+      await _pump(tester, _app(HostCard(host: host)));
       expect(find.text('Fixing the login race'), findsOneWidget);
       final agentX =
           find.ancestor(of: find.text('AgentX'), matching: find.byType(ListTile));
@@ -641,7 +712,7 @@ void main() {
           LanAgent(name: 'AgentX', kind: AgentKind.container, state: AgentState.working, line: 'word ' * 40),
         ]),
       ]).single;
-      await tester.pumpWidget(_app(HostCard(host: host)));
+      await _pump(tester, _app(HostCard(host: host)));
       expect(tester.takeException(), isNull);
     });
   });
