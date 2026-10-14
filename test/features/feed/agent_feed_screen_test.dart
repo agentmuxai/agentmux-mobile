@@ -275,6 +275,37 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('a jekt in the snapshot is closed; one that arrives live is open',
+      (tester) async {
+    String jekt(String from, String body) =>
+        userPrompt('[JEKT:FROM=$from TO=AgentA TIER=coord DELIVERY=host TRUST=host-verified]\n$body\n[/JEKT]');
+    final lines = [jekt('Clamk', 'old news')];
+    adapter = FakeAdapter([
+      FakeResponse(200, keepOpen: true, chunks: [
+        _sse('snapshot', {
+          'provider': 'claude',
+          'gen': 1,
+          'from_line': 0,
+          'next_line': 1,
+          'lines': lines,
+        }, id: '1:1'),
+      ]),
+    ]);
+    await pumpFeed(tester, testPairedHost());
+    expect(find.textContaining('From Clamk', findRichText: true), findsOneWidget);
+    expect(find.text('old news'), findsNothing);
+
+    adapter.open.single.add(Uint8List.fromList(utf8.encode(_sse('append', {
+      'gen': 1,
+      'line': 1,
+      'lines': [jekt('Loap', 'review is in')],
+    }))));
+    await settle(tester);
+    expect(find.text('review is in'), findsOneWidget);
+
+    await unmount(tester);
+  });
+
   testWidgets('status chip: the host list state, then the feed state',
       (tester) async {
     adapter = FakeAdapter([

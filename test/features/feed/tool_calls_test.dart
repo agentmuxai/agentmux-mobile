@@ -1,7 +1,7 @@
 import 'package:agentmux_mobile/features/feed/feed_theme.dart';
 import 'package:agentmux_mobile/features/feed/line_diff.dart';
 import 'package:agentmux_mobile/features/feed/tool_block.dart';
-import 'package:agentmux_mobile/features/feed/tool_disclosure.dart';
+import 'package:agentmux_mobile/features/feed/feed_disclosure.dart';
 import 'package:agentmux_mobile/features/feed/tool_meta.dart';
 import 'package:agentmux_mobile/features/feed/transcript.dart';
 import 'package:flutter/material.dart';
@@ -183,7 +183,8 @@ void main() {
             },
           }),
         ]);
-      final t = tr.items.single as ToolCallItem;
+      final t = tr.items.first as ToolCallItem;
+      expect((tr.items.last as NoticeItem).label, '⏹ Interrupted by user');
       expect(t.state, ToolState.cancelled);
       expect(toolGlyph(t), '⏹');
     });
@@ -243,7 +244,7 @@ void main() {
 
   group('disclosure', () {
     test('running open; finished closed; held open; content-first open', () {
-      final d = ToolDisclosure();
+      final d = FeedDisclosure();
       final t = _item('Bash', {}, state: ToolState.running);
       expect(d.isOpen(t), isTrue);
       t.state = ToolState.done;
@@ -257,14 +258,14 @@ void main() {
     });
 
     test('a held call that was dismissed closes', () {
-      final d = ToolDisclosure();
+      final d = FeedDisclosure();
       final t = _item('Bash', {}, state: ToolState.cancelled);
       d.hold(t.key);
       expect(d.isOpen(t), isFalse);
     });
 
     test('a tap pins a closed call and closes an open one', () {
-      final d = ToolDisclosure();
+      final d = FeedDisclosure();
       final t = _item('Bash', {});
       d.toggle(t);
       expect(d.isOpen(t), isTrue);
