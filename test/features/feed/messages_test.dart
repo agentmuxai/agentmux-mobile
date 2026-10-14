@@ -303,4 +303,15 @@ void main() {
       expect(find.text('Above is gone'), findsOneWidget);
     });
   });
+
+  test('every desktop harness has a display name', () {
+    expect(providerName('claude'), 'Claude Code');
+    expect(providerName('opencode'), 'OpenCode');
+    expect(providerName('dsh'), 'DeepSeek Harness');
+    expect(providerName('muse'), 'Muse Code');
+    expect(providerName('agy'), 'Antigravity');
+    // Unknown ids still show as given; an empty one reads as the agent.
+    expect(providerName('newcli'), 'newcli');
+    expect(providerName(''), 'The agent');
+  });
 }
