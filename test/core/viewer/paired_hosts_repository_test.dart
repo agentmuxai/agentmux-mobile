@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:agentmux_mobile/core/viewer/device_key_store.dart';
 import 'package:agentmux_mobile/core/viewer/paired_hosts_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -67,12 +68,15 @@ void main() {
 
   group('pairedHostsProvider', () {
     late InMemorySecureStore store;
+    late FakeDeviceKeyStore keys;
     late ProviderContainer container;
 
     setUp(() {
       store = InMemorySecureStore();
+      keys = FakeDeviceKeyStore();
       container = ProviderContainer(overrides: [
         secureStoreProvider.overrideWithValue(store),
+        deviceKeyStoreProvider.overrideWithValue(keys),
       ]);
     });
     tearDown(() => container.dispose());
@@ -94,6 +98,21 @@ void main() {
           ['other', 'new']);
       final saved = await PairedHostsRepository(store).load();
       expect(saved.map((h) => h.id), ['other', 'new']);
+    });
+
+    test('unpairing, and replacing a pairing, delete the key it had', () async {
+      await notifier().add(testPairedHost(id: 'old'));
+      await notifier().add(testPairedHost(id: 'b', installId: 'otherinstall'));
+      expect(keys.deleted, isEmpty);
+
+      await notifier().add(testPairedHost(id: 'new'));
+      expect(keys.deleted, ['amxv-old']);
+
+      await notifier().remove('b');
+      expect(keys.deleted, ['amxv-old', 'amxv-b']);
+      // Marking a pairing invalid keeps its key until it is removed or replaced.
+      await notifier().markInvalid('new');
+      expect(keys.deleted, hasLength(2));
     });
 
     test('without install ids, hostname and channel decide', () async {
