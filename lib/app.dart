@@ -15,6 +15,7 @@ import 'features/discovery/discovery_screen.dart';
 import 'core/discovery/host_tree.dart';
 import 'features/swarm/swarm_screen.dart';
 import 'features/sysinfo/sysinfo_screen.dart';
+import 'features/tower/tower_screen.dart';
 import 'features/feed/agent_feed_screen.dart';
 import 'features/feed/unpaired_agent_screen.dart';
 import 'features/lan_agent/lan_agent_screen.dart';
@@ -137,6 +138,18 @@ GoRouter _buildRouter(AsyncValue<AuthStatus> authState) {
             return const DiscoveryScreen();
           }
           return SysinfoScreen(pairing: extra['pairing'] as PairingMatch);
+        },
+      ),
+
+      // ── A paired computer's Tower: its tasks and processes ─────────
+      GoRoute(
+        path: '/viewer/:pairId/tower',
+        builder: (_, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          if (extra == null || extra['pairing'] is! PairingMatch) {
+            return const DiscoveryScreen();
+          }
+          return TowerScreen(pairing: extra['pairing'] as PairingMatch);
         },
       ),
 

@@ -13,6 +13,7 @@ import '../../core/fleet/fleet_store.dart';
 import '../../core/viewer/paired_host.dart';
 import '../swarm/swarm_screen.dart';
 import '../sysinfo/sysinfo_summary.dart';
+import '../tower/tower_screen.dart';
 import 'channel_terminals.dart';
 import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/agent_state_chip.dart';
@@ -395,14 +396,17 @@ List<Widget> _agentRows(
   ];
 }
 
-/// Sysinfo (and, next, Tower) for a computer this device has paired with,
+/// Sysinfo and Tower for a computer this device has paired with,
 /// read through its viewer listener; for one it hasn't, one line saying
 /// pairing shows them. None where [live] is false (the demo).
 List<Widget> _computerRows(ChannelNode channel, {required double indent, required bool live}) {
   if (!live || channel.cloudOnly) return const [];
   final pairing = watchablePairing(channel);
   if (pairing != null) {
-    return [ChannelSysinfoRow(key: const ValueKey('sysinfo'), pairing: pairing, indent: indent)];
+    return [
+      ChannelSysinfoRow(key: const ValueKey('sysinfo'), pairing: pairing, indent: indent),
+      ChannelTowerRow(key: const ValueKey('tower'), pairing: pairing, indent: indent),
+    ];
   }
   // A refused pairing already says "Pair again" on the channel row.
   if (channel.pairing != null) return const [];
@@ -434,6 +438,28 @@ class ChannelSysinfoRow extends ConsumerWidget {
       indent: indent,
       onTap: () => context.push(
         '/viewer/${Uri.encodeComponent(pairing.paired.id)}/sysinfo',
+        extra: {'pairing': pairing},
+      ),
+    );
+  }
+}
+
+/// Tower: the computer's processes, how many as the summary.
+class ChannelTowerRow extends ConsumerWidget {
+  const ChannelTowerRow({super.key, required this.pairing, required this.indent});
+  final PairingMatch pairing;
+  final double indent;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final summary = ref.watch(channelTowerProvider(panesKeyOf(pairing))).valueOrNull;
+    return InstanceRow(
+      icon: Icons.account_tree_outlined,
+      title: 'Tower',
+      summary: towerSummaryText(summary),
+      indent: indent,
+      onTap: () => context.push(
+        '/viewer/${Uri.encodeComponent(pairing.paired.id)}/tower',
         extra: {'pairing': pairing},
       ),
     );

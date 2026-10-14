@@ -10,6 +10,7 @@ import 'feed_events.dart';
 import 'pinned_tls.dart';
 import 'sysinfo_events.dart';
 import 'terminal_events.dart';
+import 'tower_snapshot.dart';
 
 /// The desktop refused the viewer token (`401`): it was revoked on the
 /// computer, or the computer forgot it.
@@ -307,6 +308,16 @@ class ViewerClient {
         lastEventId,
         parseTerminalEvent,
       );
+
+  /// The computer's Tower: its tasks, totals and busiest and largest
+  /// processes matching [filter]. Throws [ViewerForbidden] when the computer
+  /// doesn't share its processes, [ViewerNotFound] on one too old to.
+  Future<TowerSnapshot> procs({String filter = ''}) async {
+    final data = await _get('/agentmux/viewer/procs?filter=${Uri.encodeQueryComponent(filter)}');
+    final snap = TowerSnapshot.fromJson(data);
+    if (snap == null) throw const FormatException('not a Tower snapshot');
+    return snap;
+  }
 
   /// The computer's latest CPU and memory sample; null before its first.
   /// Throws [ViewerNotFound] on a desktop too old to have the route.

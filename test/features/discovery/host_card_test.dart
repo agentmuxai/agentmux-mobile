@@ -15,6 +15,7 @@ import 'package:agentmux_mobile/core/viewer/paired_match.dart';
 import 'package:agentmux_mobile/features/discovery/channel_terminals.dart';
 import 'package:agentmux_mobile/features/discovery/host_card.dart';
 import 'package:agentmux_mobile/features/sysinfo/sysinfo_summary.dart';
+import 'package:agentmux_mobile/features/tower/tower_screen.dart';
 import 'package:agentmux_mobile/core/viewer/sysinfo_events.dart';
 import 'package:agentmux_mobile/shared/widgets/agent_state_chip.dart';
 import 'package:agentmux_mobile/shared/widgets/tag_chip.dart';
@@ -68,6 +69,7 @@ Future<void> _pump(WidgetTester tester, Widget w, {ChannelPanes? panes, SysinfoS
         channelSysinfoProvider.overrideWith(
           (ref, key) async => sysinfo ?? const SysinfoNow(null),
         ),
+        channelTowerProvider.overrideWith((ref, key) async => const TowerNotShared()),
       ],
       child: w,
     ));
@@ -588,10 +590,11 @@ void main() {
       );
       await tester.pumpAndSettle();
       final ys = [
-        for (final t in ['Swarm', 'Sysinfo', 'cargo build']) tester.getCenter(find.text(t)).dy,
+        for (final t in ['Swarm', 'Sysinfo', 'Tower', 'cargo build']) tester.getCenter(find.text(t)).dy,
       ];
       expect(ys, orderedEquals([...ys]..sort()));
       expect(find.text('CPU 23% · RAM 61%'), findsOneWidget);
+      expect(find.text('Not shared'), findsOneWidget, reason: "Tower's summary");
       await tester.tap(find.text('Sysinfo'));
       await tester.pumpAndSettle();
       expect(find.text('sysinfo p1'), findsOneWidget);
