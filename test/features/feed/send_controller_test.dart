@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:agentmux_mobile/core/logging/app_logger.dart';
 import 'package:agentmux_mobile/core/viewer/device_key_store.dart';
 import 'package:agentmux_mobile/core/viewer/paired_host.dart';
 import 'package:agentmux_mobile/core/viewer/viewer_client.dart';
@@ -148,6 +149,33 @@ void main() {
       expect(send.messages.single.state, SentState.taken);
       expect(send.messages.single.id, firstId);
       expect([for (final b in adapter.bodies) (jsonDecode(b as String) as Map)['message_id']], [firstId, firstId]);
+    });
+
+    test('Try again sends the same text as the first attempt, and the log follows it by id and length', () async {
+      AppLogger.clear();
+      adapter = FakeAdapter([
+        const FakeResponse(409, json: {'error': 'n', 'reason': 'needs_login'}),
+        _accepted,
+      ]);
+      send.dispose();
+      send = controller(adapter);
+      const text = 'Phone send test from the iOS Simulator';
+      send.send(text);
+      await settle();
+      final id = send.messages.single.id;
+      send.retry(id);
+      await settle();
+      final bodies = [for (final b in adapter.bodies) jsonDecode(b as String) as Map];
+      expect([for (final b in bodies) b['message']], [text, text]);
+      expect([for (final b in bodies) b['message_id']], [id, id]);
+      final lines = [for (final e in AppLogger.entries.reversed) if (e.name == 'Send') e.message];
+      expect(lines, [
+        'send $id: 38 chars, 38 bytes',
+        startsWith('refused ('),
+        'retry $id: 38 chars, 38 bytes',
+        'accepted $id: 38 chars, 38 bytes',
+      ]);
+      expect(lines.join(), isNot(contains('Simulator')), reason: 'the log never holds the text');
     });
 
     test('Try again only applies to a failed message; discard forgets one', () async {

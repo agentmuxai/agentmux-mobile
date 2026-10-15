@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/logging/app_logger.dart';
 import '../../core/viewer/viewer_client.dart';
 import 'feed_theme.dart';
 import 'send_controller.dart';
@@ -81,6 +82,14 @@ class _SendPanelState extends ConsumerState<SendPanel> {
 
   void _send() {
     if (!_ready) return;
+    // What the field held at Enter, to tell a composer that lost keystrokes
+    // (the platform field and the controller out of step) from a send bug.
+    final value = _text.value;
+    AppLogger.log(
+      'composer at Enter: ${value.text.length} chars, '
+      'composing ${value.composing.isValid ? '${value.composing.start}-${value.composing.end}' : 'none'}',
+      name: 'Send',
+    );
     if (widget.controller.send(_text.text)) {
       _text.clear();
       widget.onSent?.call();
