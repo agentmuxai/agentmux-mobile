@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import '../../core/logging/app_logger.dart';
 import '../../core/viewer/device_key_store.dart';
 import '../../core/viewer/paired_host.dart';
 import '../../core/viewer/pairing_service.dart';
@@ -138,6 +139,7 @@ class SendController extends ChangeNotifier {
       return false;
     }
     final sent = SentMessage(newMessageId(_random), message);
+    _log('send', sent);
     _messages.add(sent);
     notifyListeners();
     unawaited(_attempt(sent));
@@ -148,6 +150,7 @@ class SendController extends ChangeNotifier {
   void retry(String id) {
     final sent = _find(id);
     if (_disposed || sent == null || sent.state != SentState.failed) return;
+    _log('retry', sent);
     sent
       ..state = SentState.sending
       ..failure = null
@@ -193,6 +196,7 @@ class SendController extends ChangeNotifier {
       if (_disposed || !_messages.contains(sent)) return;
       switch (result) {
         case SendAccepted():
+          _log('accepted', sent);
           sent.state = SentState.taken;
           _timers[sent.id] = Timer(takenFor, () {
             if (_messages.remove(sent) && !_disposed) notifyListeners();
@@ -229,11 +233,13 @@ class SendController extends ChangeNotifier {
       default:
     }
     sent.refusal = refusal;
+    _log('refused (${refusal.kind.name})', sent);
     _fail(sent, SendFailure.refused);
   }
 
   void _fail(SentMessage sent, SendFailure failure) {
     if (_disposed || !_messages.contains(sent)) return;
+    if (failure != SendFailure.refused) _log('failed (${failure.name})', sent);
     sent
       ..state = SentState.failed
       ..failure = failure;
@@ -251,6 +257,16 @@ class SendController extends ChangeNotifier {
     super.dispose();
   }
 }
+
+/// The in-app debug log line for a step of a send: the message id and the text's
+/// length in characters and UTF-8 bytes, never the text itself, so a report like
+/// "the computer got a different text for this id" can be checked against what
+/// the phone held at each step.
+@visibleForTesting
+String sendLogLine(String step, SentMessage sent) =>
+    '$step ${sent.id}: ${sent.text.length} chars, ${utf8.encode(sent.text).length} bytes';
+
+void _log(String step, SentMessage sent) => AppLogger.log(sendLogLine(step, sent), name: 'Send');
 
 /// A random (version 4) UUID.
 String newMessageId(Random random) {
