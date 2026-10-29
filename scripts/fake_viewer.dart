@@ -157,7 +157,7 @@ Future<void> main(List<String> args) async {
     }
   }
   final pem = certFile.readAsStringSync();
-  final body = pem.split('\n').where((l) => l.isNotEmpty && !l.startsWith('-----')).join();
+  final body = pem.split(RegExp(r'\r?\n')).where((l) => l.isNotEmpty && !l.startsWith('-----')).join();
   final fingerprint = sha256.convert(base64Decode(body)).toString();
 
   final context = SecurityContext()
