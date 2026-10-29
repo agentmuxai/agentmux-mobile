@@ -232,6 +232,39 @@ void main() {
       });
     });
 
+    testWidgets('while the feed is not connected: the spinner and the time stand still', (tester) async {
+      var now = DateTime(2026, 10, 13, 12);
+      await withClock(Clock(() => now), () async {
+        final t = TurnInfo()
+          ..open = true
+          ..phase = TurnPhase.writing
+          ..outputTokens = 2400;
+        Widget row({required bool connected}) => _host(WorkingRow(
+              turn: t,
+              state: AgentState.working,
+              connected: connected,
+              since: StateSince(elapsedAtReceipt: const Duration(seconds: 65), receivedAt: DateTime(2026, 10, 13, 12)),
+            ));
+        await tester.pumpWidget(row(connected: true));
+        expect(find.text('↓ 2.4k tokens · 1m 5s'), findsOneWidget);
+        // The connection drops: nothing counts from here.
+        await tester.pumpWidget(row(connected: false));
+        final frozen = tester.widget<Text>(find.text('⠋'));
+        now = now.add(const Duration(seconds: 30));
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(find.text('⠋'), findsOneWidget);
+        expect(frozen.data, '⠋');
+        expect(find.text('↓ 2.4k tokens · 1m 5s'), findsOneWidget);
+        expect(tester.hasRunningAnimations, isFalse);
+        // Back: it counts from real time again.
+        await tester.pumpWidget(row(connected: true));
+        expect(find.text('↓ 2.4k tokens · 1m 35s'), findsOneWidget);
+        await tester.pump(const Duration(milliseconds: 130));
+        expect(find.text('⠙'), findsOneWidget);
+        await tester.pumpWidget(const SizedBox());
+      });
+    });
+
     testWidgets('after the turn: the Worked line', (tester) async {
       final t = TurnInfo()..last = (durationMs: 42000, outputTokens: 2400);
       await tester.pumpWidget(_host(WorkingRow(turn: t, state: AgentState.idle)));

@@ -23,6 +23,7 @@ class WorkingRow extends StatefulWidget {
     this.compacting = false,
     this.state,
     this.since,
+    this.connected = true,
   });
 
   final TurnInfo turn;
@@ -37,6 +38,11 @@ class WorkingRow extends StatefulWidget {
   /// How long it has been in [state].
   final StateSince? since;
 
+  /// Whether the feed is connected. While it isn't (reconnecting, in the
+  /// background) nothing is known about the turn, so the spinner stops and
+  /// the time stays where it was instead of counting on.
+  final bool connected;
+
   @override
   State<WorkingRow> createState() => _WorkingRowState();
 }
@@ -49,6 +55,9 @@ bool workingRowLive(TurnInfo turn, AgentState? state) =>
 class _WorkingRowState extends State<WorkingRow> {
   Timer? _timer;
   int _frame = 0;
+
+  /// When the connection was lost; the row's clock stands still from then.
+  DateTime? _frozenAt;
 
   bool get _live => workingRowLive(widget.turn, widget.state);
 
@@ -66,11 +75,12 @@ class _WorkingRowState extends State<WorkingRow> {
 
   /// Ticks only while a turn runs: the spinner and the elapsed time.
   void _sync() {
-    if (_live && _timer == null) {
+    _frozenAt = widget.connected ? null : (_frozenAt ?? clock.now());
+    if (_live && widget.connected && _timer == null) {
       _timer = Timer.periodic(spinnerFrameTime, (_) {
         if (mounted) setState(() => _frame++);
       });
-    } else if (!_live) {
+    } else if (!_live || !widget.connected) {
       _timer?.cancel();
       _timer = null;
     }
@@ -86,7 +96,7 @@ class _WorkingRowState extends State<WorkingRow> {
   Widget build(BuildContext context) {
     final style = feedProse.copyWith(fontSize: 12.5, color: FeedColors.secondary);
     if (_live) {
-      final now = clock.now();
+      final now = _frozenAt ?? clock.now();
       final elapsed = widget.since?.elapsed(now) ??
           (widget.turn.startedAt == null ? null : now.difference(widget.turn.startedAt!));
       final tokens = widget.turn.outputTokens;

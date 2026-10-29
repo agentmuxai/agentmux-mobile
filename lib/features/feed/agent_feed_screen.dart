@@ -410,6 +410,7 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
         runningTool: transcript.runningTool,
         compacting: transcript.compacting,
         state: state,
+        connected: feed?.connection == FeedConnection.live,
         since: status == null || receivedAt == null
             ? null
             : stateSinceFrom(
