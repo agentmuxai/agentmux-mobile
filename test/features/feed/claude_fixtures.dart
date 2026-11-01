@@ -11,7 +11,22 @@ final systemInit = frame({
   'model': 'model-x',
 });
 
-String userPrompt(String text) => frame({
+/// A user turn as a computer that signs origins sends it: [origin] is what it
+/// signed (the user's own turn by default), with [notes] it attached.
+String userPrompt(String text, {Map<String, Object?>? origin, List<String> notes = const []}) => frame({
+      'type': 'user',
+      'message': {'role': 'user', 'content': text},
+      'amx': {
+        'v': 1,
+        'verified': true,
+        'origin': origin ?? {'kind': 'user'},
+        if (notes.isNotEmpty) 'notes': notes,
+      },
+    });
+
+/// A user turn with no origin the computer vouched for: an older record, or
+/// one whose signature did not hold.
+String unsignedPrompt(String text) => frame({
       'type': 'user',
       'message': {'role': 'user', 'content': text},
     });

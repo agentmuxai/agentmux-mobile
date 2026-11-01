@@ -289,7 +289,8 @@ void main() {
   testWidgets('a jekt in the snapshot is closed; one that arrives live is open',
       (tester) async {
     String jekt(String from, String body) =>
-        userPrompt('[JEKT:FROM=$from TO=AgentA TIER=coord DELIVERY=host TRUST=host-verified]\n$body\n[/JEKT]');
+        userPrompt('[JEKT:FROM=$from TO=AgentA TIER=coord DELIVERY=host TRUST=host-verified]\n$body\n[/JEKT]',
+            origin: {'kind': 'agent', 'from': from});
     final lines = [jekt('Clamk', 'old news')];
     adapter = FakeAdapter([
       FakeResponse(200, keepOpen: true, chunks: [

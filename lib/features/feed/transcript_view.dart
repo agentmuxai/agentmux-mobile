@@ -47,6 +47,7 @@ class TranscriptItemView extends StatelessWidget {
             _AnsweredQuestion(answeredQuestion(tool)!),
           final ContextItem c => ContextLine(item: c, open: expanded, onToggle: onToggle),
           JektItem(:final jekt) => JektView(jekt: jekt, open: expanded, onToggle: onToggle),
+          final OriginItem o => OriginView(item: o, open: expanded, onToggle: onToggle),
           final NoticeItem n => NoticeDivider(item: n),
           final ErrorItem e => ErrorBlock(item: e),
           final DeliveryItem d => DeliveryCard(item: d, open: expanded, onToggle: onToggle),
