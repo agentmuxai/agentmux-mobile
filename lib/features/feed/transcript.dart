@@ -754,14 +754,22 @@ class Transcript {
       if (jekt != null) {
         _items.add(JektItem(_nextKey++, jekt.signedBy(origin)));
       } else {
+        // Its files and the blocks AgentMux or Claude Code added are named and split off as in the user's turn.
+        final (withoutBlocks, blocks) = splitWrappers(body);
+        final (words, named) = splitAttachments(withoutBlocks);
+        final attachments = [...named, ...images];
         final look = containerOf(origin);
-        _items.add(OriginItem(
-          _nextKey++,
-          whole ? look : (kind: look.kind, label: 'Message with notes', icon: look.icon),
-          body,
-          origin: origin,
-          late: lateBy(origin),
-        ));
+        if (words.trim().isNotEmpty || attachments.isNotEmpty) {
+          _items.add(OriginItem(
+            _nextKey++,
+            whole ? look : (kind: look.kind, label: 'Message with notes', icon: look.icon),
+            words.trim(),
+            origin: origin,
+            late: lateBy(origin),
+            attachments: attachments,
+          ));
+        }
+        _contextBlocks(blocks);
       }
     }
     if (whole) {

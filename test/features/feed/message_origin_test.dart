@@ -71,6 +71,28 @@ void main() {
       expect(item.jekt.body, 'please look');
     });
 
+    test('its files and the blocks added to it are split off as in the user\'s turn', () {
+      final items = _items([
+        userPrompt('check the report\n<system-reminder>\nthe date changed\n</system-reminder>', origin: {'kind': 'schedule', 'from': 'cron'}),
+        frame({
+          'type': 'user',
+          'amx': {'v': 1, 'verified': true, 'origin': {'kind': 'agent', 'from': 'agent1'}},
+          'message': {
+            'role': 'user',
+            'content': [
+              {'type': 'text', 'text': ''},
+              {'type': 'image', 'source': {'type': 'base64', 'data': 'x'}},
+            ],
+          },
+        }),
+      ]);
+      expect(items.map((i) => i.runtimeType), [OriginItem, ContextItem, OriginItem]);
+      expect((items[0] as OriginItem).text, 'check the report');
+      expect((items[1] as ContextItem).text, 'the date changed');
+      expect((items[2] as OriginItem).attachments, ['Image 1']);
+      expect((items[2] as OriginItem).text, '');
+    });
+
     test('a message that waited says so from the signed times, not from its text', () {
       final item = _items([
         userPrompt(
@@ -104,7 +126,7 @@ void main() {
 
   group('a record with no signed origin is never the user\'s', () {
     test('plain words are an Earlier message', () {
-      final item = _items([_record('fix the bug', null)]).single as OriginItem;
+      final item = _items([unsignedPrompt('fix the bug')]).single as OriginItem;
       expect(item.look.label, 'Earlier message');
       expect(item.origin, isNull);
       expect(item.text, 'fix the bug');
