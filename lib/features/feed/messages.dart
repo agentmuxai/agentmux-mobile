@@ -5,6 +5,8 @@
 /// transcript turns these into items.
 library;
 
+import '../../core/discovery/peer_fields.dart' show hasControlChar;
+
 /// A message from another agent, as AgentMux wraps it. The phone shows the
 /// marker; it never acts on it.
 class Jekt {
@@ -443,4 +445,162 @@ class Delivered {
     title = 'Given to the agent · $when · $count';
   }
   return (title: title, items: items);
+}
+
+// ─── Where a message came from, as the computer signed it ───────────────────
+
+/// What kind of thing started a user turn (`TriggerKind`).
+enum OriginKind { user, broadcast, agent, service, schedule, task, supervisor, system }
+
+/// Who or what a message is from, as the computer recorded and signed it
+/// (`amx.origin`; `SPEC_MESSAGE_ORIGIN_AND_ONE_CONTAINER_2026_10_25.md`
+/// §3.2). The phone only reads what the computer vouched for: the computer
+/// removes a record's `amx` and puts back only the parts whose signature
+/// held, marked `verified`, before it sends the record here.
+class MessageOrigin {
+  const MessageOrigin({
+    required this.kind,
+    this.from,
+    this.trust,
+    this.tier,
+    this.delivery,
+    this.sig,
+    this.msgId,
+    this.sentMs,
+    this.deliveredMs,
+    this.heldForSecs,
+  });
+  final OriginKind kind;
+
+  /// The sender: an agent, `cron`, `github-consumer`; null for the human.
+  final String? from;
+
+  /// The marker's `TRUST=`: `host-verified`, `unverified`, `network-claimed`…
+  final String? trust;
+  final String? tier;
+  final String? delivery;
+
+  /// `verified` or `invalid`; null when the message carried no signature.
+  final String? sig;
+  final String? msgId;
+  final int? sentMs;
+  final int? deliveredMs;
+  final int? heldForSecs;
+}
+
+const _trusts = {
+  'host-verified',
+  'channel-verified',
+  'lan-verified',
+  'wan-verified',
+  'unverified',
+  'self-declared',
+  'network-claimed',
+};
+
+/// The record's origin and the notes AgentMux attached after the message,
+/// when the computer signed them; null for a record with no verified origin
+/// (an older one, or one whose signature did not hold), which is never the
+/// human's. A value the phone does not know is dropped, and a kind it does
+/// not know makes the whole origin unknown.
+({MessageOrigin origin, List<String> notes})? recordOrigin(Map f) {
+  final amx = f['amx'];
+  if (amx is! Map || amx['verified'] != true || amx['v'] != 1) return null;
+  final o = amx['origin'];
+  if (o is! Map) return null;
+  final kind = OriginKind.values.where((k) => k.name == o['kind']).firstOrNull;
+  if (kind == null) return null;
+  String? text(Object? v, int max) =>
+      v is String && v.isNotEmpty && v.length <= max && !hasControlChar(v) ? v : null;
+  String? oneOf(Object? v, Set<String> allowed) => v is String && allowed.contains(v) ? v : null;
+  int? ms(Object? v) => v is num && v.isFinite && v > 0 ? v.toInt() : null;
+  final held = o['held_for_s'];
+  final notes = amx['notes'];
+  return (
+    origin: MessageOrigin(
+      kind: kind,
+      from: text(o['from'], 80),
+      trust: oneOf(o['trust'], _trusts),
+      tier: oneOf(o['tier'], const {'info', 'coord', 'sensitive'}),
+      delivery: oneOf(o['delivery'], const {'host', 'lan', 'wan', 'channel'}),
+      sig: oneOf(o['sig'], const {'verified', 'invalid'}),
+      msgId: text(o['msg_id'], 64),
+      sentMs: ms(o['sent_ms']),
+      deliveredMs: ms(o['delivered_ms']),
+      heldForSecs: held is num && held.isFinite && held >= 0 ? held.toInt() : null,
+    ),
+    notes: [
+      if (notes is List)
+        for (final n in notes)
+          if (n is String && n.isNotEmpty) n,
+    ],
+  );
+}
+
+/// How a message that is not the human's own is boxed.
+enum ContainerKind { agent, service, schedule, task, supervisor, system, earlier }
+
+/// The label and icon of a message's container, from its signed origin; a
+/// record with none is an "Earlier message".
+({ContainerKind kind, String label, String icon}) containerOf(MessageOrigin? origin) {
+  if (origin == null) return (kind: ContainerKind.earlier, label: 'Earlier message', icon: '🕘');
+  final from = origin.from;
+  return switch (origin.kind) {
+    OriginKind.agent => (
+        kind: ContainerKind.agent,
+        label: from == null ? 'Message from an agent' : 'Message from $from',
+        icon: '📥',
+      ),
+    OriginKind.service => (
+        kind: ContainerKind.service,
+        label: from == null ? 'Notice' : 'Notice from $from',
+        icon: '🔔',
+      ),
+    OriginKind.schedule => (
+        kind: ContainerKind.schedule,
+        label: from == null ? 'Scheduled' : 'Scheduled: $from',
+        icon: '⏰',
+      ),
+    OriginKind.task => (kind: ContainerKind.task, label: 'Task notice', icon: '✅'),
+    OriginKind.supervisor => (kind: ContainerKind.supervisor, label: 'Supervisor', icon: '👁️'),
+    _ => (kind: ContainerKind.system, label: 'AgentMux', icon: 'ℹ️'),
+  };
+}
+
+/// The computer marks a message delivered more than two minutes after it was
+/// sent (`DELAYED_AFTER_MS`).
+const _delayedAfterMs = 120000;
+
+/// "11 min late" when the signed times say the message waited, else null.
+String? lateBy(MessageOrigin? origin) {
+  final sent = origin?.sentMs;
+  final delivered = origin?.deliveredMs;
+  if (sent == null || delivered == null) return null;
+  final ms = delivered - sent;
+  if (ms <= _delayedAfterMs) return null;
+  final min = (ms / 60000).round();
+  return min < 60 ? '$min min late' : '${min ~/ 60} h ${min % 60} min late';
+}
+
+final _lateLead = RegExp(r'^\(sent [^()\n]*, delivered [^()\n]*\)\s*');
+
+/// [text] without the "(sent 14:30, delivered 14:41)" the computer puts in
+/// front of a message that arrived late; the signed times say the same.
+String withoutLateLead(String text) => text.replaceFirst(_lateLead, '');
+
+extension JektSignedBy on Jekt {
+  /// This jekt with the values the computer signed in place of the marker's.
+  Jekt signedBy(MessageOrigin o) => Jekt(
+        from: o.from ?? from,
+        to: to,
+        tier: o.tier ?? tier,
+        delivery: o.delivery ?? delivery,
+        trust: o.trust ?? trust,
+        msgId: o.msgId ?? msgId,
+        priority: priority,
+        sentAt: o.sentMs == null ? sentAt : DateTime.fromMillisecondsSinceEpoch(o.sentMs!),
+        body: body,
+        raw: raw,
+        fields: {...fields, if (o.sig != null) 'SIG': o.sig!},
+      );
 }

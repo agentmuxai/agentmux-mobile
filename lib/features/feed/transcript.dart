@@ -3,7 +3,7 @@ import 'dart:convert';
 import '../../core/discovery/peer_fields.dart' show hasControlChar;
 import 'messages.dart';
 
-export 'messages.dart' show Delivered, Jekt, NoticeTone;
+export 'messages.dart' show ContainerKind, Delivered, Jekt, MessageOrigin, NoticeTone, OriginKind;
 
 /// The feed screen's document: an agent's transcript frames turned into
 /// what the screen shows (`SPEC_AGENT_STATUS_AND_LIVE_PANE_FEED_2026_10_07.md`
@@ -92,6 +92,36 @@ class NoticeItem extends TranscriptItem {
   final String label;
   final String? detail;
   final NoticeTone tone;
+}
+
+/// A message that isn't the user's own words, boxed by where the computer
+/// says it came from: a note from AgentMux, a service, a schedule, a task,
+/// the Supervisor, or an "Earlier message" with no signed origin. Its text is
+/// only ever shown as text.
+class OriginItem extends TranscriptItem {
+  OriginItem(
+    super.key,
+    this.look,
+    this.text, {
+    this.origin,
+    this.detail,
+    this.late,
+    this.attachments = const [],
+  });
+  final ({ContainerKind kind, String label, String icon}) look;
+  final String text;
+
+  /// The signed origin; null for an "Earlier message".
+  final MessageOrigin? origin;
+
+  /// A second line under the label: "Broadcast · 3 agents".
+  final String? detail;
+
+  /// "11 min late", from the signed times.
+  final String? late;
+
+  /// The names of files attached to it.
+  final List<String> attachments;
 }
 
 /// The turn ended in an error.
@@ -636,10 +666,21 @@ class Transcript {
   /// to it (§7): a jekt, a broadcast, the startup context, Claude Code's
   /// compaction summary, reminders, AgentMux's record of an earlier session,
   /// attachments. [images] names images the turn carries beside its text.
+  ///
+  /// What it is comes from the origin the computer signed on the record
+  /// (`recordOrigin`); only that origin can make it the user's own words.
+  /// A record with none (an older one, or one whose signature did not hold)
+  /// is read by its markers, which can only move it to a more specific
+  /// container, and what is left is an "Earlier message", never the user's.
   void _userText(String text, Map f, {List<String> images = const []}) {
     final afterBoundary = _afterBoundary;
     _afterBoundary = false;
     if (text.trim().isEmpty && images.isEmpty) return;
+    final typed = recordOrigin(f);
+    if (typed != null) {
+      _typedText(text, f, typed.origin, typed.notes, images, afterBoundary);
+      return;
+    }
     final jekt = parseJekt(text);
     if (jekt != null) {
       _items.add(JektItem(_nextKey++, jekt));
@@ -650,12 +691,7 @@ class Transcript {
       _items.add(ContextItem(_nextKey++, ContextKind.sessionContext, text));
       return;
     }
-    final synthetic = f['isSynthetic'] == true || f['isCompactSummary'] == true;
-    final lead = text.startsWith(compactSummaryLead);
-    if (afterBoundary ? (synthetic || lead) : (synthetic && lead)) {
-      _items.add(ContextItem(_nextKey++, ContextKind.compactSummary, text));
-      return;
-    }
+    if (_compactSummary(text, f, afterBoundary)) return;
     final broadcast = parseBroadcast(text);
     final (device, messageId) = _sentFromPhone(f);
     final (withoutBlocks, blocks) = splitWrappers(broadcast?.body ?? text);
@@ -663,16 +699,89 @@ class Transcript {
     final attachments = [...named, ...images];
     if (words.trim().isNotEmpty || attachments.isNotEmpty || broadcast != null) {
       _startTurn();
-      _items.add(PromptItem(
-        _nextKey++,
-        words.trim(),
-        broadcast: broadcast != null,
-        recipients: broadcast?.recipients,
-        attachments: attachments,
-        fromDevice: device,
-        messageId: messageId,
-      ));
+      if (device != null && broadcast == null) {
+        // The record says a paired phone sent it, which only an older computer
+        // (one that does not sign) leaves unsigned.
+        _items.add(PromptItem(_nextKey++, words.trim(), attachments: attachments, fromDevice: device, messageId: messageId));
+      } else {
+        _items.add(OriginItem(
+          _nextKey++,
+          containerOf(null),
+          words.trim(),
+          detail: broadcast == null ? null : broadcastNote(broadcast.recipients),
+          attachments: attachments,
+        ));
+      }
     }
+    _contextBlocks(blocks);
+  }
+
+  /// A record the computer signed an origin on: its origin picks the container.
+  void _typedText(String text, Map f, MessageOrigin origin, List<String> notes, List<String> images, bool afterBoundary) {
+    // The notes AgentMux attached are the exact tail of the text; a record
+    // cut or edited since is one container of its origin, never the user's.
+    final tail = notes.isEmpty ? '' : '\n\n${notes.join('\n')}';
+    final whole = tail.isEmpty || text.endsWith(tail);
+    final main = tail.isNotEmpty && whole ? text.substring(0, text.length - tail.length) : text;
+    final human = origin.kind == OriginKind.user || origin.kind == OriginKind.broadcast;
+    if (human && whole) {
+      if (isSessionContext(main)) {
+        _items.add(ContextItem(_nextKey++, ContextKind.sessionContext, main));
+      } else if (!_compactSummary(main, f, afterBoundary)) {
+        final broadcast = origin.kind == OriginKind.broadcast ? parseBroadcast(main) : null;
+        final (device, messageId) = _sentFromPhone(f);
+        final (withoutBlocks, blocks) = splitWrappers(broadcast?.body ?? main);
+        final (words, named) = splitAttachments(withoutBlocks);
+        final attachments = [...named, ...images];
+        if (words.trim().isNotEmpty || attachments.isNotEmpty || origin.kind == OriginKind.broadcast) {
+          _startTurn();
+          _items.add(PromptItem(
+            _nextKey++,
+            words.trim(),
+            broadcast: origin.kind == OriginKind.broadcast,
+            recipients: broadcast?.recipients,
+            attachments: attachments,
+            fromDevice: device,
+            messageId: messageId,
+          ));
+        }
+        _contextBlocks(blocks);
+      }
+    } else {
+      final body = withoutLateLead(main).trim();
+      final jekt = whole && (origin.kind == OriginKind.agent || origin.kind == OriginKind.service) ? parseJekt(body) : null;
+      _startTurn();
+      if (jekt != null) {
+        _items.add(JektItem(_nextKey++, jekt.signedBy(origin)));
+      } else {
+        final look = containerOf(origin);
+        _items.add(OriginItem(
+          _nextKey++,
+          whole ? look : (kind: look.kind, label: 'Message with notes', icon: look.icon),
+          body,
+          origin: origin,
+          late: lateBy(origin),
+        ));
+      }
+    }
+    if (whole) {
+      for (final note in notes) {
+        _items.add(OriginItem(_nextKey++, containerOf(const MessageOrigin(kind: OriginKind.system)), note.replaceFirst('[AgentMux] ', '')));
+      }
+    }
+  }
+
+  /// Claude Code's summary after a compaction, as a user turn: a context row.
+  bool _compactSummary(String text, Map f, bool afterBoundary) {
+    final synthetic = f['isSynthetic'] == true || f['isCompactSummary'] == true;
+    final lead = text.startsWith(compactSummaryLead);
+    if (!(afterBoundary ? (synthetic || lead) : (synthetic && lead))) return false;
+    _items.add(ContextItem(_nextKey++, ContextKind.compactSummary, text));
+    return true;
+  }
+
+  /// The `<system-reminder>` and `<agentmux-continuation>` blocks of a turn.
+  void _contextBlocks(List<Wrapper> blocks) {
     for (final b in blocks) {
       if (b.kind == WrapperKind.continuation) {
         _items.add(ContextItem(_nextKey++, ContextKind.continuation, b.text));

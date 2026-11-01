@@ -74,18 +74,22 @@ void main() {
         });
     final t = Transcript(provider: 'claude')
       ..addFrames([
+        // A computer from before origins were signed says it the old way.
         phone({'via': 'viewer', 'device': 'Pixel 9', 'message_id': 'm-1'}, 'from the phone'),
         userPrompt('typed on the computer'),
-        // Not a phone's record, a device name that is not one, an id that is not one.
+        // Not a phone's record, a device name that is not one, an id that is not one: no origin, so not the user's.
         phone({'via': 'other', 'device': 'X', 'message_id': 'm-2'}, 'other'),
         phone({'via': 'viewer', 'device': 'a\nb', 'message_id': 7}, 'odd'),
         // The text can't claim it: only the record does.
         userPrompt('From Pixel 9'),
+        // A computer that signs: the origin is the user's, the device is from the record.
+        phone({'v': 1, 'verified': true, 'origin': {'kind': 'user'}, 'via': 'viewer', 'device': 'Pixel 9', 'message_id': 'm-3'}, 'signed from the phone'),
       ]);
     final prompts = t.items.whereType<PromptItem>().toList();
-    expect(prompts.map((p) => p.text), ['from the phone', 'typed on the computer', 'other', 'odd', 'From Pixel 9']);
-    expect(prompts.map((p) => p.fromDevice), ['Pixel 9', null, null, null, null]);
-    expect(prompts.map((p) => p.messageId), ['m-1', null, null, null, null]);
+    expect(prompts.map((p) => p.text), ['from the phone', 'typed on the computer', 'From Pixel 9', 'signed from the phone']);
+    expect(prompts.map((p) => p.fromDevice), ['Pixel 9', null, null, 'Pixel 9']);
+    expect(prompts.map((p) => p.messageId), ['m-1', null, null, 'm-3']);
+    expect(t.items.whereType<OriginItem>().map((o) => (o.text, o.look.label)), [('other', 'Earlier message'), ('odd', 'Earlier message')]);
     expect(t.hasPhoneMessage('m-1'), isTrue);
     expect(t.hasPhoneMessage('m-2'), isFalse);
   });

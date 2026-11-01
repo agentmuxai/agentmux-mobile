@@ -212,6 +212,82 @@ class _JektViewState extends State<JektView> {
   }
 }
 
+/// A message that isn't the user's own words, boxed by where the computer
+/// says it came from: "▸ 📥 Message from X", opening to its text. The user's
+/// own turn is never drawn here (it is a [PromptBlock]); a message with no
+/// signed origin is a quiet "Earlier message". A colour marks a trust
+/// problem only: a sender nothing proved, a signature that did not hold.
+class OriginView extends StatelessWidget {
+  const OriginView({super.key, required this.item, required this.open, this.onToggle});
+  final OriginItem item;
+  final bool open;
+  final VoidCallback? onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final o = item.origin;
+    final trust = o?.trust;
+    final sig = o?.sig;
+    final bar = switch (item.look.kind) {
+      ContainerKind.agent || ContainerKind.service => FeedColors.accent,
+      _ => FeedColors.border,
+    };
+    final excerpt = item.text.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).firstOrNull ?? '';
+    return CollapsibleLine(
+      open: open,
+      onToggle: onToggle,
+      bar: bar,
+      summary: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: FeedSpace.s1,
+            runSpacing: 2,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text.rich(
+                TextSpan(children: [
+                  TextSpan(text: '${item.look.icon} '),
+                  TextSpan(text: item.look.label, style: const TextStyle(fontWeight: FontWeight.w600)),
+                ]),
+                style: feedProse.copyWith(fontSize: 13),
+              ),
+              if (trust != null)
+                _Pill(trust, color: trust.endsWith('-verified') ? FeedColors.secondary : FeedColors.warningText),
+              if (sig != null)
+                _Pill(
+                  sig == 'verified' ? 'signed' : 'signature invalid',
+                  color: sig == 'verified' ? FeedColors.secondary : FeedColors.warningText,
+                ),
+              if (item.detail != null) Text(item.detail!, style: _small.copyWith(fontSize: 11)),
+              if (item.late != null) Text(item.late!, style: _small.copyWith(fontSize: 11)),
+            ],
+          ),
+          if (!open && excerpt.isNotEmpty)
+            Text(
+              excerpt,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: _small.copyWith(fontStyle: FontStyle.italic),
+            ),
+        ],
+      ),
+      body: () => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Text only: a message is never read as markup.
+          _capped(context, SelectableText(item.text, style: feedProse.copyWith(fontSize: 13))),
+          if (item.attachments.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: FeedSpace.s1),
+              child: Text('📎 ${item.attachments.join(', ')}', style: _small.copyWith(fontSize: 11)),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 String _when(DateTime t) {
   final l = t.toLocal();
   String two(int n) => n.toString().padLeft(2, '0');

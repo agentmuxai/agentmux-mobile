@@ -136,7 +136,9 @@ got, which is how to check that a screen stopped asking after it was left.
 It takes the device key at pairing and checks a sent message's signature
 (with `openssl`, so not with the app's own code), and adds the message to the
 feed the way the computer does. `--old-desktop` acts like an AgentMux from
-before sending. `--dart-define=AGENTMUX_DEV_SEND_TEST=<agent>` on the
+before sending, and writes no signed origins. Otherwise its transcript ends with one message of every origin the
+computer signs (an agent, a service that was late, a schedule, a task, the Supervisor, a broadcast, a message
+with a note under it) and one with none ("Earlier message"), to look at how the feed boxes them. `--dart-define=AGENTMUX_DEV_SEND_TEST=<agent>` on the
 `dev_pair_main` build sends that agent one signed message after pairing and
 logs the answer (`adb logcat -s flutter:I | grep dev-pair`).
 It is not the real protocol's server: check anything that depends on the

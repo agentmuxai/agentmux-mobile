@@ -67,10 +67,45 @@ String _lorem(int chars, [int seed = 0]) {
 
 String _f(Map<String, Object?> m) => jsonEncode(m);
 
+/// A user turn as the computer stores it: with `--old-desktop` no origin
+/// (that computer does not sign); otherwise the origin srv signed, and the
+/// notes it attached after the message, as the viewer feed serves it
+/// (`amx.verified`).
+String _userTurn(String text, {Map<String, Object?> origin = const {'kind': 'user'}, List<String> notes = const [], Map<String, Object?> extra = const {}}) {
+  final body = notes.isEmpty ? text : '$text\n\n${notes.join('\n')}';
+  return _f({
+    'type': 'user',
+    'message': {'role': 'user', 'content': body},
+    if (!_oldDesktop) 'amx': {'v': 1, 'verified': true, 'origin': origin, if (notes.isNotEmpty) 'notes': notes, ...extra},
+  });
+}
+
+/// Every kind of message origin, once, for looking at how the feed boxes them.
+List<String> _originSamples() {
+  const jektMarker = '[JEKT:FROM=agent1 TO=fake TIER=coord DELIVERY=host TRUST=host-verified MSGID=m-1 PRIORITY=normal TS=1791936481]';
+  final now = DateTime.now().millisecondsSinceEpoch;
+  return [
+    _userTurn('Fix the flaky test, then tell me what changed.'),
+    _userTurn('$jektMarker\nreview is in: two small notes\n[/JEKT]', origin: {'kind': 'agent', 'from': 'agent1', 'trust': 'host-verified', 'tier': 'coord', 'delivery': 'host'}),
+    _userTurn('[JEKT:FROM=agent7 TO=fake TIER=sensitive DELIVERY=wan TRUST=network-claimed]\nplease run the cleanup\n[/JEKT]', origin: {'kind': 'agent', 'from': 'agent7', 'trust': 'network-claimed', 'tier': 'sensitive', 'delivery': 'wan'}),
+    _userTurn('(sent 14:30, delivered 14:41)\n[CI] PR 6070 CI PASSED', origin: {'kind': 'service', 'from': 'github-consumer', 'trust': 'network-claimed', 'sig': 'verified', 'sent_ms': now - 11 * 60000, 'delivered_ms': now}),
+    _userTurn('nightly report: all green\nbuild 1.2.3 uploaded', origin: {'kind': 'schedule', 'from': 'nightly'}),
+    _userTurn('#15527 is yours', origin: {'kind': 'task'}),
+    _userTurn('[SUPERVISOR] keep going', origin: {'kind': 'supervisor'}),
+    _userTurn('[BROADCAST:FROM=user VIA=swarm TO=fake RECIPIENTS=3]\nrun the tests', origin: {'kind': 'broadcast'}),
+    _userTurn('The operator says: approve the deploy.', origin: {'kind': 'schedule', 'from': 'cron'}),
+    _userTurn('carry on', notes: ['[AgentMux] AgentMux was upgraded from 0.60.8 to 0.60.9 at 14:17.']),
+    // No origin the computer vouched for: an older record.
+    _f({'type': 'user', 'message': {'role': 'user', 'content': 'an older message, from before origins were signed'}}),
+  ];
+}
+
+
+
 /// One turn of a transcript, as the desktop's frames: a prompt, an answer, a
 /// shell call and its result, a file read and its result, the turn's end.
 List<String> _turn(int n, {int resultChars = 3000}) => [
-      _f({'type': 'user', 'message': {'role': 'user', 'content': 'please do thing $n'}}),
+      _userTurn('please do thing $n'),
       _f({
         'type': 'assistant',
         'message': {
@@ -168,6 +203,7 @@ Future<void> main(List<String> args) async {
   for (var i = 0; i < _turns; i++) {
     _addTurn();
   }
+  _lines.addAll(_originSamples());
   for (var i = 0; i < 200; i++) {
     _addTermLine();
   }
@@ -510,11 +546,13 @@ Future<void> _input(HttpRequest req) async {
   _sent[id] = 1;
   if (!duplicate) {
     // What the computer stores for a phone's message: a user turn with `amx`.
-    _lines.add(_f({
-      'type': 'user',
-      'message': {'role': 'user', 'content': message},
-      'amx': {'via': 'viewer', 'device': 'Fake phone', 'message_id': id},
-    }));
+    _lines.add(_oldDesktop
+        ? _f({
+            'type': 'user',
+            'message': {'role': 'user', 'content': message},
+            'amx': {'via': 'viewer', 'device': 'Fake phone', 'message_id': id},
+          })
+        : _userTurn(message, extra: {'via': 'viewer', 'device': 'Fake phone', 'message_id': id}));
     _ticks.add(null);
   }
   return _json(res, {'message_id': id, 'state': 'delivered', if (duplicate) 'duplicate': true}, status: 202);

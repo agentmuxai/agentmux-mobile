@@ -21,7 +21,7 @@ class FeedDisclosure {
 
   /// Whether [item] is a row that opens at all.
   static bool opens(TranscriptItem item) =>
-      item is ToolCallItem || item is JektItem || item is ContextItem || item is DeliveryItem;
+      item is ToolCallItem || item is JektItem || item is ContextItem || item is DeliveryItem || item is OriginItem;
 
   bool isOpen(TranscriptItem item) {
     final k = item.key;

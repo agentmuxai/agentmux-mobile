@@ -19,6 +19,12 @@ Branch: qtest/feed-tool-calls
 Reply: bus:inject to github-consumer
 [/JEKT]''';
 
+const _signedUser = {
+  'v': 1,
+  'verified': true,
+  'origin': {'kind': 'user'},
+};
+
 List<TranscriptItem> _items(List<String> frames) =>
     (Transcript(provider: 'claude')..addFrames(frames)).items;
 
@@ -51,7 +57,7 @@ void main() {
     });
 
     test('a user turn that is a jekt is a jekt row', () {
-      expect(_items([userPrompt(_jekt)]).single, isA<JektItem>());
+      expect(_items([userPrompt(_jekt, origin: {'kind': 'agent', 'from': 'github-consumer'})]).single, isA<JektItem>());
     });
   });
 
@@ -62,7 +68,7 @@ void main() {
     expect(broadcastNote(3), 'Broadcast · 3 agents');
     expect(broadcastNote(1), 'Broadcast');
     expect(parseBroadcast('[BROADCAST:FROM=agent VIA=swarm]\nx'), isNull);
-    final p = _items([userPrompt('[BROADCAST:FROM=user VIA=swarm TO=q RECIPIENTS=3]\nRun the tests')]).single as PromptItem;
+    final p = _items([userPrompt('[BROADCAST:FROM=user VIA=swarm TO=q RECIPIENTS=3]\nRun the tests', origin: {'kind': 'broadcast'})]).single as PromptItem;
     expect(p.broadcast, isTrue);
     expect(p.text, 'Run the tests');
   });
@@ -107,6 +113,7 @@ void main() {
     final p = _items([
       frame({
         'type': 'user',
+        'amx': _signedUser,
         'message': {
           'content': [
             {'type': 'text', 'text': 'What is this?'},
@@ -121,6 +128,7 @@ void main() {
 
   String imageTurn(List<Map<String, Object?>> text) => frame({
         'type': 'user',
+        'amx': _signedUser,
         'message': {
           'content': [
             ...text,
