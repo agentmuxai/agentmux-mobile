@@ -82,17 +82,6 @@ flutter:
 # mipmaps, the launch image) are that picture at each size. Regenerate with `dart run flutter_launcher_icons`
 # after replacing icon.png, and redraw the launch image by hand. There is no light alternate here: only a
 # platform that switches the icon with the theme by itself would use one.
-flutter_launcher_icons: ^0.14.3
-
-flutter:
-  uses-material-design: true
-  assets:
-    - assets/images/
-
-# Source: agentmux's own primary app icon (assets/linux/icons/hicolor/512x512/apps/agentmux.png
-# in the agentmux repo) copied verbatim to assets/icon/icon.png here — the same "blue blocks"
-# mark used everywhere else AgentMux ships an icon, not a mobile-specific design. Regenerate
-# with `dart run flutter_launcher_icons` after replacing that source file.
 flutter_launcher_icons:
   android: true
   ios: true
