@@ -36,9 +36,9 @@ final pairingServiceProvider = Provider<PairingService>(
 
 /// The name the computer lists this device under ("Paired devices").
 String defaultDeviceName() {
-  if (Platform.isIOS) return 'AgentMux Mobile (iOS)';
-  if (Platform.isAndroid) return 'AgentMux Mobile (Android)';
-  return 'AgentMux Mobile';
+  if (Platform.isIOS) return 'AgentMux (iOS)';
+  if (Platform.isAndroid) return 'AgentMux (Android)';
+  return 'AgentMux';
 }
 
 /// Pairs this device with the computer a scanned [PairCode] names

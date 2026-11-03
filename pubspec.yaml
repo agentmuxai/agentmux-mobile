@@ -1,7 +1,7 @@
 name: agentmux_mobile
-description: AgentMux Mobile — cloud agent fleet companion
+description: AgentMux — cloud agent fleet companion
 publish_to: 'none'
-version: 0.2.0+26
+version: 0.2.0+27
 
 environment:
   sdk: ^3.7.0
