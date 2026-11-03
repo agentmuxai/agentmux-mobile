@@ -1,7 +1,7 @@
 name: agentmux_mobile
 description: AgentMux Mobile — cloud agent fleet companion
 publish_to: 'none'
-version: 0.2.0+25
+version: 0.2.0+26
 
 environment:
   sdk: ^3.7.0
@@ -76,10 +76,12 @@ flutter:
   assets:
     - assets/images/
 
-# Source: agentmux's own primary app icon (assets/linux/icons/hicolor/512x512/apps/agentmux.png
-# in the agentmux repo) copied verbatim to assets/icon/icon.png here — the same "blue blocks"
-# mark used everywhere else AgentMux ships an icon, not a mobile-specific design. Regenerate
-# with `dart run flutter_launcher_icons` after replacing that source file.
+# Source: assets/icon/agentmux-icon-mono.svg, AgentMux's main icon (variant 1: mono on a dark tile,
+# square corners, flat colour, the same icon in the desktop app and the cloud console), rendered to
+# assets/icon/icon.png (1024 px, opaque). The platform sizes (ios/.../AppIcon.appiconset, the Android
+# mipmaps, the launch image) are that picture at each size. Regenerate with `dart run flutter_launcher_icons`
+# after replacing icon.png, and redraw the launch image by hand. There is no light alternate here: only a
+# platform that switches the icon with the theme by itself would use one.
 flutter_launcher_icons:
   android: true
   ios: true
