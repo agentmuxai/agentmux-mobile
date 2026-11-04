@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/auth/auth_provider.dart';
 import '../../core/billing/billing_provider.dart';
 import '../../shared/theme/app_theme.dart';
+import 'delete_account.dart';
 
 // Build-time stamp injected by CI or --dart-define.
 const _appVersion = String.fromEnvironment('APP_VERSION', defaultValue: '0.1.0');
@@ -56,7 +57,7 @@ class SettingsScreen extends ConsumerWidget {
           // MuxBus cloud section — only when signed in.
           if (isAuthed) ...[
             _Section(
-              title: 'MuxBus Cloud',
+              title: 'Account',
               children: [
                 ListTile(
                   leading: const Icon(Icons.account_circle_outlined),
@@ -99,6 +100,19 @@ class SettingsScreen extends ConsumerWidget {
                       style: TextStyle(color: AppColors.error)),
                   leading: const Icon(Icons.logout, color: AppColors.error),
                   onTap: () => _confirmSignOut(context, ref),
+                ),
+                ListTile(
+                  key: const ValueKey('delete-account'),
+                  title: const Text('Delete account',
+                      style: TextStyle(color: AppColors.error)),
+                  subtitle: const Text(
+                    'Removes your cloud account and what it stores',
+                    style: TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                  leading: const Icon(Icons.delete_outline,
+                      color: AppColors.error),
+                  onTap: () => confirmAndDeleteAccount(context, ref),
                 ),
               ],
             ),

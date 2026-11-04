@@ -15,6 +15,21 @@ import 'muxbus_api_base.dart';
 
 const _apiBase = muxbusApiBase;
 
+/// How `DELETE /api/account` ended.
+enum DeleteAccountOutcome {
+  /// The account and what it stored are gone (also: it already was).
+  deleted,
+
+  /// The token is no longer valid: the person is signed out already.
+  signedOut,
+
+  /// The service refused (a desktop agent's token, or a disabled account).
+  refused,
+
+  /// It failed partway or could not be reached; trying again is safe.
+  failed,
+}
+
 class MuxbusClient {
   /// [httpClientAdapter] replaces the network in tests.
   MuxbusClient(this._auth, {HttpClientAdapter? httpClientAdapter}) {
@@ -131,6 +146,53 @@ class MuxbusClient {
       tier: tierRes.data!['billing_tier'] as String? ?? 'free',
     );
   }
+
+  // ── Account ──────────────────────────────────────────────────────────────
+
+  /// Deletes the signed-in account and what it stored (`DELETE /api/account`).
+  /// The caller clears the local session on [DeleteAccountOutcome.deleted] and
+  /// [DeleteAccountOutcome.signedOut].
+  Future<DeleteAccountOutcome> deleteAccount() async {
+    // The token is made here, so that "could not refresh it" is told apart from
+    // "the service says the session is gone": the first must not end the
+    // session, the account still exists.
+    final String token;
+    try {
+      token = await _auth.getValidAccessToken();
+    } on DioException catch (e) {
+      // Only a definite refusal of the refresh token ends the session; no
+      // answer, a 5xx or a 429 leaves the account, and the session, alone.
+      final status = e.response?.statusCode;
+      return status == 400 || status == 401
+          ? DeleteAccountOutcome.signedOut
+          : DeleteAccountOutcome.failed;
+    } on AuthNetworkError {
+      return DeleteAccountOutcome.failed;
+    } on AuthUnavailable {
+      return DeleteAccountOutcome.failed;
+    } on AuthException {
+      // No session, or no refresh token: nothing left to delete with.
+      return DeleteAccountOutcome.signedOut;
+    } catch (_) {
+      return DeleteAccountOutcome.failed;
+    }
+    try {
+      await _dio.delete<Object?>(
+        '/api/account',
+        options: Options(
+          headers: {'Authorization': 'Bearer $token'},
+          extra: {'noRefresh': true},
+        ),
+      );
+      return DeleteAccountOutcome.deleted;
+    } on DioException catch (e) {
+      return switch (e.response?.statusCode) {
+        401 => DeleteAccountOutcome.signedOut,
+        403 => DeleteAccountOutcome.refused,
+        _ => DeleteAccountOutcome.failed,
+      };
+    }
+  }
 }
 
 // ── Auth + refresh interceptor ────────────────────────────────────────────────
@@ -164,7 +226,11 @@ class _AuthInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
-    if (err.response?.statusCode != 401) {
+    // A request that must see its own answer (`noRefresh`), and one already
+    // retried with a fresh token, are not retried.
+    if (err.response?.statusCode != 401 ||
+        err.requestOptions.extra['noRefresh'] == true ||
+        err.requestOptions.extra['retriedAfterRefresh'] == true) {
       return handler.next(err);
     }
 
@@ -193,11 +259,13 @@ class _AuthInterceptor extends Interceptor {
 
     // Retry original request with new token.
     err.requestOptions.headers['Authorization'] = 'Bearer $newToken';
+    err.requestOptions.extra['retriedAfterRefresh'] = true;
     try {
       final retried = await _dio.fetch(err.requestOptions);
       handler.resolve(retried);
     } catch (e) {
-      handler.reject(err);
+      // The retry's own failure, not the first 401 it replaces.
+      handler.reject(e is DioException ? e : err);
     }
   }
 }

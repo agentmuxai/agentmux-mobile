@@ -33,6 +33,13 @@ class AuthNotifier extends AsyncNotifier<AuthStatus> {
     await ref.read(authRepositoryProvider).signOut();
     state = const AsyncValue.data(AuthStatus.unauthenticated);
   }
+
+  /// The account was deleted (or the service says the session is gone): clear it
+  /// here and become signed out.
+  Future<void> endSessionAfterDeletion() async {
+    await ref.read(authRepositoryProvider).clearSession();
+    state = const AsyncValue.data(AuthStatus.unauthenticated);
+  }
 }
 
 final authProvider = AsyncNotifierProvider<AuthNotifier, AuthStatus>(
