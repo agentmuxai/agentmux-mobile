@@ -34,8 +34,9 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.agentmux.agentmux_mobile"
+        // Permanent once uploaded to Google Play. Matches the iOS bundle id (ai.agentmux.mobile); the
+        // Kotlin package (namespace above) is a separate name and stays.
+        applicationId = "ai.agentmux.mobile"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
