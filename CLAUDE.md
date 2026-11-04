@@ -117,7 +117,7 @@ is a dev-only entrypoint (never the release target) that pairs with the
   On Windows `flutter` is a `.bat`, and `cmd` cuts a raw link at its first `&`;
   the app then logs `dev-pair: not a pairing link`.
 - `adb logcat -s flutter:I | grep dev-pair` says whether it paired. The
-  debug app's package is `com.agentmux.agentmux_mobile`.
+  debug app's package is `ai.agentmux.mobile`.
 
 ### A fake desktop, for long feeds and for breaking things
 

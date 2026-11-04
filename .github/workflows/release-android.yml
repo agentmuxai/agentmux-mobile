@@ -74,7 +74,7 @@ jobs:
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: com.agentmux.agentmux_mobile
+          packageName: ai.agentmux.mobile
           releaseFiles: build/app/outputs/bundle/release/app-release.aab
           track: ${{ inputs.track }}
           status: completed
