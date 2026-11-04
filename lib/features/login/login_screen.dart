@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -51,6 +53,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   String? _error;
   bool _unavailable = false;
   bool _apple = false;
+
+  /// Google is offered on its own everywhere but iOS, where Apple's rule 4.8
+  /// asks for Sign in with Apple beside any other third-party sign-in: there it
+  /// shows only once the sign-in service offers Apple too, and email stays.
+  bool get _showGoogle => defaultTargetPlatform != TargetPlatform.iOS || _apple;
 
   @override
   void initState() {
@@ -182,29 +189,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     const SizedBox(height: 16),
                   ],
-                  FilledButton.icon(
-                    key: const ValueKey('connect-google'),
-                    onPressed:
-                        enabled ? () => _signIn(SignInMethod.google) : null,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: const Color(0xFF1F1F1F),
-                      minimumSize: const Size.fromHeight(52),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
+                  if (_showGoogle) ...[
+                    FilledButton.icon(
+                      key: const ValueKey('connect-google'),
+                      onPressed:
+                          enabled ? () => _signIn(SignInMethod.google) : null,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF1F1F1F),
+                        minimumSize: const Size.fromHeight(52),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
-                      textStyle: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                      icon: const _GoogleMark(),
+                      label: const Text('Connect with Google'),
                     ),
-                    icon: const _GoogleMark(),
-                    label: const Text('Connect with Google'),
-                  ),
+                  ],
                   if (_apple) ...[
                     const SizedBox(height: 12),
                     // Apple's white style, its guidelines' choice on a dark

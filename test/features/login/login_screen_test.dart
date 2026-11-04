@@ -222,4 +222,27 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('Connect with Google'), findsOneWidget);
   });
+
+  group('on iOS (Apple rule 4.8)', () {
+    testWidgets(
+      'no Google button until Apple is offered; email stays',
+      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+      (tester) async {
+        await _openLogin(tester, FakeAuthRepository());
+        expect(_google, findsNothing);
+        expect(_apple, findsNothing);
+        expect(_email, findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Google shows beside Apple once Apple is offered',
+      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+      (tester) async {
+        await _openLogin(tester, FakeAuthRepository()..apple = true);
+        expect(_google, findsOneWidget);
+        expect(_apple, findsOneWidget);
+      },
+    );
+  });
 }
