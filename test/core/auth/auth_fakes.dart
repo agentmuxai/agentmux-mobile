@@ -197,6 +197,14 @@ class FakeAuthRepository implements AuthRepository {
     signedIn = false;
   }
 
+  int sessionsCleared = 0;
+
+  @override
+  Future<void> clearSession() async {
+    sessionsCleared++;
+    signedIn = false;
+  }
+
   @override
   Future<bool> isAuthenticated() async => signedIn;
 

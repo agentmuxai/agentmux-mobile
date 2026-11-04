@@ -273,6 +273,10 @@ class AuthRepository {
 
   Future<String?> getUserSub() => _storage.readUserSub();
 
+  /// Forgets the session on this phone, with no call to the service: after the
+  /// account was deleted its tokens are already void.
+  Future<void> clearSession() => _storage.clear();
+
   /// The signed-in account's email, from the stored ID token.
   Future<String?> getAccountEmail() => _storage.readEmail();
 

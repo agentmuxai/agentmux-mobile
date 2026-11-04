@@ -15,6 +15,21 @@ import 'muxbus_api_base.dart';
 
 const _apiBase = muxbusApiBase;
 
+/// How `DELETE /api/account` ended.
+enum DeleteAccountOutcome {
+  /// The account and what it stored are gone (also: it already was).
+  deleted,
+
+  /// The token is no longer valid: the person is signed out already.
+  signedOut,
+
+  /// The service refused (a desktop agent's token, or a disabled account).
+  refused,
+
+  /// It failed partway or could not be reached; trying again is safe.
+  failed,
+}
+
 class MuxbusClient {
   /// [httpClientAdapter] replaces the network in tests.
   MuxbusClient(this._auth, {HttpClientAdapter? httpClientAdapter}) {
@@ -131,6 +146,24 @@ class MuxbusClient {
       tier: tierRes.data!['billing_tier'] as String? ?? 'free',
     );
   }
+
+  // ── Account ──────────────────────────────────────────────────────────────
+
+  /// Deletes the signed-in account and what it stored (`DELETE /api/account`).
+  /// The caller clears the local session on [DeleteAccountOutcome.deleted] and
+  /// [DeleteAccountOutcome.signedOut].
+  Future<DeleteAccountOutcome> deleteAccount() async {
+    try {
+      await _dio.delete<Object?>('/api/account');
+      return DeleteAccountOutcome.deleted;
+    } on DioException catch (e) {
+      return switch (e.response?.statusCode) {
+        401 => DeleteAccountOutcome.signedOut,
+        403 => DeleteAccountOutcome.refused,
+        _ => DeleteAccountOutcome.failed,
+      };
+    }
+  }
 }
 
 // ── Auth + refresh interceptor ────────────────────────────────────────────────
@@ -164,7 +197,9 @@ class _AuthInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
-    if (err.response?.statusCode != 401) {
+    // A request already retried with a fresh token is not retried again.
+    if (err.response?.statusCode != 401 ||
+        err.requestOptions.extra['retriedAfterRefresh'] == true) {
       return handler.next(err);
     }
 
@@ -193,6 +228,7 @@ class _AuthInterceptor extends Interceptor {
 
     // Retry original request with new token.
     err.requestOptions.headers['Authorization'] = 'Bearer $newToken';
+    err.requestOptions.extra['retriedAfterRefresh'] = true;
     try {
       final retried = await _dio.fetch(err.requestOptions);
       handler.resolve(retried);
