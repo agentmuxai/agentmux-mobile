@@ -46,7 +46,9 @@ dependencies:
   bonsoir: ^6.0.3
 
   # QR code fallback for LAN pairing
-  mobile_scanner: ^6.0.5
+  # Pinned: 7.5.0's Android Kotlin does not compile with this project's toolchain (7.1.4 and 7.0.1 do).
+  # 7.x scans with Apple's Vision framework on iOS, not Google ML Kit.
+  mobile_scanner: 7.1.4
 
   # Utilities
   # Time source the fleet sessions read, so tests can drive it with fake_async.
