@@ -211,8 +211,15 @@ class FakeAuthRepository implements AuthRepository {
   @override
   Future<String?> getAccountEmail() async => signedIn ? email : null;
 
+  /// Thrown by [getValidAccessToken] when set.
+  Object? tokenError;
+
   @override
-  Future<String> getValidAccessToken() async => 'access';
+  Future<String> getValidAccessToken() async {
+    final error = tokenError;
+    if (error != null) throw error;
+    return 'access';
+  }
 
   @override
   Future<String> refreshTokens() async => 'access';

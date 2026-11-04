@@ -1,4 +1,6 @@
 import 'package:agentmux_mobile/core/api/muxbus_client.dart';
+import 'package:agentmux_mobile/core/auth/auth_repository.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../auth/auth_fakes.dart';
@@ -70,5 +72,41 @@ void main() {
       await _client(offline).deleteAccount(),
       DeleteAccountOutcome.failed,
     );
+  });
+
+  group('the token', () {
+    test('a refresh that could not reach the service is failed, not signed out', () async {
+      final auth = FakeAuthRepository(signedIn: true)
+        ..tokenError = DioException.connectionError(
+          requestOptions: RequestOptions(path: '/oauth2/token'),
+          reason: 'offline',
+        );
+      final adapter = RouteAdapter({'/api/account': const FakeAnswer(200)});
+      final client = MuxbusClient(auth, httpClientAdapter: adapter);
+      expect(await client.deleteAccount(), DeleteAccountOutcome.failed);
+      expect(adapter.requests, isEmpty);
+    });
+
+    test('a refresh the service refused, or no session, is signed out', () async {
+      final refused = FakeAuthRepository(signedIn: true)
+        ..tokenError = DioException(
+          requestOptions: RequestOptions(path: '/oauth2/token'),
+          response: Response(
+            requestOptions: RequestOptions(path: '/oauth2/token'),
+            statusCode: 400,
+          ),
+        );
+      final adapter = RouteAdapter({'/api/account': const FakeAnswer(200)});
+      expect(
+        await MuxbusClient(refused, httpClientAdapter: adapter).deleteAccount(),
+        DeleteAccountOutcome.signedOut,
+      );
+      final none = FakeAuthRepository()..tokenError = AuthException('Not authenticated');
+      expect(
+        await MuxbusClient(none, httpClientAdapter: adapter).deleteAccount(),
+        DeleteAccountOutcome.signedOut,
+      );
+      expect(adapter.requests, isEmpty);
+    });
   });
 }
