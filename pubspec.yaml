@@ -46,7 +46,7 @@ dependencies:
   bonsoir: ^6.0.3
 
   # QR code fallback for LAN pairing
-  mobile_scanner: ^6.0.5
+  mobile_scanner: ^7.5.0
 
   # Utilities
   # Time source the fleet sessions read, so tests can drive it with fake_async.

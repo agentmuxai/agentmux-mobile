@@ -117,7 +117,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
           MobileScanner(
             controller: _controller,
             onDetect: _onDetect,
-            errorBuilder: (context, error, child) =>
+            errorBuilder: (context, error) =>
                 _CameraErrorView(error: error),
           ),
           Align(
