@@ -160,11 +160,21 @@ class MuxbusClient {
     try {
       token = await _auth.getValidAccessToken();
     } on DioException catch (e) {
-      return e.response == null
-          ? DeleteAccountOutcome.failed
-          : DeleteAccountOutcome.signedOut;
-    } catch (_) {
+      // Only a definite refusal of the refresh token ends the session; no
+      // answer, a 5xx or a 429 leaves the account, and the session, alone.
+      final status = e.response?.statusCode;
+      return status == 400 || status == 401
+          ? DeleteAccountOutcome.signedOut
+          : DeleteAccountOutcome.failed;
+    } on AuthNetworkError {
+      return DeleteAccountOutcome.failed;
+    } on AuthUnavailable {
+      return DeleteAccountOutcome.failed;
+    } on AuthException {
+      // No session, or no refresh token: nothing left to delete with.
       return DeleteAccountOutcome.signedOut;
+    } catch (_) {
+      return DeleteAccountOutcome.failed;
     }
     try {
       await _dio.delete<Object?>(

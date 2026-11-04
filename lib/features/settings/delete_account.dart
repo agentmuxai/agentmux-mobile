@@ -13,6 +13,7 @@ const deleteAccountBody =
     'on their own, and signing in again later starts a new, empty account.\n\n'
     "This can't be undone.";
 const accountDeletedText = 'Your account was deleted.';
+const signedOutText = 'You are signed out.';
 const deleteAccountFailedText =
     "We couldn't finish deleting your account. Nothing is lost by trying again.";
 const deleteAccountRefusedText =
@@ -94,9 +95,13 @@ Future<void> _delete(BuildContext context, WidgetRef ref) async {
 
   switch (outcome) {
     case DeleteAccountOutcome.deleted:
-    case DeleteAccountOutcome.signedOut:
       await auth.endSessionAfterDeletion();
       messenger.showSnackBar(const SnackBar(content: Text(accountDeletedText)));
+    case DeleteAccountOutcome.signedOut:
+      // The service no longer knows this session; whether the account is gone
+      // is not something to claim.
+      await auth.endSessionAfterDeletion();
+      messenger.showSnackBar(const SnackBar(content: Text(signedOutText)));
     case DeleteAccountOutcome.refused:
       if (context.mounted) await _tell(context, deleteAccountRefusedText);
     case DeleteAccountOutcome.failed:

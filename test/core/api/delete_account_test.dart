@@ -87,6 +87,37 @@ void main() {
       expect(adapter.requests, isEmpty);
     });
 
+    test('a 5xx or 429 from the token endpoint, or a network or storage fault, is failed', () async {
+      for (final error in <Object>[
+        DioException(
+          requestOptions: RequestOptions(path: '/oauth2/token'),
+          response: Response(
+            requestOptions: RequestOptions(path: '/oauth2/token'),
+            statusCode: 503,
+          ),
+        ),
+        DioException(
+          requestOptions: RequestOptions(path: '/oauth2/token'),
+          response: Response(
+            requestOptions: RequestOptions(path: '/oauth2/token'),
+            statusCode: 429,
+          ),
+        ),
+        AuthNetworkError(),
+        AuthUnavailable(),
+        StateError('secure storage'),
+      ]) {
+        final auth = FakeAuthRepository(signedIn: true)..tokenError = error;
+        final adapter = RouteAdapter({'/api/account': const FakeAnswer(200)});
+        expect(
+          await MuxbusClient(auth, httpClientAdapter: adapter).deleteAccount(),
+          DeleteAccountOutcome.failed,
+          reason: '$error',
+        );
+        expect(adapter.requests, isEmpty);
+      }
+    });
+
     test('a refresh the service refused, or no session, is signed out', () async {
       final refused = FakeAuthRepository(signedIn: true)
         ..tokenError = DioException(

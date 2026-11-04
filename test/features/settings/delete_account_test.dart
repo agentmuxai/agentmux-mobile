@@ -90,6 +90,18 @@ void main() {
     expect(_delete, findsNothing);
   });
 
+  testWidgets('a 401 ends the session without saying the account was deleted', (
+    tester,
+  ) async {
+    final auth = await _open(tester, {
+      '/api/account': const FakeAnswer(401, {'error': 'Unauthorized'}),
+    });
+    await _deleteAndConfirm(tester);
+    expect(auth.sessionsCleared, 1);
+    expect(find.text(signedOutText), findsOneWidget);
+    expect(find.text(accountDeletedText), findsNothing);
+  });
+
   testWidgets('a failure offers Try again and keeps the session', (
     tester,
   ) async {
