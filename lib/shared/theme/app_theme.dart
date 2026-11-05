@@ -202,18 +202,21 @@ Widget appThemeBuilder(BuildContext context, Widget? child) {
   final theme = Theme.of(context);
   final wide = MediaQuery.sizeOf(context).width >
       AppTheme.snackBarMaxWidth + 24;
+  // The same widgets at every width: a different wrapper above the router would
+  // remount it when the window crosses the threshold (a rotation or a fold) and
+  // lose every screen's state. Only the theme's value changes.
   return AnnotatedRegion<SystemUiOverlayStyle>(
     value: AppTheme.overlayStyle(theme.brightness),
-    child: wide
-        ? Theme(
-            data: theme.copyWith(
+    child: Theme(
+      data: wide
+          ? theme.copyWith(
               snackBarTheme: theme.snackBarTheme.copyWith(
                 width: AppTheme.snackBarMaxWidth,
               ),
-            ),
-            child: child ?? const SizedBox.shrink(),
-          )
-        : child ?? const SizedBox.shrink(),
+            )
+          : theme,
+      child: child ?? const SizedBox.shrink(),
+    ),
   );
 }
 

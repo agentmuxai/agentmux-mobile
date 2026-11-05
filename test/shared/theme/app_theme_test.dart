@@ -129,6 +129,30 @@ void main() {
     });
   });
 
+  testWidgets('crossing the wide-window threshold keeps screen state', (
+    tester,
+  ) async {
+    tester.view
+      ..physicalSize = const Size(393, 852)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        builder: appThemeBuilder,
+        home: const Scaffold(body: TextField(key: ValueKey('field'))),
+      ),
+    );
+    await tester.enterText(find.byKey(const ValueKey('field')), 'kept');
+    // A phone turned to landscape is wider than the snack bar cap.
+    tester.view.physicalSize = const Size(852, 393);
+    await tester.pumpAndSettle();
+    expect(find.text('kept'), findsOneWidget);
+    tester.view.physicalSize = const Size(393, 852);
+    await tester.pumpAndSettle();
+    expect(find.text('kept'), findsOneWidget);
+  });
+
   group('snack bar', () {
     Future<void> show(WidgetTester tester, Size size) async {
       tester.view
