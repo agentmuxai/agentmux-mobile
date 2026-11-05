@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/auth/auth_provider.dart';
 import '../../core/billing/billing_provider.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/adaptive.dart';
 import 'delete_account.dart';
 
 // Build-time stamp injected by CI or --dart-define.
@@ -23,7 +24,7 @@ class SettingsScreen extends ConsumerWidget {
     final email = ref.watch(accountEmailProvider).valueOrNull;
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBarInset(child: AppBar(
         title: const Text('Settings'),
         // Explicit back control. Based on navigation history
         // (context.canPop(), go_router's own router-level back capability),
@@ -50,8 +51,8 @@ class SettingsScreen extends ConsumerWidget {
                     ? context.pop()
                     : context.go('/discover'),
               ),
-      ),
-      body: ListView(
+      )),
+      body: ContentWidth(child: ListView(
         children: [
           const SizedBox(height: 8),
           // MuxBus cloud section — only when signed in.
@@ -176,7 +177,7 @@ class SettingsScreen extends ConsumerWidget {
             ],
           ),
         ],
-      ),
+      )),
     );
   }
 

@@ -10,6 +10,7 @@ import '../../core/viewer/paired_hosts_repository.dart';
 import '../../core/viewer/pairing_service.dart';
 import '../../core/viewer/viewer_client.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/adaptive.dart';
 import 'terminal_feed_controller.dart';
 
 /// One terminal of a paired computer, live and read-only
@@ -93,7 +94,7 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> {
         ? TerminalConnection.unauthorized
         : (controller?.connection ?? TerminalConnection.connecting);
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBarInset(child: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -106,7 +107,7 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> {
           ],
         ),
         actions: [_ConnectionLabel(connection: connection)],
-      ),
+      )),
       body: _body(connection, controller),
     );
   }

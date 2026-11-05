@@ -15,6 +15,7 @@ import '../../core/viewer/pairing_service.dart';
 import '../../core/viewer/viewer_client.dart';
 import '../../core/viewer/feed_events.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/adaptive.dart';
 import '../../shared/widgets/agent_state_chip.dart';
 import '../../shared/widgets/tag_chip.dart';
 import '../discovery/qr_scan_screen.dart';
@@ -317,7 +318,7 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
       if (widget.channel != null) widget.channel!,
     ].join('  •  ');
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBarInset(child: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -361,8 +362,8 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
               ],
             ),
         ],
-      ),
-      body: Column(
+      )),
+      body: ContentWidth(maxWidth: feedMaxWidth, child: Column(
         children: [
           Expanded(child: _body(connection, feed?.transcript)),
           if (_send != null && !_pairing.paired.invalid)
@@ -374,7 +375,7 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
               onSent: _jumpToLatest,
             ),
         ],
-      ),
+      )),
     );
   }
 

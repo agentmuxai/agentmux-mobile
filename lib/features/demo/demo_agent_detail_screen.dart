@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/demo/demo_data.dart';
 import '../../core/models/message.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/adaptive.dart';
 import '../../shared/widgets/demo_banner.dart';
 import '../../shared/widgets/edge_insets.dart';
 
@@ -20,9 +21,9 @@ class DemoAgentDetailScreen extends StatelessWidget {
     final messages = buildDemoMessages(agentId);
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBarInset(child: AppBar(
         title: Text(agentId),
-      ),
+      )),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -37,14 +38,14 @@ class DemoAgentDetailScreen extends StatelessWidget {
         children: [
           const DemoBanner(),
           Expanded(
-            child: ListView.builder(
+            child: ContentWidth(child: ListView.builder(
               padding: insetListPadding(
                 context,
                 const EdgeInsets.fromLTRB(12, 12, 12, 80),
               ),
               itemCount: messages.length,
               itemBuilder: (ctx, i) => _DemoMessageTile(message: messages[i]),
-            ),
+            )),
           ),
         ],
       ),

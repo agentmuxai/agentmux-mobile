@@ -215,7 +215,13 @@ Widget appThemeBuilder(BuildContext context, Widget? child) {
               ),
             )
           : theme,
-      child: child ?? const SizedBox.shrink(),
+      // Nothing is drawn across a hinge or a fold: in a half-open posture the
+      // app takes the sub-screen at the leading edge. Flat folds with no gap
+      // are ignored, so an unfolded foldable is one screen.
+      child: DisplayFeatureSubScreen(
+        anchorPoint: Offset.zero,
+        child: child ?? const SizedBox.shrink(),
+      ),
     ),
   );
 }

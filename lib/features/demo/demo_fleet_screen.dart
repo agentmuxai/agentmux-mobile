@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/demo/demo_data.dart';
 import '../../core/models/agent.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/adaptive.dart';
 import '../../shared/widgets/demo_banner.dart';
 import '../../shared/widgets/edge_insets.dart';
 import '../../shared/widgets/status_badge.dart';
@@ -21,14 +22,14 @@ class DemoFleetScreen extends StatelessWidget {
     final hosts = buildDemoHosts();
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBarInset(child: AppBar(
         title: const Text('Demo Fleet'),
-      ),
+      )),
       body: Column(
         children: [
           const DemoBanner(),
           Expanded(
-            child: ListView(
+            child: ContentWidth(child: ListView(
               padding: insetListPadding(context, const EdgeInsets.all(12)),
               children: [
                 const _SectionTitle('Hosts'),
@@ -47,7 +48,7 @@ class DemoFleetScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                 ],
               ],
-            ),
+            )),
           ),
         ],
       ),

@@ -9,6 +9,7 @@ import '../../core/discovery/host_tree.dart';
 import '../../core/fleet/cloud_instance_source.dart';
 import '../../core/viewer/paired_hosts_repository.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/adaptive.dart';
 import '../../shared/widgets/edge_insets.dart';
 import '../sysinfo/sysinfo_summary.dart';
 import '../tower/tower_screen.dart';
@@ -33,7 +34,7 @@ class DiscoveryScreen extends ConsumerWidget {
     });
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBarInset(child: AppBar(
         title: const Text('AgentMux'),
         actions: [
           IconButton(
@@ -93,13 +94,13 @@ class DiscoveryScreen extends ConsumerWidget {
             ],
           ),
         ],
-      ),
-      body: switch (state) {
+      )),
+      body: ContentWidth(child: switch (state) {
         DiscoveryScanning() => const _ScanningView(),
         DiscoveryEmpty(:final cloud) => _EmptyView(cloud: cloud),
         DiscoveryResults(:final hosts, :final cloud) =>
           _ResultsView(hosts: hosts, cloud: cloud),
-      },
+      }),
       // Always on screen, outside the scrolling list.
       bottomNavigationBar: const MuxbusAccountBar(),
     );
