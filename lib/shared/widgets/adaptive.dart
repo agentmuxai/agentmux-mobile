@@ -9,6 +9,14 @@ import 'package:flutter/material.dart';
 /// `docs/specs/SPEC_FORM_FACTORS_AND_EDGES_2026_11_04.md`).
 const listMaxWidth = 640.0;
 
+/// The text scale from which a row stops being one line: names, tags and
+/// versions go on lines of their own rather than squeeze each other (I7).
+const largeTextScale = 1.5;
+
+/// Whether the person's text size is [largeTextScale] or more.
+bool isLargeText(BuildContext context) =>
+    MediaQuery.textScalerOf(context).scale(10) >= 10 * largeTextScale;
+
 /// The shortest side from which a screen counts as a tablet or an unfolded
 /// foldable (Material's medium width class starts here).
 const tabletShortestSide = 600.0;

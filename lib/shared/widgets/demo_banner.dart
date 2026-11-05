@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import 'adaptive.dart';
 
 /// Persistent "you're looking at sample data" banner for demo-mode screens.
 /// Deliberately loud (not just a small badge) — the whole point is that
@@ -29,13 +30,18 @@ class DemoBanner extends StatelessWidget {
         top: false,
         bottom: false,
         minimum: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-        child: Text(
-          'DEMO DATA — not a live connection',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: ink,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
+        // A banner is chrome: it wraps at large text but stops growing at
+        // the point where it would be a quarter of a small screen.
+        child: MediaQuery.withClampedTextScaling(
+          maxScaleFactor: largeTextScale,
+          child: Text(
+            'DEMO DATA — not a live connection',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: ink,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
       ),

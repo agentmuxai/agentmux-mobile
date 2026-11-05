@@ -482,7 +482,7 @@ QTest (Part B and summary), Clare (Part A)
 | 3. OS color mode and the snackbar | I6, A3, I3 | this change, for the app's own screens and the Android launch window; the feed (its own palette; it stays dark in either mode until it has a light set) and the iOS launch screen follow |
 | 4a. Wide-screen basics | A4 and I8 (a centred 640 dp column on tablets and unfolded foldables), I9 (the iPadOS window controls), A5 (nothing across a hinge) | this change |
 | 4b. List-detail and a rail | I8, the rest | open, waits for the operator's choice between list-detail and wider columns only |
-| 5. Large text | I7, A6 | open |
+| 5. Large text | I7, A6 | this change |
 | 6. UIScene migration | P1 | open |
 
 ![The status band on a Pixel 9 with gesture navigation: the line sits in the band beside the gesture pill](form-factors/android/band_p9_gesture.png)
@@ -504,3 +504,11 @@ The app follows the OS setting (`ThemeMode.system`) with a light and a dark them
 On a window whose shortest side is 600 dp or more (a tablet, an iPad window, an unfolded foldable) every page's content is a centred column at most 640 dp wide (760 for the feed), so a row can be read across; the bars and banners keep their colour edge to edge. Phones, in either orientation, are unchanged. The sign-in bar's button and status line use the same column. On an iPad running as a window, the top bar's leading edge moves in by 70 pt so the window controls no longer cover the back arrow (the check is that the window is smaller than the display; it needs a look in Windowed Apps mode on a real iPad). In a half-open posture the app uses the sub-screen at the leading edge, so nothing is drawn across the hinge; a flat fold is one screen.
 
 ![The demo fleet in a 841 dp wide window: a centred column, the banner full width](form-factors/android/tablet_demo_fleet_capped.png)
+
+### Large text as built (5)
+
+From a text scale of 1.5 up (iOS Dynamic Type from about AX1, Android's larger font sizes) a row stops being one line: a computer's version moves under its name, an agent's tags go on a line under its name, and a channel's tags wrap beneath it, so a name is never a letter per line. Fixed-size chrome stops growing at 1.5: the badges, the DEMO banner, the bottom sign-in button and the app-bar title (1.3). Below 360 dp wide, or at large text, the discovery bar's refresh button moves into the menu so the title is not cut ("Agen…"), and the bottom status shows "None" instead of a clipped "No com…" where its half is under 90 dp. Content text keeps growing and scrolls.
+
+The capture below is a 320 dp window at the largest font (x3.1), where the same screen had a computer name one letter wide and its tag split into "L/A/N":
+
+![The demo fleet at x3.1 text on a 320 dp window](form-factors/android/large_text_demo_fleet.png)

@@ -11,6 +11,7 @@ import '../../core/fleet/channel_session.dart';
 import '../../core/fleet/cloud_instance_source.dart';
 import '../../core/fleet/fleet_store.dart';
 import '../../core/viewer/paired_host.dart';
+import '../../shared/widgets/adaptive.dart';
 import '../swarm/swarm_screen.dart';
 import '../sysinfo/sysinfo_summary.dart';
 import '../tower/tower_screen.dart';
@@ -59,7 +60,14 @@ class HostCard extends StatelessWidget {
     final platform = host.platform;
     final route = host.route;
     final version = host.version;
-    final subtitle = _hostSubtitle(host, only);
+    final large = isLargeText(context);
+    // At a large text size the version leaves the title row (it squeezed the
+    // name to a letter per line) and joins the line below.
+    final subtitle = switch ((_hostSubtitle(host, only), version)) {
+      (final s?, final v?) when large => '$s  •  v$v',
+      (null, final v?) when large => 'v$v',
+      (final s, _) => s,
+    };
     final hidden = host.hiddenChannels;
     final paired = [
       for (final c in channels)
@@ -104,7 +112,7 @@ class HostCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (version != null)
+                if (version != null && !large)
                   Padding(
                     padding: const EdgeInsets.only(left: 8),
                     child: Text(
@@ -213,23 +221,36 @@ class _ChannelTile extends StatelessWidget {
           size: 18,
           color: live ? context.palette.textDim : context.palette.textGhost,
         ),
-        title: Row(
-          children: [
-            Flexible(
-              child: Text(
-                channel.name,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 14),
+        title: isLargeText(context)
+            // The name, then its tags under it, never a letter per line.
+            ? Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(channel.name, style: const TextStyle(fontSize: 14)),
+                  TagChip.route(channel.route),
+                  if (channel.pairing != null)
+                    pairedTag(channel.pairing!.paired),
+                ],
+              )
+            : Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      channel.name,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  TagChip.route(channel.route),
+                  if (channel.pairing != null) ...[
+                    const SizedBox(width: 6),
+                    pairedTag(channel.pairing!.paired),
+                  ],
+                ],
               ),
-            ),
-            const SizedBox(width: 6),
-            TagChip.route(channel.route),
-            if (channel.pairing != null) ...[
-              const SizedBox(width: 6),
-              pairedTag(channel.pairing!.paired),
-            ],
-          ],
-        ),
         subtitle: status == null
             ? null
             : Text(
@@ -642,6 +663,18 @@ class _NameAndTags extends StatelessWidget {
   Widget build(BuildContext context) {
     final title = Text(name);
     if (tags.isEmpty) return title;
+    if (isLargeText(context)) {
+      // The name on its own line and its tags under it: beside each other
+      // they left the name a letter wide.
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          title,
+          const SizedBox(height: 4),
+          Wrap(spacing: 6, runSpacing: 4, children: tags),
+        ],
+      );
+    }
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
