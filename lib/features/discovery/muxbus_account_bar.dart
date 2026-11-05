@@ -102,7 +102,12 @@ class MuxbusAccountBar extends ConsumerWidget {
               // bottom inset itself.
               bottom: !inBand,
               minimum: EdgeInsets.fromLTRB(12, top, 12, bottom),
-              child: button,
+              // The button is chrome, not content: at the largest accessibility
+              // sizes it was a quarter of the screen.
+              child: MediaQuery.withClampedTextScaling(
+                maxScaleFactor: largeTextScale,
+                child: button,
+              ),
             ),
           ),
           if (inBand)
@@ -169,6 +174,8 @@ class FleetStatusLine extends StatelessWidget {
     // Both halves are narrow beside the indicator (about 100 pt each on a
     // 393 pt phone): each has a short form instead of an ellipsis.
     final short = indicatorGap && half < 118;
+    // "● No computers" needs about 90 dp: a 320 dp phone's half is 63.
+    final tiny = indicatorGap && half < 90;
     final shortRight = indicatorGap && half < 135;
     final left = Row(
       mainAxisSize: MainAxisSize.min,
@@ -184,7 +191,7 @@ class FleetStatusLine extends StatelessWidget {
         const SizedBox(width: 6),
         Flexible(
           child: Text(
-            status.left(short: short),
+            status.left(short: short, tiny: tiny),
             style: _style(context),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,

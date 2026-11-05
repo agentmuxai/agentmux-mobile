@@ -94,7 +94,7 @@ class _WorkingRowState extends State<WorkingRow> {
 
   @override
   Widget build(BuildContext context) {
-    final style = feedProse.copyWith(fontSize: 12.5, color: FeedColors.secondary);
+    final style = context.feedProse.copyWith(fontSize: 12.5, color: context.feed.secondary);
     if (_live) {
       final now = _frozenAt ?? clock.now();
       final elapsed = widget.since?.elapsed(now) ??
@@ -112,7 +112,7 @@ class _WorkingRowState extends State<WorkingRow> {
               width: 16,
               child: Text(
                 spinnerFrames[_frame % spinnerFrames.length],
-                style: style.copyWith(color: FeedColors.accent),
+                style: style.copyWith(color: context.feed.accent),
               ),
             ),
             Expanded(
@@ -126,7 +126,7 @@ class _WorkingRowState extends State<WorkingRow> {
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: style.copyWith(color: FeedColors.text),
+                style: style.copyWith(color: context.feed.text),
               ),
             ),
             if (right.isNotEmpty) Text(right, style: style),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../features/feed/feed_theme.dart';
 
 /// The app's colours, in a dark and a light set. Screens read them with
 /// `context.palette` so they follow the OS colour mode (see
@@ -226,23 +227,10 @@ Widget appThemeBuilder(BuildContext context, Widget? child) {
   );
 }
 
-/// [child] in the dark theme whatever the OS mode is, for a surface whose
-/// content has fixed dark colours (the feed). Keeps the snack bar width cap.
-Widget alwaysDark(BuildContext context, Widget child) {
-  final dark = AppTheme.dark;
-  return Theme(
-    data: dark.copyWith(
-      snackBarTheme: dark.snackBarTheme.copyWith(
-        width: Theme.of(context).snackBarTheme.width,
-      ),
-    ),
-    child: child,
-  );
-}
-
 abstract final class AppTheme {
   static ThemeData get dark => _build(
     AppPalette.dark,
+    FeedPalette.dark,
     ColorScheme.dark(
       surface: AppPalette.dark.surface,
       primary: AppPalette.dark.primary,
@@ -252,6 +240,7 @@ abstract final class AppTheme {
 
   static ThemeData get light => _build(
     AppPalette.light,
+    FeedPalette.light,
     ColorScheme.light(
       surface: AppPalette.light.surface,
       onSurface: AppPalette.light.textPrimary,
@@ -285,12 +274,12 @@ abstract final class AppTheme {
   /// full-width one would run across the whole screen.
   static const snackBarMaxWidth = 480.0;
 
-  static ThemeData _build(AppPalette p, ColorScheme scheme) {
+  static ThemeData _build(AppPalette p, FeedPalette feed, ColorScheme scheme) {
     return ThemeData(
       brightness: scheme.brightness,
       scaffoldBackgroundColor: p.background,
       colorScheme: scheme,
-      extensions: [p],
+      extensions: [p, feed],
       cardTheme: CardThemeData(
         color: p.surface,
         elevation: 0,

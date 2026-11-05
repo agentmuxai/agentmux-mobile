@@ -36,11 +36,11 @@ String toolGlyph(ToolCallItem tool) => switch (tool.state) {
     };
 
 /// The 2 px bar on the row's left.
-Color toolBarColor(ToolState state) => switch (state) {
-      ToolState.running => FeedColors.warning,
-      ToolState.done => FeedColors.success,
-      ToolState.failed => FeedColors.error,
-      ToolState.denied || ToolState.cancelled => FeedColors.secondary,
+Color toolBarColor(ToolState state, FeedPalette p) => switch (state) {
+      ToolState.running => p.warning,
+      ToolState.done => p.success,
+      ToolState.failed => p.error,
+      ToolState.denied || ToolState.cancelled => p.secondary,
     };
 
 String toolIcon(ToolKind kind) => switch (kind) {
@@ -56,13 +56,13 @@ String toolIcon(ToolKind kind) => switch (kind) {
     };
 
 /// The tool name's colour (`$tool-name-colors` in `_document-nodes.scss`).
-Color toolNameColor(ToolKind kind) => switch (kind) {
-      ToolKind.bash => FeedColors.termGreen,
-      ToolKind.read => FeedColors.accent,
-      ToolKind.write || ToolKind.edit => FeedColors.warning,
-      ToolKind.grep || ToolKind.glob => FeedColors.termCyan,
-      ToolKind.agent => FeedColors.termMagenta,
-      _ => FeedColors.secondary,
+Color toolNameColor(ToolKind kind, FeedPalette p) => switch (kind) {
+      ToolKind.bash => p.termGreen,
+      ToolKind.read => p.accent,
+      ToolKind.write || ToolKind.edit => p.warning,
+      ToolKind.grep || ToolKind.glob => p.termCyan,
+      ToolKind.agent => p.termMagenta,
+      _ => p.secondary,
     };
 
 /// "mcp__agentmux__WhoAmI" → "agentmux · WhoAmI".
@@ -181,11 +181,11 @@ class ToolPill {
 
 String _plural(int n, String one, [String? many]) => '$n ${n == 1 ? one : (many ?? '${one}s')}';
 
-ToolPill? toolPill(ToolCallItem tool) {
+ToolPill? toolPill(ToolCallItem tool, FeedPalette p) {
   // An Agent call counts its subagent's steps, while it runs too.
   if (toolKind(tool.name) == ToolKind.agent) {
     final n = tool.steps.length;
-    return n == 0 ? null : ToolPill(_plural(n, 'step'), FeedColors.termMagenta);
+    return n == 0 ? null : ToolPill(_plural(n, 'step'), p.termMagenta);
   }
   if (tool.state != ToolState.done && tool.state != ToolState.failed) return null;
   final result = tool.result;
@@ -195,14 +195,14 @@ ToolPill? toolPill(ToolCallItem tool) {
       if (exit == null) return null;
       return ToolPill(
         'exit ${exit.code}',
-        exit.code == 0 ? FeedColors.successText : FeedColors.errorText,
+        exit.code == 0 ? p.successText : p.errorText,
       );
     case ToolKind.write:
       if (tool.state != ToolState.done) return null;
       final content = tool.input['content'];
       return ToolPill(
         content is String ? formatBytes(utf8.encode(content).length) : 'written',
-        FeedColors.warningText,
+        p.warningText,
       );
     case ToolKind.edit:
       if (tool.state != ToolState.done) return null;
@@ -210,7 +210,7 @@ ToolPill? toolPill(ToolCallItem tool) {
       final changed = (f.linesAdded ?? 0) + (f.linesRemoved ?? 0);
       return ToolPill(
         f.linesAdded == null ? 'edited' : _plural(changed, 'line'),
-        FeedColors.warningText,
+        p.warningText,
       );
     case ToolKind.grep:
       if (result == null || tool.state != ToolState.done) return null;
@@ -218,15 +218,15 @@ ToolPill? toolPill(ToolCallItem tool) {
       if (n == null) return null;
       return ToolPill(
         noun == 'file' ? _plural(n, 'file') : _plural(n, 'match', 'matches'),
-        FeedColors.termCyan,
+        p.termCyan,
       );
     case ToolKind.glob:
       if (result == null || tool.state != ToolState.done) return null;
       final files = globFiles(result);
-      return ToolPill(_plural(files.length, 'file'), FeedColors.termCyan);
+      return ToolPill(_plural(files.length, 'file'), p.termCyan);
     case ToolKind.webSearch:
       final n = webSearchLinks(result ?? '').length;
-      return n == 0 ? null : ToolPill(_plural(n, 'source'), FeedColors.accent);
+      return n == 0 ? null : ToolPill(_plural(n, 'source'), p.accent);
     default:
       return null;
   }

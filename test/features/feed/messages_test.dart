@@ -299,7 +299,7 @@ void main() {
       expect(find.text('HTTP 401'), findsOneWidget);
       expect(find.text('Invalid API key'), findsOneWidget);
       final box = tester.widget<Container>(find.descendant(of: find.byType(ErrorBlock), matching: find.byType(Container)).first);
-      expect(((box.decoration! as BoxDecoration).border! as Border).left.color, FeedColors.error);
+      expect(((box.decoration! as BoxDecoration).border! as Border).left.color, FeedPalette.dark.error);
     });
 
     testWidgets('a notice is a divider with its label and detail', (tester) async {
@@ -307,7 +307,7 @@ void main() {
         item: NoticeItem(0, 'New session started', detail: 'Above is gone', tone: NoticeTone.warn),
       )));
       final label = tester.widget<Text>(find.text('New session started'));
-      expect(label.style?.color, FeedColors.warningText);
+      expect(label.style?.color, FeedPalette.dark.warningText);
       expect(find.text('Above is gone'), findsOneWidget);
     });
   });
