@@ -477,9 +477,13 @@ QTest (Part B and summary), Clare (Part A)
 
 | Fix PR | Covers | State |
 |---|---|---|
-| 1. Safe areas and insets | I2 (lists keep clear of the notch and island), I1 (lists end above the home-indicator band), I4 (Connect manually scrolls above the keyboard), I5 (the DEMO banner reaches both edges and wraps at large text), A1 (bottom inset on lists), A2 (the sign-in bar is compact in landscape) | this change |
-| 2. Bottom status band (design A, fallback B) | I1 (the empty band itself) | open |
+| 1. Safe areas and insets | I2 (lists keep clear of the notch and island), I1 (lists end above the home-indicator band), I4 (Connect manually scrolls above the keyboard), I5 (the DEMO banner reaches both edges and wraps at large text), A1 (bottom inset on lists), A2 (the sign-in bar is compact on short screens) | merged (#103) |
+| 2. Bottom status band (design A, fallback B) | I1 (the empty band itself) | this change |
 | 3. OS color mode and the snackbar | I6, A3, I3 | open |
 | 4. Adaptive layout | I8, A4, A5, I9 | open |
 | 5. Large text | I7, A6 | open |
 | 6. UIScene migration | P1 | open |
+
+![The status band on a Pixel 9 with gesture navigation: the line sits in the band beside the gesture pill](form-factors/android/band_p9_gesture.png)
+
+Design A as built: one muted line in the band under the sign-in button (here "No computers" because no computer is reachable from the emulator), the middle left clear for the gesture pill or home indicator. Where there is no band the same line is a row above the button (design B), and it is left out while the keyboard is up.
