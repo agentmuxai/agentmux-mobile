@@ -5,6 +5,7 @@ import '../../core/demo/demo_data.dart';
 import '../../core/models/agent.dart';
 import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/demo_banner.dart';
+import '../../shared/widgets/edge_insets.dart';
 import '../../shared/widgets/status_badge.dart';
 import '../discovery/host_card.dart';
 
@@ -22,26 +23,32 @@ class DemoFleetScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Demo Fleet'),
-        bottom: const DemoBanner(),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(12),
+      body: Column(
         children: [
-          const _SectionTitle('Hosts'),
-          // The same card the discovery screen shows; taps open the demo
-          // agent screen instead of contacting anything.
-          for (final host in hosts)
-            HostCard(
-              key: ValueKey(host.key),
-              host: host,
-              onAgentTap: (context, _, agent) =>
-                  context.push('/demo/agent/${agent.name}'),
+          const DemoBanner(),
+          Expanded(
+            child: ListView(
+              padding: insetListPadding(context, const EdgeInsets.all(12)),
+              children: [
+                const _SectionTitle('Hosts'),
+                // The same card the discovery screen shows; taps open the
+                // demo agent screen instead of contacting anything.
+                for (final host in hosts)
+                  HostCard(
+                    key: ValueKey(host.key),
+                    host: host,
+                    onAgentTap: (context, _, agent) =>
+                        context.push('/demo/agent/${agent.name}'),
+                  ),
+                const _SectionTitle('Cloud agents'),
+                for (final agent in agents) ...[
+                  _DemoAgentCard(agent: agent),
+                  const SizedBox(height: 8),
+                ],
+              ],
             ),
-          const _SectionTitle('Cloud agents'),
-          for (final agent in agents) ...[
-            _DemoAgentCard(agent: agent),
-            const SizedBox(height: 8),
-          ],
+          ),
         ],
       ),
     );

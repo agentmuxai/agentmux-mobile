@@ -467,7 +467,14 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
         ListView.builder(
           key: _listKey,
           controller: _scroll,
-          padding: const EdgeInsets.only(top: 8, bottom: 24),
+          // Side insets only: the composer under the list keeps clear of the
+          // home indicator itself.
+          padding: EdgeInsets.only(
+            top: 8,
+            bottom: 24,
+            left: MediaQuery.paddingOf(context).left,
+            right: MediaQuery.paddingOf(context).right,
+          ),
           // The working row comes last.
           itemCount: items.length + 1,
           itemBuilder: (_, i) {

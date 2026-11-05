@@ -24,17 +24,26 @@ class MuxbusAccountBar extends ConsumerWidget {
         ref.watch(authProvider).valueOrNull == AuthStatus.authenticated;
     final email = signedIn ? ref.watch(accountEmailProvider).valueOrNull : null;
 
+    // On a landscape phone the screen is short: the bar keeps its job but
+    // gives the list the room (it took about a fifth of the height).
+    final compact = MediaQuery.orientationOf(context) == Orientation.landscape;
+
     return Material(
       color: Theme.of(context).colorScheme.surface,
       child: SafeArea(
         top: false,
-        minimum: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+        minimum: compact
+            ? const EdgeInsets.fromLTRB(12, 4, 12, 4)
+            : const EdgeInsets.fromLTRB(12, 8, 12, 12),
         child: FilledButton.icon(
           key: const ValueKey('muxbus-account-bar'),
           onPressed: () => context.push(signedIn ? '/settings' : '/login'),
           style: FilledButton.styleFrom(
-            minimumSize: const Size.fromHeight(56),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            minimumSize: Size.fromHeight(compact ? 44 : 56),
+            padding: EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: compact ? 6 : 12,
+            ),
             textStyle: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,

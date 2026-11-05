@@ -66,7 +66,9 @@ class _ManualAddSheetState extends ConsumerState<ManualAddSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    // Scrolls when the keyboard leaves less room than the form needs (a
+    // landscape phone): it overflowed there and hid the Connect button.
+    return SingleChildScrollView(
       padding: EdgeInsets.only(
         left: 16,
         right: 16,
@@ -149,6 +151,8 @@ void showManualAddSheet(BuildContext context) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
+    // Keeps the sheet out of the notch / Dynamic Island side insets in landscape.
+    useSafeArea: true,
     backgroundColor: AppColors.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),

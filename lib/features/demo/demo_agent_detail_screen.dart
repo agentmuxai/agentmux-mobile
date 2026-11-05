@@ -4,6 +4,7 @@ import '../../core/demo/demo_data.dart';
 import '../../core/models/message.dart';
 import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/demo_banner.dart';
+import '../../shared/widgets/edge_insets.dart';
 
 /// Static message-feed preview for one demo agent. Mirrors AgentDetailScreen's
 /// layout so a reviewer (or a user browsing before connecting a real fleet)
@@ -21,7 +22,6 @@ class DemoAgentDetailScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(agentId),
-        bottom: const DemoBanner(),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
@@ -33,10 +33,20 @@ class DemoAgentDetailScreen extends StatelessWidget {
         label: const Text('Inject'),
         backgroundColor: AppColors.textMuted,
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
-        itemCount: messages.length,
-        itemBuilder: (ctx, i) => _DemoMessageTile(message: messages[i]),
+      body: Column(
+        children: [
+          const DemoBanner(),
+          Expanded(
+            child: ListView.builder(
+              padding: insetListPadding(
+                context,
+                const EdgeInsets.fromLTRB(12, 12, 12, 80),
+              ),
+              itemCount: messages.length,
+              itemBuilder: (ctx, i) => _DemoMessageTile(message: messages[i]),
+            ),
+          ),
+        ],
       ),
     );
   }
