@@ -122,7 +122,8 @@ class FleetStatusLine extends StatelessWidget {
   /// The home indicator is about 134 pt wide; leave a little more.
   static const _indicator = 150.0;
 
-  static const _style = TextStyle(color: AppColors.textSecondary, fontSize: 11);
+  static TextStyle _style(BuildContext context) =>
+      TextStyle(color: context.palette.textSecondary, fontSize: 11);
 
   @override
   Widget build(BuildContext context) {
@@ -160,14 +161,14 @@ class FleetStatusLine extends StatelessWidget {
           height: 6,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: status.live ? AppColors.success : AppColors.textMuted,
+            color: status.live ? context.palette.success : context.palette.textMuted,
           ),
         ),
         const SizedBox(width: 6),
         Flexible(
           child: Text(
             status.left(short: short),
-            style: _style,
+            style: _style(context),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -176,7 +177,7 @@ class FleetStatusLine extends StatelessWidget {
     );
     final right = Text(
       status.right(short: shortRight),
-      style: _style,
+      style: _style(context),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
     );

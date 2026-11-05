@@ -339,7 +339,7 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
             Text(
               where,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, color: Colors.white54),
+              style: TextStyle(fontSize: 12, color: context.palette.textDim),
             ),
           ],
         ),
@@ -558,10 +558,10 @@ class ConnectionIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (String label, Color color)? shown = switch (connection) {
-      FeedConnection.live => ('Live', AppColors.success),
-      FeedConnection.connecting => ('Connecting…', AppColors.warning),
-      FeedConnection.reconnecting => ('Reconnecting…', AppColors.warning),
-      FeedConnection.paused => ('Paused', AppColors.textSecondary),
+      FeedConnection.live => ('Live', context.palette.success),
+      FeedConnection.connecting => ('Connecting…', context.palette.warning),
+      FeedConnection.reconnecting => ('Reconnecting…', context.palette.warning),
+      FeedConnection.paused => ('Paused', context.palette.textSecondary),
       FeedConnection.unauthorized || FeedConnection.notFound => null,
     };
     if (shown == null) return const SizedBox.shrink();
@@ -601,7 +601,7 @@ class _Message extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null) ...[
-              Icon(icon, size: 48, color: Colors.white38),
+              Icon(icon, size: 48, color: context.palette.textFaint),
               const SizedBox(height: 16),
             ],
             Text(
@@ -614,7 +614,7 @@ class _Message extends StatelessWidget {
               Text(
                 detail!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white54, fontSize: 13),
+                style: TextStyle(color: context.palette.textDim, fontSize: 13),
               ),
             ],
             if (action != null) ...[

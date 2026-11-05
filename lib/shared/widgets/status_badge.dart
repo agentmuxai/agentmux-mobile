@@ -16,9 +16,9 @@ class StatusBadge extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: switch (status) {
-          AgentStatus.active => AppColors.success,
-          AgentStatus.idle => AppColors.warning,
-          AgentStatus.offline => AppColors.textMuted,
+          AgentStatus.active => context.palette.success,
+          AgentStatus.idle => context.palette.warning,
+          AgentStatus.offline => context.palette.textMuted,
         },
       ),
     );

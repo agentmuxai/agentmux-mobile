@@ -87,14 +87,14 @@ class _DemoAgentCard extends StatelessWidget {
             ? Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceVariant,
+                  color: context.palette.surfaceVariant,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border),
+                  border: Border.all(color: context.palette.border),
                 ),
                 child: Text(
                   '${agent.messagesSent}msg',
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 11),
+                  style: TextStyle(
+                      color: context.palette.textSecondary, fontSize: 11),
                 ),
               )
             : null,

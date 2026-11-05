@@ -55,7 +55,7 @@ class _DebugLogScreenState extends State<DebugLogScreen> {
           _SummaryHeader(),
           Expanded(
             child: _entries.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
                       // Was "Discovery/connection issues will show up here" —
                       // no longer accurate to imply that unconditionally: a
@@ -66,7 +66,7 @@ class _DebugLogScreenState extends State<DebugLogScreen> {
                       // docs/specs/DISCOVERY_DIAGNOSTICS_TELEMETRY.md.
                       'No log entries yet.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: AppColors.textSecondary),
+                      style: TextStyle(color: context.palette.textSecondary),
                     ),
                   )
                 : ListView.separated(
@@ -105,39 +105,39 @@ class _SummaryHeader extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    final summaryStyle = TextStyle(
+      color: context.palette.textPrimary,
+      fontSize: 12,
+    );
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
-      color: AppColors.surfaceVariant,
+      color: context.palette.surfaceVariant,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: 4,
         children: [
-          const Text(
+          Text(
             'LAST DISCOVERY SCAN',
             style: TextStyle(
-              color: AppColors.textMuted,
+              color: context.palette.textMuted,
               fontSize: 11,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.5,
             ),
           ),
           if (snapshot != null)
-            Text('Network: ${snapshot.format()}', style: _summaryStyle),
+            Text('Network: ${snapshot.format()}', style: summaryStyle),
           if (snapshot?.hint != null)
             Text('⚠ ${snapshot!.hint}',
-                style: _summaryStyle.copyWith(color: Colors.amber)),
-          if (mdns != null) Text('mDNS: ${mdns.detail}', style: _summaryStyle),
-          if (udp != null) Text('UDP broadcast: ${udp.detail}', style: _summaryStyle),
+                style: summaryStyle.copyWith(color: context.palette.warning)),
+          if (mdns != null) Text('mDNS: ${mdns.detail}', style: summaryStyle),
+          if (udp != null) Text('UDP broadcast: ${udp.detail}', style: summaryStyle),
         ],
       ),
     );
   }
 
-  static const _summaryStyle = TextStyle(
-    color: AppColors.textPrimary,
-    fontSize: 12,
-  );
 }
 
 class _LogTile extends StatelessWidget {
@@ -153,8 +153,8 @@ class _LogTile extends StatelessWidget {
           children: [
             Text(
               entry.name,
-              style: const TextStyle(
-                color: AppColors.primary,
+              style: TextStyle(
+                color: context.palette.primary,
                 fontWeight: FontWeight.w600,
                 fontSize: 12,
               ),
@@ -163,20 +163,20 @@ class _LogTile extends StatelessWidget {
             Text(
               entry.timestamp.toIso8601String(),
               style:
-                  const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                  TextStyle(color: context.palette.textMuted, fontSize: 11),
             ),
           ],
         ),
         const SizedBox(height: 4),
         Text(
           entry.message,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+          style: TextStyle(color: context.palette.textPrimary, fontSize: 13),
         ),
         if (entry.error != null) ...[
           const SizedBox(height: 4),
           Text(
             entry.error.toString(),
-            style: const TextStyle(color: AppColors.error, fontSize: 12),
+            style: TextStyle(color: context.palette.error, fontSize: 12),
           ),
         ],
       ],

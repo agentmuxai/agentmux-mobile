@@ -16,18 +16,24 @@ class DemoBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colour = context.palette.warning;
+    // Black on the dark mode's yellow, white on the light mode's brown.
+    final ink =
+        ThemeData.estimateBrightnessForColor(colour) == Brightness.dark
+            ? Colors.white
+            : Colors.black;
     return Container(
       width: double.infinity,
-      color: AppColors.warning,
-      child: const SafeArea(
+      color: colour,
+      child: SafeArea(
         top: false,
         bottom: false,
-        minimum: EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+        minimum: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
         child: Text(
           'DEMO DATA — not a live connection',
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: Colors.black,
+            color: ink,
             fontSize: 12,
             fontWeight: FontWeight.w700,
           ),

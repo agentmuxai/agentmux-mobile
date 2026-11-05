@@ -145,8 +145,9 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
                     Text(
                       _error!,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          color: AppColors.error, fontSize: 13),
+                      // The camera view is always dark: the dark mode's red.
+                      style: TextStyle(
+                          color: AppPalette.dark.error, fontSize: 13),
                     ),
                   ],
                   if (_connecting) ...[

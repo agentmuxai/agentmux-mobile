@@ -23,25 +23,25 @@ class UsageScreen extends ConsumerWidget {
         ],
       ),
       body: usageAsync.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: AppColors.primary),
+        loading: () => Center(
+          child: CircularProgressIndicator(color: context.palette.primary),
         ),
         error: (e, _) => Center(
           child: Text(e.toString(),
-              style: const TextStyle(color: AppColors.textSecondary)),
+              style: TextStyle(color: context.palette.textSecondary)),
         ),
         data: (summary) => RefreshIndicator(
           onRefresh: () => ref.read(usageProvider.notifier).refresh(),
-          color: AppColors.primary,
+          color: context.palette.primary,
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
               _TierBanner(tier: summary.tier),
               const SizedBox(height: 20),
-              const Text(
+              Text(
                 'Monthly quota',
                 style: TextStyle(
-                  color: AppColors.textSecondary,
+                  color: context.palette.textSecondary,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
@@ -53,9 +53,9 @@ class UsageScreen extends ConsumerWidget {
                   )),
               if (summary.isFree) ...[
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Resets at the start of each billing period.',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                  style: TextStyle(color: context.palette.textMuted, fontSize: 12),
                 ),
               ],
             ],
@@ -76,15 +76,15 @@ class _TierBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
+        color: context.palette.surfaceVariant,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.palette.border),
       ),
       child: Row(
         children: [
           Icon(
             isFree ? Icons.star_border : Icons.star,
-            color: isFree ? AppColors.textMuted : AppColors.warning,
+            color: isFree ? context.palette.textMuted : context.palette.warning,
             size: 20,
           ),
           const SizedBox(width: 12),
@@ -93,8 +93,8 @@ class _TierBanner extends StatelessWidget {
             children: [
               Text(
                 isFree ? 'MuxBus · Free tier' : 'MuxBus · Metered',
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
+                style: TextStyle(
+                  color: context.palette.textPrimary,
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
                 ),
@@ -103,8 +103,8 @@ class _TierBanner extends StatelessWidget {
                 isFree
                     ? 'Upgrade at cloud.agentmux.ai/billing'
                     : 'Pay-as-you-go · \$0.01 per inject',
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: context.palette.textSecondary,
                   fontSize: 12,
                 ),
               ),

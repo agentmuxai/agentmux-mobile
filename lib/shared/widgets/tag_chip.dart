@@ -16,17 +16,20 @@ class TagChip extends StatelessWidget {
   const TagChip({
     super.key,
     required this.label,
-    this.color = AppColors.textSecondary,
+    this.tone = _secondary,
     this.filled = false,
     this.tooltip,
     this.leading,
   });
 
   final String label;
-  final Color color;
+  /// The tag's colour, a role of the palette for the current colour mode.
+  final Color Function(AppPalette p) tone;
   final bool filled;
   final String? tooltip;
   final Widget? leading;
+
+  static Color _secondary(AppPalette p) => p.textSecondary;
 
   /// `Windows` / `macOS` / `Linux`.
   factory TagChip.platform(HostPlatform platform, {Key? key}) => TagChip(
@@ -38,11 +41,11 @@ class TagChip extends StatelessWidget {
   factory TagChip.route(ChannelRoute route, {Key? key}) => TagChip(
         key: key,
         label: routeLabel(route),
-        color: switch (route) {
-          ChannelRoute.lan => AppColors.success,
-          ChannelRoute.cloud => AppColors.primary,
-          ChannelRoute.lanAndCloud => const Color(0xFF2DD4BF),
-          ChannelRoute.direct => const Color(0xFFA78BFA),
+        tone: switch (route) {
+          ChannelRoute.lan => (p) => p.success,
+          ChannelRoute.cloud => (p) => p.primary,
+          ChannelRoute.lanAndCloud => (p) => p.teal,
+          ChannelRoute.direct => (p) => p.violet,
         },
         tooltip: routeTooltip(route),
       );
@@ -52,14 +55,14 @@ class TagChip extends StatelessWidget {
         AgentKind.host => TagChip(
             key: key,
             label: 'HOST',
-            color: const Color(0xFFF59E0B),
+            tone: (p) => p.amber,
             filled: true,
             tooltip: 'Runs directly on the machine',
           ),
         AgentKind.container => TagChip(
             key: key,
             label: 'SANDBOX',
-            color: AppColors.textPrimary,
+            tone: (p) => p.textPrimary,
             filled: true,
             tooltip: 'Runs in an isolated container',
           ),
@@ -67,6 +70,7 @@ class TagChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = tone(context.palette);
     final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
@@ -74,13 +78,13 @@ class TagChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
         border: filled ? null : Border.all(color: color.withValues(alpha: 0.5)),
       ),
-      child: _content(),
+      child: _content(color),
     );
     final tip = tooltip;
     return tip == null ? chip : Tooltip(message: tip, child: chip);
   }
 
-  Widget _content() {
+  Widget _content(Color color) {
     final text = Text(
       label,
       style: TextStyle(

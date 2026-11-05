@@ -149,7 +149,7 @@ class _SysinfoScreenState extends ConsumerState<SysinfoScreen> {
             Text(
               widget.pairing.paired.hostname,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, color: Colors.white54),
+              style: TextStyle(fontSize: 12, color: context.palette.textDim),
             ),
           ],
         ),
@@ -167,7 +167,7 @@ class _SysinfoScreenState extends ConsumerState<SysinfoScreen> {
                 value: latest.cpu == null ? '—' : '${latest.cpu!.round()}%',
                 detail: '${latest.cores.length} cores',
                 points: [for (final s in _samples) s.cpu],
-                color: AppColors.primary,
+                color: context.palette.primary,
               ),
               const SizedBox(height: 12),
               _ChartCard(
@@ -177,7 +177,7 @@ class _SysinfoScreenState extends ConsumerState<SysinfoScreen> {
                     ? ''
                     : '${latest.memUsed!.toStringAsFixed(1)} of ${latest.memTotal!.toStringAsFixed(1)} GB',
                 points: [for (final s in _samples) s.memPercent],
-                color: AppColors.success,
+                color: context.palette.success,
               ),
               const SizedBox(height: 12),
               if (latest.cores.isNotEmpty) _Cores(latest.cores),
@@ -212,9 +212,9 @@ class _ConnectionChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (String, Color)? shown = switch (connection) {
-      SysinfoConnection.live => ('Live', AppColors.success),
-      SysinfoConnection.connecting => ('Connecting…', AppColors.warning),
-      SysinfoConnection.reconnecting => ('Reconnecting…', AppColors.warning),
+      SysinfoConnection.live => ('Live', context.palette.success),
+      SysinfoConnection.connecting => ('Connecting…', context.palette.warning),
+      SysinfoConnection.reconnecting => ('Reconnecting…', context.palette.warning),
       _ => null,
     };
     if (shown == null) return const SizedBox.shrink();
@@ -258,22 +258,26 @@ class _ChartCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
-                Text(title, style: const TextStyle(fontSize: 14, color: Colors.white70)),
+                Text(title, style: TextStyle(fontSize: 14, color: context.palette.textSoft)),
                 const SizedBox(width: 8),
                 Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: color)),
                 const Spacer(),
-                Text(detail, style: const TextStyle(fontSize: 12, color: Colors.white54)),
+                Text(detail, style: TextStyle(fontSize: 12, color: context.palette.textDim)),
               ],
             ),
             const SizedBox(height: 8),
             SizedBox(
               height: 96,
               child: CustomPaint(
-                painter: PercentChartPainter(points: points, color: color),
+                painter: PercentChartPainter(
+                  points: points,
+                  color: color,
+                  grid: context.palette.hairline,
+                ),
               ),
             ),
             const SizedBox(height: 4),
-            const Text('last 5 minutes', style: TextStyle(fontSize: 11, color: Colors.white38)),
+            Text('last 5 minutes', style: TextStyle(fontSize: 11, color: context.palette.textFaint)),
           ],
         ),
       ),
@@ -283,18 +287,23 @@ class _ChartCard extends StatelessWidget {
 
 /// A 0–100 line over time, oldest at the left; a missing value breaks it.
 class PercentChartPainter extends CustomPainter {
-  PercentChartPainter({required this.points, required this.color});
+  PercentChartPainter({
+    required this.points,
+    required this.color,
+    required this.grid,
+  });
   final List<double?> points;
   final Color color;
+  final Color grid;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final grid = Paint()
-      ..color = Colors.white12
+    final gridPaint = Paint()
+      ..color = grid
       ..strokeWidth = 1;
     for (final f in [0.0, 0.5, 1.0]) {
       final y = size.height * f;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
     if (points.length < 2) return;
     final line = Paint()
@@ -321,7 +330,7 @@ class PercentChartPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(PercentChartPainter old) => old.points != points || old.color != color;
+  bool shouldRepaint(PercentChartPainter old) => old.points != points || old.color != color || old.grid != grid;
 }
 
 /// Each core's busy time now, under a tap.
@@ -342,13 +351,13 @@ class _Cores extends StatelessWidget {
                 children: [
                   SizedBox(
                     width: 28,
-                    child: Text('$i', style: const TextStyle(fontSize: 12, color: Colors.white54)),
+                    child: Text('$i', style: TextStyle(fontSize: 12, color: context.palette.textDim)),
                   ),
                   Expanded(
                     child: LinearProgressIndicator(
                       value: (v / 100).clamp(0, 1),
                       minHeight: 6,
-                      backgroundColor: Colors.white12,
+                      backgroundColor: context.palette.hairline,
                     ),
                   ),
                   SizedBox(
@@ -373,7 +382,7 @@ class _Message extends StatelessWidget {
   Widget build(BuildContext context) => Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
-          child: Text(text, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
+          child: Text(text, textAlign: TextAlign.center, style: TextStyle(color: context.palette.textSoft)),
         ),
       );
 }

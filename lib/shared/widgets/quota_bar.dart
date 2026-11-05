@@ -11,10 +11,10 @@ class QuotaBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = item.isExhausted
-        ? AppColors.error
+        ? context.palette.error
         : item.isNearLimit
-            ? AppColors.warning
-            : AppColors.primary;
+            ? context.palette.warning
+            : context.palette.primary;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -38,7 +38,7 @@ class QuotaBar extends StatelessWidget {
           child: LinearProgressIndicator(
             value: item.fraction,
             minHeight: 6,
-            backgroundColor: AppColors.surfaceVariant,
+            backgroundColor: context.palette.surfaceVariant,
             valueColor: AlwaysStoppedAnimation(color),
           ),
         ),

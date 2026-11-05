@@ -165,18 +165,18 @@ void main() {
 
     testWidgets('each state: its words and its colour', (tester) async {
       final cases = {
-        AgentState.working: ('working', AppColors.success, true),
-        AgentState.waiting: ('needs you', AppColors.warning, true),
-        AgentState.idle: ('idle', AppColors.textSecondary, true),
-        AgentState.stopped: ('stopped', AppColors.textSecondary, false),
-        AgentState.error: ('error', AppColors.error, true),
+        AgentState.working: ('working', AppPalette.dark.success, true),
+        AgentState.waiting: ('needs you', AppPalette.dark.warning, true),
+        AgentState.idle: ('idle', AppPalette.dark.textSecondary, true),
+        AgentState.stopped: ('stopped', AppPalette.dark.textSecondary, false),
+        AgentState.error: ('error', AppPalette.dark.error, true),
       };
       for (final MapEntry(key: state, value: (label, color, filled))
           in cases.entries) {
         await tester.pumpWidget(_app(AgentStateChip(state: state)));
         expect(find.text(label), findsOneWidget, reason: '$state');
         final tag = _tag(tester);
-        expect(tag.color, color, reason: '$state');
+        expect(tag.tone(AppPalette.dark), color, reason: '$state');
         expect(tag.filled, filled, reason: '$state');
         // Only a working agent has the spinner.
         expect(

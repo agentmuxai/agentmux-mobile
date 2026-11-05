@@ -31,7 +31,7 @@ class DemoAgentDetailScreen extends StatelessWidget {
         ),
         icon: const Icon(Icons.send),
         label: const Text('Inject'),
-        backgroundColor: AppColors.textMuted,
+        backgroundColor: context.palette.textMuted,
       ),
       body: Column(
         children: [
@@ -62,9 +62,9 @@ class _DemoMessageTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.palette.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -75,20 +75,20 @@ class _DemoMessageTile extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 message.fromAgent,
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12),
+                style: TextStyle(
+                    color: context.palette.textSecondary, fontSize: 12),
               ),
               const Spacer(),
               Text(
                 _formatTime(message.time),
-                style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                style: TextStyle(color: context.palette.textMuted, fontSize: 11),
               ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
             message.message,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+            style: TextStyle(color: context.palette.textPrimary, fontSize: 14),
           ),
         ],
       ),
@@ -112,9 +112,9 @@ class _PriorityChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = switch (priority) {
-      'urgent' => AppColors.error,
-      'high' => AppColors.warning,
-      _ => AppColors.textMuted,
+      'urgent' => context.palette.error,
+      'high' => context.palette.warning,
+      _ => context.palette.textMuted,
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

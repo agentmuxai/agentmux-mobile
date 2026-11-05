@@ -153,7 +153,7 @@ GoRouter _buildRouter(AsyncValue<AuthStatus> authState) {
       // ── Live feed of an agent of a paired computer (no auth required) ──
       GoRoute(
         path: '/viewer/:pairId/agent/:name',
-        builder: (_, state) {
+        builder: (context, state) {
           final extra = state.extra as Map<String, dynamic>?;
           if (extra == null ||
               extra['pairing'] is! PairingMatch ||
@@ -163,12 +163,17 @@ GoRouter _buildRouter(AsyncValue<AuthStatus> authState) {
           }
           final route = extra['route'];
           final channel = extra['channel'];
-          return AgentFeedScreen(
-            pairing: extra['pairing'] as PairingMatch,
-            instance: extra['instance'] as LanInstance,
-            agent: extra['agent'] as LanAgent,
-            channel: channel is String ? channel : null,
-            route: route is ChannelRoute ? route : null,
+          // The feed's colours are the desktop pane's dark theme; until it has
+          // a light set the screen stays dark in either OS mode.
+          return alwaysDark(
+            context,
+            AgentFeedScreen(
+              pairing: extra['pairing'] as PairingMatch,
+              instance: extra['instance'] as LanInstance,
+              agent: extra['agent'] as LanAgent,
+              channel: channel is String ? channel : null,
+              route: route is ChannelRoute ? route : null,
+            ),
           );
         },
       ),
@@ -220,7 +225,12 @@ class AgentMuxApp extends ConsumerWidget {
 
     return MaterialApp.router(
       title: 'AgentMux',
-      theme: AppTheme.dark,
+      // The OS decides the colour mode; both themes are built from the same
+      // palette roles (AppPalette).
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.system,
+      builder: appThemeBuilder,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
     );
