@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/discovery/discovery_provider.dart';
 import '../../core/discovery/host_tree.dart';
 import '../../core/discovery/models/lan_instance.dart';
+import '../../shared/theme/app_theme.dart';
 import '../discovery/host_card.dart';
 
 /// A channel's Swarm (`PLAN_CHANNEL_AS_ONE_LIST_2026_10_13.md` step 2): every
@@ -45,14 +46,14 @@ class SwarmScreen extends ConsumerWidget {
               Text(
                 [channel.via.hostname, channel.name].where((s) => s.isNotEmpty).join('  •  '),
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12, color: Colors.white54),
+                style: TextStyle(fontSize: 12, color: context.palette.textDim),
               ),
           ],
         ),
       ),
       body: channel == null || agents.isEmpty
-          ? const Center(
-              child: Text('No agents on this channel now.', style: TextStyle(color: Colors.white54)),
+          ? Center(
+              child: Text('No agents on this channel now.', style: TextStyle(color: context.palette.textDim)),
             )
           : ListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -61,7 +62,7 @@ class SwarmScreen extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                   child: Text(
                     swarmSummary(channel.agents),
-                    style: const TextStyle(fontSize: 13, color: Colors.white54),
+                    style: TextStyle(fontSize: 13, color: context.palette.textDim),
                   ),
                 ),
                 for (final agent in agents)

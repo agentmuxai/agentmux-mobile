@@ -8,6 +8,7 @@ import '../../core/discovery/discovery_telemetry.dart';
 import '../../core/discovery/host_tree.dart';
 import '../../core/fleet/cloud_instance_source.dart';
 import '../../core/viewer/paired_hosts_repository.dart';
+import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/edge_insets.dart';
 import '../sysinfo/sysinfo_summary.dart';
 import '../tower/tower_screen.dart';
@@ -154,7 +155,7 @@ class _EmptyView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.wifi_off, size: 64, color: Colors.white38),
+            Icon(Icons.wifi_off, size: 64, color: context.palette.textFaint),
             const SizedBox(height: 24),
             const Text(
               'No AgentMux instances found on this network',
@@ -162,10 +163,10 @@ class _EmptyView extends StatelessWidget {
               style: TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Make sure LAN discovery is enabled\non your desktop instance.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white54, fontSize: 13),
+              style: TextStyle(color: context.palette.textDim, fontSize: 13),
             ),
             if (hint != null) ...[
               const SizedBox(height: 16),
@@ -173,15 +174,15 @@ class _EmptyView extends StatelessWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 24),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.amber.withValues(alpha: 0.12),
+                  color: context.palette.warning.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                      color: Colors.amber.withValues(alpha: 0.4)),
+                      color: context.palette.warning.withValues(alpha: 0.4)),
                 ),
                 child: Text(
                   hint,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.amber, fontSize: 12),
+                  style: TextStyle(color: context.palette.warning, fontSize: 12),
                 ),
               ),
             ],

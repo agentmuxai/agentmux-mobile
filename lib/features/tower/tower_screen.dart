@@ -8,6 +8,7 @@ import '../../core/viewer/paired_hosts_repository.dart';
 import '../../core/viewer/pairing_service.dart';
 import '../../core/viewer/tower_snapshot.dart';
 import '../../core/viewer/viewer_client.dart';
+import '../../shared/theme/app_theme.dart';
 import '../discovery/channel_terminals.dart' show PanesKey;
 
 /// What the channel list says on a paired computer's Tower row.
@@ -189,7 +190,7 @@ class _TowerScreenState extends ConsumerState<TowerScreen> {
             Text(
               widget.pairing.paired.hostname,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, color: Colors.white54),
+              style: TextStyle(fontSize: 12, color: context.palette.textDim),
             ),
           ],
         ),
@@ -236,7 +237,7 @@ class _Snapshot extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: Text(
               'CPU ${_cpu(m.cpu)} · ${formatMemory(m.mem)} in ${m.processes} processes · ${snapshot.cpuCount} cores',
-              style: const TextStyle(fontSize: 13, color: Colors.white70),
+              style: TextStyle(fontSize: 13, color: context.palette.textSoft),
             ),
           ),
         const _Heading('Tasks'),
@@ -256,7 +257,7 @@ class _Snapshot extends StatelessWidget {
             subtitle: Text(
               '${_cpu(t.cpu)} · ${formatMemory(t.mem)} · ${t.processes.length} '
               '${t.processes.length == 1 ? 'process' : 'processes'}',
-              style: const TextStyle(fontSize: 12, color: Colors.white54),
+              style: TextStyle(fontSize: 12, color: context.palette.textDim),
             ),
             children: [for (final p in t.processes) _ProcessRow(p, cpu: _cpu(p.cpu))],
           ),
@@ -279,7 +280,7 @@ class _Snapshot extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
             child: Text(
               '${host.matched} of ${host.total} match',
-              style: const TextStyle(fontSize: 12, color: Colors.white54),
+              style: TextStyle(fontSize: 12, color: context.palette.textDim),
             ),
           ),
         for (final p in busiest) _ProcessRow(p, cpu: _cpu(p.cpu)),
@@ -303,7 +304,7 @@ class _ProcessRow extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(fontSize: 13),
       ),
-      subtitle: Text('PID ${p.pid}', style: const TextStyle(fontSize: 11, color: Colors.white38)),
+      subtitle: Text('PID ${p.pid}', style: TextStyle(fontSize: 11, color: context.palette.textFaint)),
       trailing: Text(
         '$cpu · ${p.mem == null ? '—' : formatMemory(p.mem!)}',
         style: const TextStyle(fontSize: 12, fontFeatures: [FontFeature.tabularFigures()]),
@@ -319,7 +320,7 @@ class _Heading extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-        child: Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white70)),
+        child: Text(text, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.palette.textSoft)),
       );
 }
 
@@ -331,7 +332,7 @@ class _Message extends StatelessWidget {
   Widget build(BuildContext context) => Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
-          child: Text(text, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
+          child: Text(text, textAlign: TextAlign.center, style: TextStyle(color: context.palette.textSoft)),
         ),
       );
 }

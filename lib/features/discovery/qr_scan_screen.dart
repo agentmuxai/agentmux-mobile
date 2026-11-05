@@ -145,8 +145,8 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
                     Text(
                       _error!,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          color: AppColors.error, fontSize: 13),
+                      style: TextStyle(
+                          color: context.palette.error, fontSize: 13),
                     ),
                   ],
                   if (_connecting) ...[

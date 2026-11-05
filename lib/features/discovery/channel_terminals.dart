@@ -6,6 +6,7 @@ import '../../core/viewer/paired_host.dart';
 import '../../core/viewer/pairing_service.dart';
 import '../../core/viewer/paired_hosts_repository.dart';
 import '../../core/viewer/viewer_client.dart';
+import '../../shared/theme/app_theme.dart';
 
 /// What the channel list knows about a paired computer's terminals.
 sealed class ChannelPanes {
@@ -148,7 +149,7 @@ class TerminalRow extends StatelessWidget {
     return ListTile(
       dense: true,
       contentPadding: EdgeInsets.only(left: indent, right: 16),
-      leading: const Icon(Icons.terminal, size: 16, color: Colors.white70),
+      leading: Icon(Icons.terminal, size: 16, color: context.palette.textSoft),
       title: Row(
         children: [
           Expanded(
@@ -161,7 +162,7 @@ class TerminalRow extends StatelessWidget {
               child: Text(
                 pane.tab,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 11, color: Colors.white38),
+                style: TextStyle(fontSize: 11, color: context.palette.textFaint),
               ),
             ),
           ],
@@ -169,7 +170,7 @@ class TerminalRow extends StatelessWidget {
       ),
       subtitle: Text(
         terminalSubtitle(pane),
-        style: const TextStyle(fontSize: 12, color: Colors.white54),
+        style: TextStyle(fontSize: 12, color: context.palette.textDim),
       ),
       trailing: const Icon(Icons.chevron_right, size: 18),
       onTap: onTap,
@@ -187,7 +188,7 @@ class _Note extends StatelessWidget {
   Widget build(BuildContext context) {
     final line = Padding(
       padding: EdgeInsets.fromLTRB(indent, 4, 16, 10),
-      child: Text(text, style: const TextStyle(fontSize: 12, color: Colors.white38)),
+      child: Text(text, style: TextStyle(fontSize: 12, color: context.palette.textFaint)),
     );
     return onTap == null ? line : InkWell(onTap: onTap, child: line);
   }

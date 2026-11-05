@@ -109,9 +109,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final light = Theme.of(context).brightness == Brightness.light;
     final enabled = !_busy && !_unavailable;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.palette.background,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -128,55 +129,55 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.cloud_outlined,
                     size: 48,
-                    color: AppColors.primary,
+                    color: context.palette.primary,
                   ),
                   const SizedBox(height: 12),
-                  const Text(
+                  Text(
                     'MuxBus',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: AppColors.textPrimary,
+                      color: context.palette.textPrimary,
                       fontSize: 28,
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.5,
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     muxbusSignInReason,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: AppColors.textSecondary,
+                      color: context.palette.textSecondary,
                       fontSize: 14,
                     ),
                   ),
                   const SizedBox(height: 32),
                   if (_unavailable)
-                    const _Message(
+                    _Message(
                       text: signInUnavailableText,
-                      color: AppColors.textSecondary,
+                      color: context.palette.textSecondary,
                     )
                   else if (_error != null)
-                    _Message(text: _error!, color: AppColors.error),
+                    _Message(text: _error!, color: context.palette.error),
                   if (_busy) ...[
-                    const Center(
+                    Center(
                       child: SizedBox(
                         width: 28,
                         height: 28,
                         child: CircularProgressIndicator(
-                          color: AppColors.primary,
+                          color: context.palette.primary,
                         ),
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
+                    Text(
                       'Finish signing in in the browser…',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: AppColors.textSecondary,
+                        color: context.palette.textSecondary,
                         fontSize: 13,
                       ),
                     ),
@@ -189,6 +190,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     style: FilledButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: const Color(0xFF1F1F1F),
+                      // White on a white page needs its outline.
+                      side: light ? BorderSide(color: context.palette.border) : null,
                       minimumSize: const Size.fromHeight(52),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -207,15 +210,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   if (_apple) ...[
                     const SizedBox(height: 12),
-                    // Apple's white style, its guidelines' choice on a dark
-                    // background, and no less prominent than Google's.
+                    // Apple's guidelines: the white style on a dark background,
+                    // the black style on a light one; no less prominent than
+                    // Google's.
                     FilledButton.icon(
                       key: const ValueKey('continue-apple'),
                       onPressed:
                           enabled ? () => _signIn(SignInMethod.apple) : null,
                       style: FilledButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.black,
+                        backgroundColor: light ? Colors.black : Colors.white,
+                        foregroundColor: light ? Colors.white : Colors.black,
                         minimumSize: const Size.fromHeight(52),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,

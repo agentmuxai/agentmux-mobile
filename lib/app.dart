@@ -220,7 +220,12 @@ class AgentMuxApp extends ConsumerWidget {
 
     return MaterialApp.router(
       title: 'AgentMux',
-      theme: AppTheme.dark,
+      // The OS decides the colour mode; both themes are built from the same
+      // palette roles (AppPalette).
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.system,
+      builder: appThemeBuilder,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
     );

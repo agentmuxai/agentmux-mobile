@@ -62,7 +62,7 @@ class _InjectionSheetState extends ConsumerState<InjectionSheet> {
               ),
               const Spacer(),
               IconButton(
-                icon: const Icon(Icons.close, color: AppColors.textMuted),
+                icon: Icon(Icons.close, color: context.palette.textMuted),
                 onPressed: () => Navigator.of(context).pop(),
               ),
             ],
@@ -72,7 +72,7 @@ class _InjectionSheetState extends ConsumerState<InjectionSheet> {
             controller: _controller,
             maxLines: 4,
             autofocus: true,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+            style: TextStyle(color: context.palette.textPrimary, fontSize: 14),
             decoration: const InputDecoration(
               hintText: 'Type your message…',
             ),
@@ -81,8 +81,8 @@ class _InjectionSheetState extends ConsumerState<InjectionSheet> {
           const SizedBox(height: 12),
           Row(
             children: [
-              const Text('Priority',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+              Text('Priority',
+                  style: TextStyle(color: context.palette.textSecondary, fontSize: 13)),
               const SizedBox(width: 12),
               ..._priorities.map((p) => Padding(
                     padding: const EdgeInsets.only(right: 8),
@@ -90,17 +90,17 @@ class _InjectionSheetState extends ConsumerState<InjectionSheet> {
                       label: Text(_priorityLabels[p]!),
                       selected: state.priority == p,
                       onSelected: (_) => notifier.setPriority(p),
-                      selectedColor: AppColors.primary.withAlpha(40),
+                      selectedColor: context.palette.primary.withAlpha(40),
                       labelStyle: TextStyle(
                         color: state.priority == p
-                            ? AppColors.primary
-                            : AppColors.textSecondary,
+                            ? context.palette.primary
+                            : context.palette.textSecondary,
                         fontSize: 12,
                       ),
                       side: BorderSide(
                         color: state.priority == p
-                            ? AppColors.primary
-                            : AppColors.border,
+                            ? context.palette.primary
+                            : context.palette.border,
                       ),
                     ),
                   )),
@@ -109,7 +109,7 @@ class _InjectionSheetState extends ConsumerState<InjectionSheet> {
           if (state.error != null) ...[
             const SizedBox(height: 8),
             Text(state.error!,
-                style: const TextStyle(color: AppColors.error, fontSize: 12)),
+                style: TextStyle(color: context.palette.error, fontSize: 12)),
           ],
           const SizedBox(height: 16),
           FilledButton(
@@ -117,7 +117,7 @@ class _InjectionSheetState extends ConsumerState<InjectionSheet> {
                 ? null
                 : notifier.submit,
             style: FilledButton.styleFrom(
-              backgroundColor: AppColors.primary,
+              backgroundColor: context.palette.primary,
               padding: const EdgeInsets.symmetric(vertical: 12),
             ),
             child: state.submitting
@@ -138,16 +138,16 @@ class _InjectionSheetState extends ConsumerState<InjectionSheet> {
     showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text(
+        backgroundColor: context.palette.surface,
+        title: Text(
           'MuxBus free tier reached',
-          style: TextStyle(color: AppColors.textPrimary),
+          style: TextStyle(color: context.palette.textPrimary),
         ),
-        content: const Text(
+        content: Text(
           'You\'ve used your 100 free cloud injects this month.\n\n'
           'Upgrade to pay-as-you-go (\$0.01/inject) at cloud.agentmux.ai/billing, '
           'or send messages directly over LAN for free.',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          style: TextStyle(color: context.palette.textSecondary, fontSize: 13),
         ),
         actions: [
           TextButton(

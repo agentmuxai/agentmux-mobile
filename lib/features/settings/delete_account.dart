@@ -30,14 +30,14 @@ Future<void> confirmAndDeleteAccount(
     context: context,
     builder:
         (ctx) => AlertDialog(
-          backgroundColor: AppColors.surface,
-          title: const Text(
+          backgroundColor: context.palette.surface,
+          title: Text(
             deleteAccountTitle,
-            style: TextStyle(color: AppColors.textPrimary),
+            style: TextStyle(color: context.palette.textPrimary),
           ),
-          content: const Text(
+          content: Text(
             deleteAccountBody,
-            style: TextStyle(color: AppColors.textSecondary),
+            style: TextStyle(color: context.palette.textSecondary),
           ),
           actions: [
             TextButton(
@@ -48,7 +48,7 @@ Future<void> confirmAndDeleteAccount(
             FilledButton(
               key: const ValueKey('delete-account-confirm'),
               onPressed: () => Navigator.of(ctx).pop(true),
-              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+              style: FilledButton.styleFrom(backgroundColor: context.palette.error),
               child: const Text('Delete account'),
             ),
           ],
@@ -69,21 +69,21 @@ Future<void> _delete(BuildContext context, WidgetRef ref) async {
     context: context,
     barrierDismissible: false,
     builder:
-        (_) => const PopScope(
+        (_) => PopScope(
           canPop: false,
           child: AlertDialog(
-            backgroundColor: AppColors.surface,
+            backgroundColor: context.palette.surface,
             content: Row(
               children: [
-                SizedBox(
+                const SizedBox(
                   width: 22,
                   height: 22,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
-                SizedBox(width: 16),
+                const SizedBox(width: 16),
                 Text(
                   'Deleting your account…',
-                  style: TextStyle(color: AppColors.textPrimary),
+                  style: TextStyle(color: context.palette.textPrimary),
                 ),
               ],
             ),
@@ -121,10 +121,10 @@ Future<bool> _tell(
     context: context,
     builder:
         (ctx) => AlertDialog(
-          backgroundColor: AppColors.surface,
+          backgroundColor: context.palette.surface,
           content: Text(
             text,
-            style: const TextStyle(color: AppColors.textSecondary),
+            style: TextStyle(color: context.palette.textSecondary),
           ),
           actions: [
             TextButton(

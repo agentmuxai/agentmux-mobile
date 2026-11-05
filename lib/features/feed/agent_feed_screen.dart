@@ -558,10 +558,10 @@ class ConnectionIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (String label, Color color)? shown = switch (connection) {
-      FeedConnection.live => ('Live', AppColors.success),
-      FeedConnection.connecting => ('Connecting…', AppColors.warning),
-      FeedConnection.reconnecting => ('Reconnecting…', AppColors.warning),
-      FeedConnection.paused => ('Paused', AppColors.textSecondary),
+      FeedConnection.live => ('Live', context.palette.success),
+      FeedConnection.connecting => ('Connecting…', context.palette.warning),
+      FeedConnection.reconnecting => ('Reconnecting…', context.palette.warning),
+      FeedConnection.paused => ('Paused', context.palette.textSecondary),
       FeedConnection.unauthorized || FeedConnection.notFound => null,
     };
     if (shown == null) return const SizedBox.shrink();

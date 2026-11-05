@@ -85,22 +85,22 @@ class _ManualAddSheetState extends ConsumerState<ManualAddSheet> {
                   style: Theme.of(context).textTheme.titleMedium),
               const Spacer(),
               IconButton(
-                icon: const Icon(Icons.close, color: AppColors.textMuted),
+                icon: Icon(Icons.close, color: context.palette.textMuted),
                 onPressed: () => Navigator.of(context).pop(),
               ),
             ],
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'Enter the address and auth key shown in AgentMux → Settings.',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            style: TextStyle(color: context.palette.textSecondary, fontSize: 12),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _addressCtrl,
             autofocus: true,
             keyboardType: TextInputType.url,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+            style: TextStyle(color: context.palette.textPrimary, fontSize: 14),
             decoration: const InputDecoration(
               labelText: 'Address',
               hintText: 'host:port  (e.g. 10.0.2.2:59151)',
@@ -110,8 +110,8 @@ class _ManualAddSheetState extends ConsumerState<ManualAddSheet> {
           TextField(
             controller: _authKeyCtrl,
             obscureText: true,
-            style: const TextStyle(
-                color: AppColors.textPrimary,
+            style: TextStyle(
+                color: context.palette.textPrimary,
                 fontSize: 14,
                 fontFamily: 'monospace'),
             decoration: const InputDecoration(
@@ -123,13 +123,13 @@ class _ManualAddSheetState extends ConsumerState<ManualAddSheet> {
             const SizedBox(height: 8),
             Text(_error!,
                 style:
-                    const TextStyle(color: AppColors.error, fontSize: 12)),
+                    TextStyle(color: context.palette.error, fontSize: 12)),
           ],
           const SizedBox(height: 20),
           FilledButton(
             onPressed: _connecting ? null : _connect,
             style: FilledButton.styleFrom(
-              backgroundColor: AppColors.primary,
+              backgroundColor: context.palette.primary,
               padding: const EdgeInsets.symmetric(vertical: 12),
             ),
             child: _connecting
@@ -153,7 +153,7 @@ void showManualAddSheet(BuildContext context) {
     isScrollControlled: true,
     // Keeps the sheet out of the notch / Dynamic Island side insets in landscape.
     useSafeArea: true,
-    backgroundColor: AppColors.surface,
+    backgroundColor: context.palette.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),

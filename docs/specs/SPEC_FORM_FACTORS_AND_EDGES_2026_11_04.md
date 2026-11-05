@@ -478,8 +478,8 @@ QTest (Part B and summary), Clare (Part A)
 | Fix PR | Covers | State |
 |---|---|---|
 | 1. Safe areas and insets | I2 (lists keep clear of the notch and island), I1 (lists end above the home-indicator band), I4 (Connect manually scrolls above the keyboard), I5 (the DEMO banner reaches both edges and wraps at large text), A1 (bottom inset on lists), A2 (the sign-in bar is compact on short screens) | merged (#103) |
-| 2. Bottom status band (design A, fallback B) | I1 (the empty band itself) | this change |
-| 3. OS color mode and the snackbar | I6, A3, I3 | open |
+| 2. Bottom status band (design A, fallback B) | I1 (the empty band itself) | merged (#104) |
+| 3. OS color mode and the snackbar | I6, A3, I3 | this change, for the app's own screens and the Android launch window; the feed (its own palette) and the iOS launch screen follow |
 | 4. Adaptive layout | I8, A4, A5, I9 | open |
 | 5. Large text | I7, A6 | open |
 | 6. UIScene migration | P1 | open |
@@ -487,3 +487,13 @@ QTest (Part B and summary), Clare (Part A)
 ![The status band on a Pixel 9 with gesture navigation: the line sits in the band beside the gesture pill](form-factors/android/band_p9_gesture.png)
 
 Design A as built: one muted line in the band under the sign-in button (here "No computers" because no computer is reachable from the emulator), the middle left clear for the gesture pill or home indicator. Where there is no band the same line is a row above the button (design B), and it is left out while the keyboard is up.
+
+### Color mode as built
+
+The app follows the OS setting (`ThemeMode.system`) with a light and a dark theme built from the same palette roles (`AppPalette`, read as `context.palette`). The dark set is unchanged. The light set's text and status colours reach 4.5:1 on the light backgrounds (a unit test checks it), and the tag and banner colours have darker shades on light. The status-bar and navigation-bar icons follow the theme, and a message is now a floating, rounded card in the surface colour, capped at 480 dp wide on a tablet or unfolded foldable. On Android the launch window takes the same background in each mode.
+
+![The launch screen with the OS in light mode](form-factors/android/os_light_launch.png)
+
+![The demo fleet with the OS in light mode: dark status-bar icons, readable tags and banner](form-factors/android/os_light_demo_fleet.png)
+
+![The launch screen with the OS in dark mode, unchanged](form-factors/android/os_dark_launch.png)

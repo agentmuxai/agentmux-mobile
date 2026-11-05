@@ -32,12 +32,12 @@ class AgentDetailScreen extends ConsumerWidget {
         label: const Text('Inject'),
       ),
       body: messagesAsync.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: AppColors.primary),
+        loading: () => Center(
+          child: CircularProgressIndicator(color: context.palette.primary),
         ),
         error: (e, _) => Center(
           child: Text(e.toString(),
-              style: const TextStyle(color: AppColors.textSecondary)),
+              style: TextStyle(color: context.palette.textSecondary)),
         ),
         data: (messages) => messages.isEmpty
             ? const _EmptyMessages()
@@ -54,7 +54,7 @@ class AgentDetailScreen extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.palette.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -76,9 +76,9 @@ class _MessageTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.palette.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -89,16 +89,16 @@ class _MessageTile extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 message.fromAgent,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: context.palette.textSecondary,
                   fontSize: 12,
                 ),
               ),
               const Spacer(),
               Text(
                 _formatTime(message.time),
-                style: const TextStyle(
-                  color: AppColors.textMuted,
+                style: TextStyle(
+                  color: context.palette.textMuted,
                   fontSize: 11,
                 ),
               ),
@@ -107,7 +107,7 @@ class _MessageTile extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             message.message,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+            style: TextStyle(color: context.palette.textPrimary, fontSize: 14),
           ),
         ],
       ),
@@ -131,9 +131,9 @@ class _PriorityChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = switch (priority) {
-      'urgent' => AppColors.error,
-      'high' => AppColors.warning,
-      _ => AppColors.textMuted,
+      'urgent' => context.palette.error,
+      'high' => context.palette.warning,
+      _ => context.palette.textMuted,
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -154,10 +154,10 @@ class _EmptyMessages extends StatelessWidget {
   const _EmptyMessages();
 
   @override
-  Widget build(BuildContext context) => const Center(
+  Widget build(BuildContext context) => Center(
         child: Text(
           'No messages yet',
-          style: TextStyle(color: AppColors.textSecondary),
+          style: TextStyle(color: context.palette.textSecondary),
         ),
       );
 }

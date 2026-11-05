@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The first frame the app draws is its own background, so the launch
+         window matches it: light by day (AppPalette.light.background). -->
+    <color name="launch_background">#FFF4F4F5</color>
+</resources>

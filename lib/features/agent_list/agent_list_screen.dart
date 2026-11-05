@@ -25,8 +25,8 @@ class AgentListScreen extends ConsumerWidget {
         ],
       ),
       body: agentsAsync.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: AppColors.primary),
+        loading: () => Center(
+          child: CircularProgressIndicator(color: context.palette.primary),
         ),
         error: (e, _) => _ErrorView(
           message: e.toString(),
@@ -37,7 +37,7 @@ class AgentListScreen extends ConsumerWidget {
             : RefreshIndicator(
                 onRefresh: () =>
                     ref.read(agentListProvider.notifier).refresh(),
-                color: AppColors.primary,
+                color: context.palette.primary,
                 child: ListView.separated(
                   padding: const EdgeInsets.all(12),
                   itemCount: agents.length,
@@ -93,14 +93,14 @@ class _MessagesBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
+        color: context.palette.surfaceVariant,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.palette.border),
       ),
       child: Text(
         '${count}msg',
-        style: const TextStyle(
-          color: AppColors.textSecondary,
+        style: TextStyle(
+          color: context.palette.textSecondary,
           fontSize: 11,
         ),
       ),
@@ -112,10 +112,10 @@ class _EmptyView extends StatelessWidget {
   const _EmptyView();
 
   @override
-  Widget build(BuildContext context) => const Center(
+  Widget build(BuildContext context) => Center(
         child: Text(
           'No agents online',
-          style: TextStyle(color: AppColors.textSecondary),
+          style: TextStyle(color: context.palette.textSecondary),
         ),
       );
 }
@@ -132,10 +132,10 @@ class _ErrorView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.cloud_off, color: AppColors.textMuted, size: 40),
+              Icon(Icons.cloud_off, color: context.palette.textMuted, size: 40),
               const SizedBox(height: 12),
               Text(message,
-                  style: const TextStyle(color: AppColors.textSecondary),
+                  style: TextStyle(color: context.palette.textSecondary),
                   textAlign: TextAlign.center),
               const SizedBox(height: 16),
               TextButton(onPressed: onRetry, child: const Text('Retry')),

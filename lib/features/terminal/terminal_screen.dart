@@ -101,7 +101,7 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> {
             Text(
               widget.pairing.paired.hostname,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, color: Colors.white54),
+              style: TextStyle(fontSize: 12, color: context.palette.textDim),
             ),
           ],
         ),
@@ -187,10 +187,10 @@ class _ConnectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (String, Color)? shown = switch (connection) {
-      TerminalConnection.live => ('Live', AppColors.success),
-      TerminalConnection.connecting => ('Connecting…', AppColors.warning),
-      TerminalConnection.reconnecting => ('Reconnecting…', AppColors.warning),
-      TerminalConnection.paused => ('Paused', AppColors.textSecondary),
+      TerminalConnection.live => ('Live', context.palette.success),
+      TerminalConnection.connecting => ('Connecting…', context.palette.warning),
+      TerminalConnection.reconnecting => ('Reconnecting…', context.palette.warning),
+      TerminalConnection.paused => ('Paused', context.palette.textSecondary),
       _ => null,
     };
     if (shown == null) return const SizedBox.shrink();
@@ -228,7 +228,7 @@ class _Message extends StatelessWidget {
               Text(
                 detail!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white54, fontSize: 13),
+                style: TextStyle(color: context.palette.textDim, fontSize: 13),
               ),
             ],
           ],

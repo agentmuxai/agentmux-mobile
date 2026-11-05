@@ -79,7 +79,7 @@ class HostCard extends StatelessWidget {
             key: PageStorageKey(host.key),
             leading: Icon(
               Icons.computer,
-              color: live ? Colors.greenAccent : Colors.white38,
+              color: live ? context.palette.live : context.palette.textFaint,
             ),
             title: Row(
               children: [
@@ -109,7 +109,7 @@ class HostCard extends StatelessWidget {
                     padding: const EdgeInsets.only(left: 8),
                     child: Text(
                       'v$version',
-                      style: const TextStyle(fontSize: 12, color: Colors.white54),
+                      style: TextStyle(fontSize: 12, color: context.palette.textDim),
                     ),
                   ),
               ],
@@ -118,7 +118,7 @@ class HostCard extends StatelessWidget {
                 ? null
                 : Text(
                     subtitle,
-                    style: const TextStyle(fontSize: 12, color: Colors.white54),
+                    style: TextStyle(fontSize: 12, color: context.palette.textDim),
                   ),
             initiallyExpanded: true,
             children: host.showChannels
@@ -133,7 +133,7 @@ class HostCard extends StatelessWidget {
                       ),
                     if (hidden > 0) _HiddenChannelsLine(count: hidden),
                   ]
-                : _agentRows(only, hostKey: host.key, indent: 20, onAgentTap: onAgentTap),
+                : _agentRows(context, only, hostKey: host.key, indent: 20, onAgentTap: onAgentTap),
           ),
         ),
       ),
@@ -143,14 +143,14 @@ class HostCard extends StatelessWidget {
 
 /// "Paired", or "Pair again" once the computer has refused this device.
 Widget pairedTag(PairedHost paired) => paired.invalid
-    ? const TagChip(
+    ? TagChip(
         label: 'Pair again',
-        color: AppColors.warning,
+        tone: (p) => p.warning,
         tooltip: 'This device was unpaired on the computer',
       )
-    : const TagChip(
+    : TagChip(
         label: 'Paired',
-        color: AppColors.primary,
+        tone: (p) => p.primary,
         tooltip: 'This device can watch these agents live',
       );
 
@@ -211,7 +211,7 @@ class _ChannelTile extends StatelessWidget {
         leading: Icon(
           Icons.account_tree_outlined,
           size: 18,
-          color: live ? Colors.white54 : Colors.white24,
+          color: live ? context.palette.textDim : context.palette.textGhost,
         ),
         title: Row(
           children: [
@@ -234,10 +234,10 @@ class _ChannelTile extends StatelessWidget {
             ? null
             : Text(
                 status,
-                style: const TextStyle(fontSize: 11, color: Colors.white38),
+                style: TextStyle(fontSize: 11, color: context.palette.textFaint),
               ),
         initiallyExpanded: true,
-        children: _agentRows(channel, hostKey: hostKey, indent: 36, onAgentTap: onAgentTap),
+        children: _agentRows(context, channel, hostKey: hostKey, indent: 36, onAgentTap: onAgentTap),
       ),
     );
   }
@@ -257,7 +257,7 @@ class _HiddenChannelsLine extends StatelessWidget {
         alignment: Alignment.centerLeft,
         child: Text(
           hiddenChannelsText(count),
-          style: const TextStyle(color: Colors.white38, fontSize: 12),
+          style: TextStyle(color: context.palette.textFaint, fontSize: 12),
         ),
       ),
     );
@@ -290,7 +290,7 @@ class CloudNote extends StatelessWidget {
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: const TextStyle(color: Colors.white38, fontSize: 12),
+        style: TextStyle(color: context.palette.textFaint, fontSize: 12),
       ),
     );
   }
@@ -350,6 +350,7 @@ String _ago(DateTime t) {
 /// device has paired with, its terminals in the desktop's order. Tabs don't
 /// group them.
 List<Widget> _agentRows(
+  BuildContext context,
   ChannelNode channel, {
   required String hostKey,
   required double indent,
@@ -371,11 +372,11 @@ List<Widget> _agentRows(
         padding: EdgeInsets.fromLTRB(indent, 0, 16, 12),
         child: Text(
           channel.error == null ? 'No agents reported.' : 'Agents unknown.',
-          style: const TextStyle(color: Colors.white38, fontSize: 13),
+          style: TextStyle(color: context.palette.textFaint, fontSize: 13),
         ),
       ),
       // The computer's own views don't depend on its agents.
-      ..._computerRows(channel, indent: indent, live: onAgentTap == null),
+      ..._computerRows(context, channel, indent: indent, live: onAgentTap == null),
       if (terminals != null) terminals,
     ];
   }
@@ -391,7 +392,7 @@ List<Widget> _agentRows(
     // The views of the computer read it live, so a card whose taps are
     // overridden (the demo, which makes no network call) has none.
     if (onAgentTap == null) _SwarmRow(hostKey: hostKey, channel: channel, indent: indent),
-    ..._computerRows(channel, indent: indent, live: onAgentTap == null),
+    ..._computerRows(context, channel, indent: indent, live: onAgentTap == null),
     if (terminals != null) terminals,
   ];
 }
@@ -399,7 +400,7 @@ List<Widget> _agentRows(
 /// Sysinfo and Tower for a computer this device has paired with,
 /// read through its viewer listener; for one it hasn't, one line saying
 /// pairing shows them. None where [live] is false (the demo).
-List<Widget> _computerRows(ChannelNode channel, {required double indent, required bool live}) {
+List<Widget> _computerRows(BuildContext context, ChannelNode channel, {required double indent, required bool live}) {
   if (!live || channel.cloudOnly) return const [];
   final pairing = watchablePairing(channel);
   if (pairing != null) {
@@ -414,9 +415,9 @@ List<Widget> _computerRows(ChannelNode channel, {required double indent, require
     Padding(
       key: const ValueKey('pair-to-see'),
       padding: EdgeInsets.fromLTRB(indent, 2, 16, 10),
-      child: const Text(
+      child: Text(
         'Pair to see Sysinfo, Tower and terminals',
-        style: TextStyle(fontSize: 12, color: Colors.white38),
+        style: TextStyle(fontSize: 12, color: context.palette.textFaint),
       ),
     ),
   ];
@@ -508,7 +509,7 @@ class InstanceRow extends StatelessWidget {
     return ListTile(
       dense: true,
       contentPadding: EdgeInsets.only(left: indent, right: 16),
-      leading: Icon(icon, size: 16, color: Colors.white70),
+      leading: Icon(icon, size: 16, color: context.palette.textSoft),
       title: Row(
         children: [
           Text(title),
@@ -519,7 +520,7 @@ class InstanceRow extends StatelessWidget {
               textAlign: TextAlign.right,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, color: Colors.white54),
+              style: TextStyle(fontSize: 12, color: context.palette.textDim),
             ),
           ),
         ],
@@ -566,7 +567,7 @@ class AgentRow extends StatelessWidget {
       leading: Icon(
         Icons.circle,
         size: 10,
-        color: isActive ? Colors.greenAccent : Colors.white24,
+        color: isActive ? context.palette.live : context.palette.textGhost,
       ),
       title: _NameAndTags(
         name: agent.name,
@@ -576,21 +577,21 @@ class AgentRow extends StatelessWidget {
           if (state != null) state,
         ],
       ),
-      subtitle: _subtitle(channel.presence == Presence.live),
+      subtitle: _subtitle(context, channel.presence == Presence.live),
       onTap: () => (onTap ?? openAgent)(context, channel, agent),
     );
   }
 
   /// The agent's summary line, when its desktop shares one (dimmed while
   /// the channel isn't live), then its last-seen time, when reported.
-  Widget? _subtitle(bool live) {
+  Widget? _subtitle(BuildContext context, bool live) {
     final line = agent.line;
     final lastSeen = agent.lastSeen;
     final seen = lastSeen == null
         ? null
         : Text(
             _formatLastSeen(lastSeen),
-            style: const TextStyle(fontSize: 11, color: Colors.white38),
+            style: TextStyle(fontSize: 11, color: context.palette.textFaint),
           );
     if (line == null) return seen;
     final summary = Text(
@@ -601,7 +602,7 @@ class AgentRow extends StatelessWidget {
       style: TextStyle(
         fontSize: 12,
         fontStyle: FontStyle.italic,
-        color: live ? Colors.white60 : Colors.white38,
+        color: live ? context.palette.textSoft : context.palette.textFaint,
       ),
     );
     if (seen == null) return summary;

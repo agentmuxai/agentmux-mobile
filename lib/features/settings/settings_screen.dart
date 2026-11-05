@@ -61,14 +61,14 @@ class SettingsScreen extends ConsumerWidget {
               children: [
                 ListTile(
                   leading: const Icon(Icons.account_circle_outlined),
-                  title: const Text('Signed in',
-                      style: TextStyle(color: AppColors.textPrimary)),
+                  title: Text('Signed in',
+                      style: TextStyle(color: context.palette.textPrimary)),
                   subtitle: email == null
                       ? null
                       : Text(
                           email,
-                          style: const TextStyle(
-                              color: AppColors.textSecondary, fontSize: 12),
+                          style: TextStyle(
+                              color: context.palette.textSecondary, fontSize: 12),
                         ),
                 ),
                 ListTile(
@@ -79,7 +79,7 @@ class SettingsScreen extends ConsumerWidget {
                           t == 'free' ? 'MuxBus · Free tier' : 'MuxBus · Metered',
                       orElse: () => 'MuxBus',
                     ),
-                    style: const TextStyle(color: AppColors.textPrimary),
+                    style: TextStyle(color: context.palette.textPrimary),
                   ),
                   subtitle: Text(
                     tierAsync.maybeWhen(
@@ -88,30 +88,30 @@ class SettingsScreen extends ConsumerWidget {
                           : 'Pay-as-you-go · \$0.01 per inject',
                       orElse: () => '',
                     ),
-                    style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12),
+                    style: TextStyle(
+                        color: context.palette.textSecondary, fontSize: 12),
                   ),
-                  trailing: const Icon(Icons.chevron_right,
-                      color: AppColors.textMuted),
+                  trailing: Icon(Icons.chevron_right,
+                      color: context.palette.textMuted),
                   onTap: () => context.go('/usage'),
                 ),
                 ListTile(
-                  title: const Text('Sign out',
-                      style: TextStyle(color: AppColors.error)),
-                  leading: const Icon(Icons.logout, color: AppColors.error),
+                  title: Text('Sign out',
+                      style: TextStyle(color: context.palette.error)),
+                  leading: Icon(Icons.logout, color: context.palette.error),
                   onTap: () => _confirmSignOut(context, ref),
                 ),
                 ListTile(
                   key: const ValueKey('delete-account'),
-                  title: const Text('Delete account',
-                      style: TextStyle(color: AppColors.error)),
-                  subtitle: const Text(
+                  title: Text('Delete account',
+                      style: TextStyle(color: context.palette.error)),
+                  subtitle: Text(
                     'Removes your cloud account and what it stores',
                     style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12),
+                        color: context.palette.textSecondary, fontSize: 12),
                   ),
-                  leading: const Icon(Icons.delete_outline,
-                      color: AppColors.error),
+                  leading: Icon(Icons.delete_outline,
+                      color: context.palette.error),
                   onTap: () => confirmAndDeleteAccount(context, ref),
                 ),
               ],
@@ -121,14 +121,14 @@ class SettingsScreen extends ConsumerWidget {
               title: 'MuxBus Cloud',
               children: [
                 ListTile(
-                  leading: const Icon(Icons.cloud_outlined,
-                      color: AppColors.textMuted),
-                  title: const Text('MuxBus Sign in',
-                      style: TextStyle(color: AppColors.primary)),
-                  subtitle: const Text(
+                  leading: Icon(Icons.cloud_outlined,
+                      color: context.palette.textMuted),
+                  title: Text('MuxBus Sign in',
+                      style: TextStyle(color: context.palette.primary)),
+                  subtitle: Text(
                     'See your computers and agents from anywhere',
                     style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12),
+                        color: context.palette.textSecondary, fontSize: 12),
                   ),
                   onTap: () => context.push('/login'),
                 ),
@@ -138,39 +138,39 @@ class SettingsScreen extends ConsumerWidget {
           _Section(
             title: 'About',
             children: [
-              const ListTile(
+              ListTile(
                 title: Text('Version',
-                    style: TextStyle(color: AppColors.textSecondary)),
+                    style: TextStyle(color: context.palette.textSecondary)),
                 trailing: Text(
                   '$_appVersion+$_buildStamp',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                  style: TextStyle(color: context.palette.textMuted, fontSize: 13),
                 ),
               ),
               ListTile(
-                leading: const Icon(Icons.visibility_outlined,
-                    color: AppColors.textSecondary),
-                title: const Text('View a demo fleet',
-                    style: TextStyle(color: AppColors.textSecondary)),
-                trailing: const Icon(Icons.chevron_right,
-                    color: AppColors.textMuted),
+                leading: Icon(Icons.visibility_outlined,
+                    color: context.palette.textSecondary),
+                title: Text('View a demo fleet',
+                    style: TextStyle(color: context.palette.textSecondary)),
+                trailing: Icon(Icons.chevron_right,
+                    color: context.palette.textMuted),
                 onTap: () => context.push('/demo'),
               ),
               ListTile(
-                leading: const Icon(Icons.privacy_tip_outlined,
-                    color: AppColors.textSecondary),
-                title: const Text('Privacy Policy',
-                    style: TextStyle(color: AppColors.textSecondary)),
-                trailing: const Icon(Icons.open_in_new,
-                    color: AppColors.textMuted, size: 16),
+                leading: Icon(Icons.privacy_tip_outlined,
+                    color: context.palette.textSecondary),
+                title: Text('Privacy Policy',
+                    style: TextStyle(color: context.palette.textSecondary)),
+                trailing: Icon(Icons.open_in_new,
+                    color: context.palette.textMuted, size: 16),
                 onTap: () => _openUrl('https://agentmux.ai/mobile-privacy'),
               ),
               ListTile(
-                leading: const Icon(Icons.help_outline,
-                    color: AppColors.textSecondary),
-                title: const Text('Support',
-                    style: TextStyle(color: AppColors.textSecondary)),
-                trailing: const Icon(Icons.open_in_new,
-                    color: AppColors.textMuted, size: 16),
+                leading: Icon(Icons.help_outline,
+                    color: context.palette.textSecondary),
+                title: Text('Support',
+                    style: TextStyle(color: context.palette.textSecondary)),
+                trailing: Icon(Icons.open_in_new,
+                    color: context.palette.textMuted, size: 16),
                 onTap: () => _openUrl('https://agentmux.ai/support'),
               ),
             ],
@@ -189,11 +189,11 @@ class SettingsScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('Sign out?',
-            style: TextStyle(color: AppColors.textPrimary)),
-        content: const Text('You will need to sign in again.',
-            style: TextStyle(color: AppColors.textSecondary)),
+        backgroundColor: context.palette.surface,
+        title: Text('Sign out?',
+            style: TextStyle(color: context.palette.textPrimary)),
+        content: Text('You will need to sign in again.',
+            style: TextStyle(color: context.palette.textSecondary)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -204,7 +204,7 @@ class SettingsScreen extends ConsumerWidget {
               Navigator.of(context).pop();
               ref.read(authProvider.notifier).signOut();
             },
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            style: FilledButton.styleFrom(backgroundColor: context.palette.error),
             child: const Text('Sign out'),
           ),
         ],
@@ -226,8 +226,8 @@ class _Section extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Text(
               title.toUpperCase(),
-              style: const TextStyle(
-                color: AppColors.textMuted,
+              style: TextStyle(
+                color: context.palette.textMuted,
                 fontSize: 11,
                 letterSpacing: 0.8,
                 fontWeight: FontWeight.w600,

@@ -89,14 +89,14 @@ class _AgentStateChipState extends State<AgentStateChip> {
               if (mounted) setState(() {});
             });
 
-    final color = agentStateColor(widget.state);
+    final color = agentStateColor(widget.state, context.palette);
     final animate =
         !view.muted &&
         widget.state == AgentState.working &&
         !(MediaQuery.maybeDisableAnimationsOf(context) ?? false);
     final chip = TagChip(
       label: view.label,
-      color: color,
+      tone: (_) => color,
       filled: widget.state != AgentState.stopped,
       tooltip: view.tooltip,
       leading:
@@ -205,9 +205,9 @@ String formatStateDuration(Duration d) {
   return '${d.inDays}d';
 }
 
-Color agentStateColor(AgentState state) => switch (state) {
-  AgentState.working => AppColors.success,
-  AgentState.waiting => AppColors.warning,
-  AgentState.idle || AgentState.stopped => AppColors.textSecondary,
-  AgentState.error => AppColors.error,
+Color agentStateColor(AgentState state, AppPalette p) => switch (state) {
+  AgentState.working => p.success,
+  AgentState.waiting => p.warning,
+  AgentState.idle || AgentState.stopped => p.textSecondary,
+  AgentState.error => p.error,
 };
