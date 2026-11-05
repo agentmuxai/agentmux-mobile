@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/logging/app_logger.dart';
 import '../../core/viewer/viewer_client.dart';
+import '../../shared/widgets/adaptive.dart';
 import 'feed_theme.dart';
 import 'send_controller.dart';
 
@@ -121,6 +122,15 @@ class _SendPanelState extends ConsumerState<SendPanel> {
 
   Widget _composer(BuildContext context) {
     final tooLong = _tooLong(_text.text);
+    // The composer is chrome: at the largest text sizes it was taller than
+    // a landscape screen with the keyboard up.
+    return MediaQuery.withClampedTextScaling(
+      maxScaleFactor: largeTextScale,
+      child: _composerBox(context, tooLong),
+    );
+  }
+
+  Widget _composerBox(BuildContext context, bool tooLong) {
     return Container(
       decoration: BoxDecoration(
         color: context.feed.blockSolid,

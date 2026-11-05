@@ -30,7 +30,10 @@ class DemoFleetScreen extends StatelessWidget {
           const DemoBanner(),
           Expanded(
             child: ContentWidth(child: ListView(
-              padding: insetListPadding(context, const EdgeInsets.all(12)),
+              // The app bar and the banner cover the status bar: keep the
+              // top inset out, or it shows as a gap under the banner.
+              padding: insetListPadding(context, const EdgeInsets.all(12))
+                  .copyWith(top: 12),
               children: [
                 const _SectionTitle('Hosts'),
                 // The same card the discovery screen shows; taps open the

@@ -82,7 +82,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     amber: Color(0xFFF59E0B),
     textPrimary: Color(0xFFE5E5E5),
     textSecondary: Color(0xFF9CA3AF),
-    textMuted: Color(0xFF4B5563),
+    textMuted: Color(0xFF808998),
     textSoft: Colors.white70,
     textDim: Colors.white54,
     textFaint: Colors.white38,

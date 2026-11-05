@@ -136,14 +136,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     color: context.palette.primary,
                   ),
                   const SizedBox(height: 12),
-                  Text(
-                    'MuxBus',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: context.palette.textPrimary,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.5,
+                  // The title is chrome: at the largest text sizes it broke
+                  // the word ("MuxBu" and "s").
+                  MediaQuery.withClampedTextScaling(
+                    maxScaleFactor: 2,
+                    child: Text(
+                      'MuxBus',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: context.palette.textPrimary,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.5,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),

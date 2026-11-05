@@ -39,10 +39,11 @@ class DemoAgentDetailScreen extends StatelessWidget {
           const DemoBanner(),
           Expanded(
             child: ContentWidth(child: ListView.builder(
+              // The top inset is covered by the app bar and the banner.
               padding: insetListPadding(
                 context,
                 const EdgeInsets.fromLTRB(12, 12, 12, 80),
-              ),
+              ).copyWith(top: 12),
               itemCount: messages.length,
               itemBuilder: (ctx, i) => _DemoMessageTile(message: messages[i]),
             )),

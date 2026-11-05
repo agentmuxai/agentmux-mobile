@@ -104,7 +104,7 @@ class _AgentStateChipState extends State<AgentStateChip> {
               ? AsciiSpinner(color: color, animate: animate)
               : null,
     );
-    return view.muted ? Opacity(opacity: 0.55, child: chip) : chip;
+    return view.muted ? Opacity(opacity: 0.7, child: chip) : chip;
   }
 }
 

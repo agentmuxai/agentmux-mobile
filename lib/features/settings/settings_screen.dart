@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -139,13 +141,22 @@ class SettingsScreen extends ConsumerWidget {
           _Section(
             title: 'About',
             children: [
+              // At a large text size the value goes under the label: beside
+              // it the label was cut to "Versi".
               ListTile(
                 title: Text('Version',
                     style: TextStyle(color: context.palette.textSecondary)),
-                trailing: Text(
-                  '$_appVersion+$_buildStamp',
-                  style: TextStyle(color: context.palette.textMuted, fontSize: 13),
-                ),
+                subtitle: isLargeText(context)
+                    ? Text('$_appVersion+$_buildStamp',
+                        style: TextStyle(color: context.palette.textMuted))
+                    : null,
+                trailing: isLargeText(context)
+                    ? null
+                    : Text(
+                        '$_appVersion+$_buildStamp',
+                        style: TextStyle(
+                            color: context.palette.textMuted, fontSize: 13),
+                      ),
               ),
               ListTile(
                 leading: Icon(Icons.visibility_outlined,
@@ -224,7 +235,14 @@ class _Section extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            // Level with the rows below: clear of the notch or the island
+            // in landscape (a ListTile keeps its content out of it itself).
+            padding: EdgeInsets.fromLTRB(
+              math.max(16, MediaQuery.paddingOf(context).left),
+              8,
+              math.max(16, MediaQuery.paddingOf(context).right),
+              8,
+            ),
             child: Text(
               title.toUpperCase(),
               style: TextStyle(

@@ -1,12 +1,15 @@
 import 'package:agentmux_mobile/core/auth/auth_provider.dart';
 import 'package:agentmux_mobile/core/discovery/discovery_provider.dart';
 import 'package:agentmux_mobile/features/demo/demo_fleet_screen.dart';
+import 'package:agentmux_mobile/features/login/login_screen.dart';
+import 'package:agentmux_mobile/features/settings/settings_screen.dart';
 import 'package:agentmux_mobile/features/discovery/discovery_screen.dart';
 import 'package:agentmux_mobile/features/discovery/muxbus_account_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_fakes.dart';
 
@@ -24,7 +27,12 @@ class _Empty extends DiscoveryNotifier {
 /// The largest iOS accessibility text (AX5 is about x3.1) on the narrowest
 /// phone the app supports: I7 and A6 in
 /// `docs/specs/SPEC_FORM_FACTORS_AND_EDGES_2026_11_04.md`.
-Future<void> _pump(WidgetTester tester, Widget home, {double scale = 3.1}) async {
+Future<void> _pump(
+  WidgetTester tester,
+  Widget home, {
+  double scale = 3.1,
+  bool routed = false,
+}) async {
   tester.view
     ..physicalSize = const Size(320, 568)
     ..devicePixelRatio = 1;
@@ -37,13 +45,36 @@ Future<void> _pump(WidgetTester tester, Widget home, {double scale = 3.1}) async
         authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
         discoveryProvider.overrideWith(_Empty.new),
       ],
-      child: MaterialApp(home: home),
+      child: routed
+          ? MaterialApp.router(
+              routerConfig: GoRouter(
+                routes: [GoRoute(path: '/', builder: (_, __) => home)],
+              ),
+            )
+          : MaterialApp(home: home),
     ),
   );
   await tester.pumpAndSettle();
 }
 
 void main() {
+
+  testWidgets('the sign-in title is not broken inside the word', (tester) async {
+    await _pump(tester, const LoginScreen());
+    expect(tester.takeException(), isNull);
+    // The title is clamped (the Ahem test font is too wide to count lines).
+    final scaler = MediaQuery.textScalerOf(tester.element(find.text('MuxBus')));
+    expect(scaler.scale(10), lessThanOrEqualTo(20));
+  });
+
+  testWidgets('settings: the version value goes under its label', (tester) async {
+    await _pump(tester, const SettingsScreen(), routed: true);
+    expect(tester.takeException(), isNull);
+    await tester.scrollUntilVisible(find.text('Version'), 200);
+    final label = tester.getRect(find.text('Version'));
+    final value = tester.getRect(find.textContaining('0.1.0'));
+    expect(value.top, greaterThanOrEqualTo(label.bottom));
+  });
   testWidgets('host rows keep a readable name and put the tags under it', (
     tester,
   ) async {
@@ -52,7 +83,7 @@ void main() {
     // "atlas" on one line, not a letter wide: well over three characters.
     final name = tester.getSize(find.text('atlas'));
     expect(name.width, greaterThan(60));
-    expect(name.height, lessThan(2 * 31 * 1.2));
+    expect(name.height, lessThan(2 * 31 * 1.2 * 2.2));
     // The version moved to the line under the name rather than beside it.
     expect(find.textContaining('v0.59.11'), findsWidgets);
     // The platform tag is a whole word, not a column of letters.

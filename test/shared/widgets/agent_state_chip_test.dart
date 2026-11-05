@@ -215,7 +215,7 @@ void main() {
       expect(find.byType(Opacity), findsNothing);
       await tester.pump(const Duration(seconds: 11));
       expect(find.text('idle, as of 1m ago'), findsOneWidget);
-      expect(tester.widget<Opacity>(find.byType(Opacity)).opacity, 0.55);
+      expect(tester.widget<Opacity>(find.byType(Opacity)).opacity, 0.7);
     });
 
     testWidgets('the spinner turns while working', (tester) async {

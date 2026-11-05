@@ -447,7 +447,7 @@ void main() {
               matching: find.byType(Opacity),
             ))
             .opacity,
-        0.55,
+        0.7,
       );
     });
   });
