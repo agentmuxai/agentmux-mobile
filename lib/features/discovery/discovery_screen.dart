@@ -8,6 +8,7 @@ import '../../core/discovery/discovery_telemetry.dart';
 import '../../core/discovery/host_tree.dart';
 import '../../core/fleet/cloud_instance_source.dart';
 import '../../core/viewer/paired_hosts_repository.dart';
+import '../../shared/widgets/edge_insets.dart';
 import '../sysinfo/sysinfo_summary.dart';
 import '../tower/tower_screen.dart';
 import 'channel_terminals.dart';
@@ -228,7 +229,7 @@ class _ResultsView extends ConsumerWidget {
         return ref.read(discoveryProvider.notifier).refresh();
       },
       child: ListView.builder(
-        padding: const EdgeInsets.all(12),
+        padding: insetListPadding(context, const EdgeInsets.all(12)),
         itemCount: hosts.length + (note == null ? 0 : 1),
         // Keyed by host so an update never hands one host's expanded state
         // to another.
