@@ -1,5 +1,9 @@
 import 'dart:math' as math;
 
+import 'package:agentmux_mobile/features/feed/code_highlight.dart';
+import 'package:agentmux_mobile/features/feed/feed_theme.dart';
+import 'package:agentmux_mobile/features/feed/markdown_view.dart';
+import 'package:agentmux_mobile/features/feed/transcript_view.dart';
 import 'package:agentmux_mobile/shared/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -57,6 +61,36 @@ void main() {
           expect(_contrast(c, bg), greaterThanOrEqualTo(4.5));
         }
       }
+    });
+
+    test('the feed light text reaches 4.5:1 on the light surface', () {
+      const f = FeedPalette.light;
+      for (final (name, c) in [
+        ('text', f.text),
+        ('secondary', f.secondary),
+        ('grey', f.grey),
+        ('accent', f.accent),
+        ('successText', f.successText),
+        ('warningText', f.warningText),
+        ('errorText', f.errorText),
+        ('info', f.info),
+        ('link', f.link),
+        ('termGreen', f.termGreen),
+        ('termCyan', f.termCyan),
+        ('termMagenta', f.termMagenta),
+      ]) {
+        expect(
+          _contrast(c, AppPalette.light.surface),
+          greaterThanOrEqualTo(4.5),
+          reason: name,
+        );
+      }
+    });
+
+    test('the feed dark set is the desktop pane palette', () {
+      expect(FeedPalette.dark.text, const Color(0xFFF7F7F7));
+      expect(FeedPalette.dark.link, const Color(0xFF32AFFF));
+      expect(FeedPalette.dark.blockSolid, const Color(0xFF000000));
     });
 
     test('the dark set is what the app always showed', () {
@@ -153,36 +187,71 @@ void main() {
     expect(find.text('kept'), findsOneWidget);
   });
 
-  testWidgets('alwaysDark keeps a surface dark when the OS is light', (
-    tester,
-  ) async {
-    tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
-    addTearDown(tester.platformDispatcher.clearAllTestValues);
-    late BuildContext inner;
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.light,
-        darkTheme: AppTheme.dark,
-        builder: appThemeBuilder,
-        home: Builder(
-          builder:
-              (context) => alwaysDark(
-                context,
-                Scaffold(
-                  body: Builder(
-                    builder: (c) {
-                      inner = c;
-                      return const SizedBox();
-                    },
-                  ),
-                ),
-              ),
+  group('the feed follows the OS colour mode', () {
+    Future<void> pumpIn(WidgetTester tester, Brightness mode, Widget child) {
+      tester.platformDispatcher.platformBrightnessTestValue = mode;
+      addTearDown(tester.platformDispatcher.clearAllTestValues);
+      return tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
+          home: Scaffold(body: child),
         ),
-      ),
-    );
-    expect(Theme.of(inner).brightness, Brightness.dark);
-    expect(inner.palette.background, AppPalette.dark.background);
-    expect(inner.palette.textDim, Colors.white54);
+      );
+    }
+
+    testWidgets('prose takes the text colour of each mode', (
+      tester,
+    ) async {
+      await pumpIn(tester, Brightness.light, const FeedMarkdown('Hello there'));
+      var run = tester.widget<SelectableText>(find.byType(SelectableText));
+      expect(run.textSpan?.style?.color ?? run.style?.color, FeedPalette.light.text);
+      await pumpIn(tester, Brightness.dark, const FeedMarkdown('Hello there'));
+      await tester.pumpAndSettle();
+      run = tester.widget<SelectableText>(find.byType(SelectableText));
+      expect(run.textSpan?.style?.color ?? run.style?.color, FeedPalette.dark.text);
+    });
+
+    testWidgets('the prompt block inverts: light text on a dark box in light mode', (
+      tester,
+    ) async {
+      await pumpIn(
+        tester,
+        Brightness.light,
+        const PromptBlock(text: 'Fix the test'),
+      );
+      final box = tester.widget<Container>(
+        find
+            .ancestor(of: find.text('Fix the test'), matching: find.byType(Container))
+            .first,
+      );
+      expect((box.decoration! as BoxDecoration).color, FeedPalette.light.text);
+      expect(
+        tester.widget<EditableText>(find.text('Fix the test')).style.color,
+        FeedPalette.light.blockSolid,
+      );
+    });
+
+    test('syntax highlighting is cached per mode, with a theme for each', () {
+      const code = 'fn main() { let x = 1; }';
+      const base = TextStyle(fontSize: 12);
+      final dark = CodeHighlighter.highlightSync(code, 'rust', base, Brightness.dark)!;
+      final light = CodeHighlighter.highlightSync(code, 'rust', base, Brightness.light)!;
+      Set<Color?> colours(InlineSpan s) {
+        final out = <Color?>{};
+        void walk(InlineSpan n) {
+          if (n is TextSpan) {
+            out.add(n.style?.color);
+            n.children?.forEach(walk);
+          }
+        }
+
+        walk(s);
+        return out;
+      }
+
+      expect(colours(dark), isNot(colours(light)));
+    });
   });
 
   group('snack bar', () {

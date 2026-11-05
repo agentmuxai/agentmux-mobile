@@ -1,3 +1,4 @@
+import 'package:agentmux_mobile/features/feed/feed_theme.dart';
 import 'package:agentmux_mobile/features/feed/tool_block.dart';
 import 'package:agentmux_mobile/features/feed/tool_meta.dart';
 import 'package:agentmux_mobile/features/feed/transcript.dart';
@@ -59,7 +60,7 @@ void main() {
     ]);
     expect(agent.steps.first.result, 'Found 2 files');
     expect(Transcript.runningStep(agent)?.name, 'Read');
-    expect(toolPill(agent)!.label, '2 steps');
+    expect(toolPill(agent, FeedPalette.dark)!.label, '2 steps');
   });
 
   test('steps of an Agent call before the snapshot are dropped', () {

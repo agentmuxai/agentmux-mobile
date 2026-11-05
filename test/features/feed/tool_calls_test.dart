@@ -95,7 +95,7 @@ void main() {
       ));
       expect(t.state, ToolState.failed);
       expect(t.durationMs, 380);
-      expect(toolPill(t)!.label, 'exit 2');
+      expect(toolPill(t, FeedPalette.dark)!.label, 'exit 2');
       expect(bashExit(t.result)!.body, "ls: cannot access '/nonexistent'");
     });
 
@@ -125,7 +125,7 @@ void main() {
       ));
       expect(t.facts.linesAdded, 2);
       expect(t.facts.linesRemoved, 1);
-      expect(toolPill(t)!.label, '3 lines');
+      expect(toolPill(t, FeedPalette.dark)!.label, '3 lines');
     });
 
     test('several results in one message: the structured result is no one\'s', () {
@@ -189,14 +189,25 @@ void main() {
       expect(toolGlyph(t), '⏹');
     });
 
-    test('a call too large to send still gets its header', () {
+    testWidgets('a call too large to send still gets its header', (tester) async {
+      late BuildContext context;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (c) {
+              context = c;
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
       final whole = toolUse('toolu_big', 'Write', {'file_path': r'C:\x\big.json', 'content': 'y' * 1000});
       final tr = Transcript(provider: 'claude')..addFrames([truncated(whole.substring(0, 300), 90000)]);
       final t = tr.items.single as ToolCallItem;
       expect(t.name, 'Write');
       expect(t.inputTruncatedBytes, 90000);
       expect(t.input['file_path'], r'C:\x\big.json');
-      expect(buildPreview(t).child, isA<SelectableText>());
+      expect(buildPreview(context, t).child, isA<SelectableText>());
     });
   });
 
@@ -215,19 +226,19 @@ void main() {
     });
 
     test('pills', () {
-      expect(toolPill(_item('Bash', {}, result: '<exited 0 in 0.1s>\nok'))!.label, 'exit 0');
-      expect(toolPill(_item('Bash', {}, result: '<exited 1 in 0.1s>\n'))!.color, FeedColors.errorText);
-      expect(toolPill(_item('Bash', {}, result: 'no exit line')), isNull);
-      expect(toolPill(_item('Write', {'content': 'x' * 2048}))!.label, '2.0 KB');
-      expect(toolPill(_item('Edit', {}))!.label, 'edited');
-      expect(toolPill(_item('Grep', {}, result: 'Found 3 files\na\nb\nc'))!.label, '3 files');
-      expect(toolPill(_item('Grep', {'output_mode': 'content'}, result: 'a:1:x\nb:2:y'))!.label, '2 matches');
-      expect(toolPill(_item('Glob', {}, result: 'a.dart\nb.dart'))!.label, '2 files');
+      expect(toolPill(_item('Bash', {}, result: '<exited 0 in 0.1s>\nok'), FeedPalette.dark)!.label, 'exit 0');
+      expect(toolPill(_item('Bash', {}, result: '<exited 1 in 0.1s>\n'), FeedPalette.dark)!.color, FeedPalette.dark.errorText);
+      expect(toolPill(_item('Bash', {}, result: 'no exit line'), FeedPalette.dark), isNull);
+      expect(toolPill(_item('Write', {'content': 'x' * 2048}), FeedPalette.dark)!.label, '2.0 KB');
+      expect(toolPill(_item('Edit', {}), FeedPalette.dark)!.label, 'edited');
+      expect(toolPill(_item('Grep', {}, result: 'Found 3 files\na\nb\nc'), FeedPalette.dark)!.label, '3 files');
+      expect(toolPill(_item('Grep', {'output_mode': 'content'}, result: 'a:1:x\nb:2:y'), FeedPalette.dark)!.label, '2 matches');
+      expect(toolPill(_item('Glob', {}, result: 'a.dart\nb.dart'), FeedPalette.dark)!.label, '2 files');
       expect(
-        toolPill(_item('WebSearch', {}, result: 'Links: [{"title":"A","url":"https://a.example"}]'))!.label,
+        toolPill(_item('WebSearch', {}, result: 'Links: [{"title":"A","url":"https://a.example"}]'), FeedPalette.dark)!.label,
         '1 source',
       );
-      expect(toolPill(_item('Bash', {}, state: ToolState.running, result: '<exited 0 in 1s>')), isNull);
+      expect(toolPill(_item('Bash', {}, state: ToolState.running, result: '<exited 0 in 1s>'), FeedPalette.dark), isNull);
     });
 
     test('Read range from the call while running', () {
@@ -290,7 +301,7 @@ void main() {
         expect(text, contains(s));
       }
       final bar = tester.widget<Container>(find.descendant(of: find.byType(ToolBlock), matching: find.byType(Container)).first);
-      expect(((bar.decoration! as BoxDecoration).border! as Border).left.color, FeedColors.success);
+      expect(((bar.decoration! as BoxDecoration).border! as Border).left.color, FeedPalette.dark.success);
     });
 
     testWidgets('on a narrow screen the pill goes first', (tester) async {
@@ -330,7 +341,7 @@ void main() {
         of: find.text('error: no rule'),
         matching: find.byType(SelectableText),
       ));
-      expect(err.style?.color, FeedColors.errorText);
+      expect(err.style?.color, FeedPalette.dark.errorText);
     });
 
     testWidgets('a long log keeps its end', (tester) async {
@@ -350,7 +361,7 @@ void main() {
       expect(rows.map((r) => r.line.op), [DiffOp.removed, DiffOp.added]);
       expect(_allText(tester), contains('lib/a.dart'));
       final added = tester.widget<Container>(find.descendant(of: find.byWidget(rows[1]), matching: find.byType(Container)).first);
-      expect(added.color, FeedColors.tint(FeedColors.successText, 0.15));
+      expect(added.color, feedTint(FeedPalette.dark.successText, 0.15));
     });
 
     testWidgets('a rebuild keeps the built preview until the call changes', (tester) async {

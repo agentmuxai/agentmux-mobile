@@ -479,7 +479,7 @@ QTest (Part B and summary), Clare (Part A)
 |---|---|---|
 | 1. Safe areas and insets | I2 (lists keep clear of the notch and island), I1 (lists end above the home-indicator band), I4 (Connect manually scrolls above the keyboard), I5 (the DEMO banner reaches both edges and wraps at large text), A1 (bottom inset on lists), A2 (the sign-in bar is compact on short screens) | merged (#103) |
 | 2. Bottom status band (design A, fallback B) | I1 (the empty band itself) | merged (#104) |
-| 3. OS color mode and the snackbar | I6, A3, I3 | this change, for the app's own screens and the Android launch window; the feed (its own palette; it stays dark in either mode until it has a light set) and the iOS launch screen follow |
+| 3. OS color mode and the snackbar | I6, A3, I3 | merged (#105) for the app's own screens and the Android launch window; the iOS launch screen merged (#107); the feed's light set: this change |
 | 4a. Wide-screen basics | A4 and I8 (a centred 640 dp column on tablets and unfolded foldables), I9 (the iPadOS window controls), A5 (nothing across a hinge) | this change |
 | 4b. List-detail and a rail | I8, the rest | open, waits for the operator's choice between list-detail and wider columns only |
 | 5. Large text | I7, A6 | this change |
@@ -512,3 +512,9 @@ From a text scale of 1.5 up (iOS Dynamic Type from about AX1, Android's larger f
 The capture below is a 320 dp window at the largest font (x3.1), where the same screen had a computer name one letter wide and its tag split into "L/A/N":
 
 ![The demo fleet at x3.1 text on a 320 dp window](form-factors/android/large_text_demo_fleet.png)
+
+### The feed in light mode (3b)
+
+The feed keeps the desktop pane's colours in dark mode and has a light set of the same roles (`FeedPalette`, read as `context.feed`): dark text on white, status and link colours in darker shades (each text role reaches 4.5:1 on the light surface, a test checks it), the prompt block inverted (a dark box with light text), and the `github` syntax theme for code instead of `github-dark-dimmed`. Highlighted code is cached per mode.
+
+![The feed with the OS in light mode: prose, a highlighted code block, a tool line and the composer](form-factors/android/os_light_feed.png)

@@ -35,7 +35,8 @@ class FeedMarkdown extends StatelessWidget {
   Widget build(BuildContext context) {
     final segments = splitCallouts(text);
     final openTail = streaming ? openFenceTail(text) : null;
-    final sheet = style == null ? _sheet : _sheetFor(style!);
+    final f = context.feed;
+    final sheet = _sheetFor(style ?? feedProseStyle(f), f);
     final children = [
       for (final s in segments)
         switch (s) {
@@ -71,23 +72,22 @@ class FeedMarkdown extends StatelessWidget {
     );
   }
 
-  static final _sheet = _sheetFor(feedProse);
-  static final _sheets = <TextStyle, MarkdownStyleSheet>{};
+  static final _sheets = <(TextStyle, FeedPalette), MarkdownStyleSheet>{};
 
-  /// One sheet per prose style, kept so a rebuild doesn't re-parse.
-  static MarkdownStyleSheet _sheetFor(TextStyle p) =>
-      _sheets[p] ??= _buildSheet(p);
+  /// One sheet per prose style and palette, kept so a rebuild doesn't re-parse.
+  static MarkdownStyleSheet _sheetFor(TextStyle p, FeedPalette f) =>
+      _sheets[(p, f)] ??= _buildSheet(p, f);
 
-  static MarkdownStyleSheet _buildSheet(TextStyle p) {
+  static MarkdownStyleSheet _buildSheet(TextStyle p, FeedPalette f) {
     final heading = p.copyWith(fontWeight: FontWeight.w600, height: 1.3);
     return MarkdownStyleSheet(
       p: p,
       pPadding: EdgeInsets.zero,
       blockSpacing: FeedSpace.s2,
-      a: p.copyWith(color: FeedColors.link),
-      code: feedCode.copyWith(
+      a: p.copyWith(color: f.link),
+      code: feedCodeStyle(f).copyWith(
         fontSize: 12.5,
-        backgroundColor: FeedColors.tint(FeedColors.text, 0.08),
+        backgroundColor: feedTint(f.text, 0.08),
         fontStyle: p.fontStyle,
         color: p.color,
       ),
@@ -105,23 +105,23 @@ class FeedMarkdown extends StatelessWidget {
       del: const TextStyle(decoration: TextDecoration.lineThrough),
       blockquote: p,
       blockquotePadding: const EdgeInsets.fromLTRB(6, 2, 4, 2),
-      blockquoteDecoration: const BoxDecoration(color: FeedColors.panel),
+      blockquoteDecoration: BoxDecoration(color: f.panel),
       listBullet: p,
       listIndent: 20,
       checkbox: p,
       tableHead: p.copyWith(fontSize: 12, fontWeight: FontWeight.w600),
       tableBody: p.copyWith(fontSize: 13),
-      tableBorder: const TableBorder.symmetric(
-        inside: BorderSide(color: FeedColors.border, width: 0.5),
-        outside: BorderSide(color: FeedColors.border, width: 0.5),
+      tableBorder: TableBorder.symmetric(
+        inside: BorderSide(color: f.border, width: 0.5),
+        outside: BorderSide(color: f.border, width: 0.5),
       ),
       tableColumnWidth: const IntrinsicColumnWidth(),
       tableCellsPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       tableHeadCellsPadding:
           const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      tableHeadCellsDecoration: const BoxDecoration(color: FeedColors.hover),
-      horizontalRuleDecoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: FeedColors.border)),
+      tableHeadCellsDecoration: BoxDecoration(color: f.hover),
+      horizontalRuleDecoration: BoxDecoration(
+        border: Border(top: BorderSide(color: f.border)),
       ),
       codeblockDecoration: const BoxDecoration(),
       codeblockPadding: EdgeInsets.zero,
@@ -270,7 +270,7 @@ class CodeBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 2),
-      color: FeedColors.panel,
+      color: context.feed.panel,
       child: Stack(
         children: [
           Padding(
@@ -295,11 +295,13 @@ class HighlightedCode extends StatefulWidget {
     super.key,
     required this.code,
     this.language,
-    this.style = feedCode,
+    this.style,
   });
   final String code;
   final String? language;
-  final TextStyle style;
+
+  /// Defaults to the feed's code style.
+  final TextStyle? style;
 
   @override
   State<HighlightedCode> createState() => _HighlightedCodeState();
@@ -308,9 +310,12 @@ class HighlightedCode extends StatefulWidget {
 class _HighlightedCodeState extends State<HighlightedCode> {
   TextSpan? _span;
 
+  TextStyle get _style => widget.style ?? context.feedCode;
+
+  // Also when the colour mode changes: the highlight theme depends on it.
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     _highlight();
   }
 
@@ -323,11 +328,12 @@ class _HighlightedCodeState extends State<HighlightedCode> {
   void _highlight() {
     final code = widget.code;
     final language = widget.language;
-    final style = widget.style;
-    _span = CodeHighlighter.highlightSync(code, language, style) ??
-        CodeHighlighter.cached(code, language);
+    final style = _style;
+    final mode = context.feed.brightness;
+    _span = CodeHighlighter.highlightSync(code, language, style, mode) ??
+        CodeHighlighter.cached(code, language, mode);
     if (_span != null || language == null) return;
-    unawaited(CodeHighlighter.highlightAsync(code, language, style).then((span) {
+    unawaited(CodeHighlighter.highlightAsync(code, language, style, mode).then((span) {
       if (!mounted || span == null) return;
       if (widget.code != code || widget.language != language) return;
       setState(() => _span = span);
@@ -337,8 +343,8 @@ class _HighlightedCodeState extends State<HighlightedCode> {
   @override
   Widget build(BuildContext context) {
     return SelectableText.rich(
-      _span ?? TextSpan(text: widget.code, style: widget.style),
-      style: widget.style,
+      _span ?? TextSpan(text: widget.code, style: _style),
+      style: _style,
     );
   }
 }
@@ -354,7 +360,7 @@ class CopyButton extends StatelessWidget {
       tooltip: 'Copy',
       visualDensity: VisualDensity.compact,
       iconSize: 16,
-      color: FeedColors.secondary,
+      color: context.feed.secondary,
       icon: const Icon(Icons.copy_rounded),
       onPressed: () async {
         await Clipboard.setData(ClipboardData(text: text));
@@ -389,12 +395,12 @@ class _RuledHeadingBuilder extends MarkdownElementBuilder {
   ) {
     return Container(
       padding: const EdgeInsets.only(bottom: 6),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: FeedColors.border)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: context.feed.border)),
       ),
       child: _InlineText(
         nodes: element.children ?? const [],
-        style: preferredStyle ?? feedProse,
+        style: preferredStyle ?? context.feedProse,
         sheet: sheet,
       ),
     );
@@ -462,13 +468,13 @@ class _InlineTextState extends State<_InlineText> {
         return [
           TextSpan(
             text: node.textContent,
-            style: style.copyWith(color: FeedColors.link),
+            style: style.copyWith(color: context.feed.link),
             recognizer: r,
           ),
         ];
       case AmSpanSyntax.tag:
         final classes = (node.attributes['class'] ?? '').split(' ').toSet();
-        return [TextSpan(text: node.textContent, style: style.merge(amSpanStyle(classes)))];
+        return [TextSpan(text: node.textContent, style: style.merge(amSpanStyle(classes, context.feed)))];
       default:
         return _spans(children, style);
     }
@@ -524,19 +530,19 @@ class _AmSpanBuilder extends MarkdownElementBuilder {
   ) {
     final classes = (element.attributes['class'] ?? '').split(' ').toSet();
     final text = element.textContent;
-    final base = parentStyle ?? feedProse;
-    final style = base.merge(amSpanStyle(classes));
+    final base = parentStyle ?? context.feedProse;
+    final style = base.merge(amSpanStyle(classes, context.feed));
     if (!classes.contains('am-badge')) {
       return Text.rich(TextSpan(text: text, style: style));
     }
-    final color = style.color ?? FeedColors.secondary;
+    final color = style.color ?? context.feed.secondary;
     return Text.rich(TextSpan(children: [
       WidgetSpan(
         alignment: PlaceholderAlignment.middle,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 6),
           decoration: BoxDecoration(
-            color: FeedColors.tint(color, 0.16),
+            color: feedTint(color, 0.16),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
@@ -555,24 +561,24 @@ class _AmSpanBuilder extends MarkdownElementBuilder {
 }
 
 /// The style of a semantic span's classes (`markdown.scss`).
-TextStyle amSpanStyle(Set<String> classes) {
+TextStyle amSpanStyle(Set<String> classes, FeedPalette f) {
   var s = const TextStyle();
-  if (classes.contains('am-badge')) s = s.copyWith(color: FeedColors.secondary);
-  if (classes.contains('am-ok')) s = s.copyWith(color: FeedColors.successText);
-  if (classes.contains('am-warn')) s = s.copyWith(color: FeedColors.warningText);
-  if (classes.contains('am-error')) s = s.copyWith(color: FeedColors.errorText);
-  if (classes.contains('am-info')) s = s.copyWith(color: FeedColors.info);
-  if (classes.contains('am-muted')) s = s.copyWith(color: FeedColors.secondary);
+  if (classes.contains('am-badge')) s = s.copyWith(color: f.secondary);
+  if (classes.contains('am-ok')) s = s.copyWith(color: f.successText);
+  if (classes.contains('am-warn')) s = s.copyWith(color: f.warningText);
+  if (classes.contains('am-error')) s = s.copyWith(color: f.errorText);
+  if (classes.contains('am-info')) s = s.copyWith(color: f.info);
+  if (classes.contains('am-muted')) s = s.copyWith(color: f.secondary);
   if (classes.contains('am-added')) {
     s = s.copyWith(
-      color: FeedColors.successText,
-      backgroundColor: FeedColors.tint(FeedColors.successText, 0.14),
+      color: f.successText,
+      backgroundColor: feedTint(f.successText, 0.14),
     );
   }
   if (classes.contains('am-removed')) {
     s = s.copyWith(
-      color: FeedColors.errorText,
-      backgroundColor: FeedColors.tint(FeedColors.errorText, 0.14),
+      color: f.errorText,
+      backgroundColor: feedTint(f.errorText, 0.14),
       decoration: TextDecoration.lineThrough,
     );
   }
@@ -588,12 +594,12 @@ class _Callout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = calloutColor(kind);
+    final color = calloutColor(kind, context.feed);
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
       padding: const EdgeInsets.fromLTRB(10, 4, 8, 6),
       decoration: BoxDecoration(
-        color: FeedColors.tint(color, 0.08),
+        color: feedTint(color, 0.08),
         border: Border(left: BorderSide(color: color, width: 3.5)),
       ),
       child: Column(
@@ -601,7 +607,7 @@ class _Callout extends StatelessWidget {
         children: [
           Text(
             calloutTitle(kind),
-            style: feedProse.copyWith(color: color, fontWeight: FontWeight.w600),
+            style: context.feedProse.copyWith(color: color, fontWeight: FontWeight.w600),
           ),
           child,
         ],
@@ -610,12 +616,12 @@ class _Callout extends StatelessWidget {
   }
 }
 
-Color calloutColor(CalloutKind kind) => switch (kind) {
-      CalloutKind.note => FeedColors.info,
-      CalloutKind.tip => FeedColors.successText,
-      CalloutKind.important => FeedColors.accent,
-      CalloutKind.warning => FeedColors.warningText,
-      CalloutKind.caution => FeedColors.errorText,
+Color calloutColor(CalloutKind kind, FeedPalette f) => switch (kind) {
+      CalloutKind.note => f.info,
+      CalloutKind.tip => f.successText,
+      CalloutKind.important => f.accent,
+      CalloutKind.warning => f.warningText,
+      CalloutKind.caution => f.errorText,
     };
 
 String calloutTitle(CalloutKind kind) => switch (kind) {
@@ -667,17 +673,17 @@ class _ImageCardState extends State<_ImageCard> {
       margin: const EdgeInsets.symmetric(vertical: 2),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: FeedColors.panel,
-        border: Border.all(color: FeedColors.border),
+        color: context.feed.panel,
+        border: Border.all(color: context.feed.border),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 16, color: FeedColors.secondary),
+          Icon(icon, size: 16, color: context.feed.secondary),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               alt == null || alt.isEmpty ? label : '$label\n$alt',
-              style: feedProse.copyWith(fontSize: 12, color: FeedColors.secondary),
+              style: context.feedProse.copyWith(fontSize: 12, color: context.feed.secondary),
             ),
           ),
         ],

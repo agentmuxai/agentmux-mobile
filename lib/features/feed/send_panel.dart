@@ -122,9 +122,9 @@ class _SendPanelState extends ConsumerState<SendPanel> {
   Widget _composer(BuildContext context) {
     final tooLong = _tooLong(_text.text);
     return Container(
-      decoration: const BoxDecoration(
-        color: FeedColors.blockSolid,
-        border: Border(top: BorderSide(color: FeedColors.secondary, width: 0.5)),
+      decoration: BoxDecoration(
+        color: context.feed.blockSolid,
+        border: Border(top: BorderSide(color: context.feed.secondary, width: 0.5)),
       ),
       padding: const EdgeInsets.fromLTRB(FeedSpace.s3, 6, 4, 6),
       child: SafeArea(
@@ -134,11 +134,11 @@ class _SendPanelState extends ConsumerState<SendPanel> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (widget.agentWorking)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 4),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
                 child: Text(
                   'The agent is working: it reads this at its next step.',
-                  style: TextStyle(fontSize: 12, color: FeedColors.secondary),
+                  style: TextStyle(fontSize: 12, color: context.feed.secondary),
                 ),
               ),
             Row(
@@ -211,7 +211,7 @@ class _SentRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final failed = message.state == SentState.failed;
     return Container(
-      color: FeedColors.blockSolid,
+      color: context.feed.blockSolid,
       padding: const EdgeInsets.symmetric(horizontal: FeedSpace.s3, vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -224,13 +224,13 @@ class _SentRow extends StatelessWidget {
                   message.text,
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13, color: FeedColors.secondary),
+                  style: TextStyle(fontSize: 13, color: context.feed.secondary),
                 ),
                 Text(
                   failed ? sendFailureText(message) : 'Sending…',
                   style: TextStyle(
                     fontSize: 12,
-                    color: failed ? Theme.of(context).colorScheme.error : FeedColors.secondary,
+                    color: failed ? Theme.of(context).colorScheme.error : context.feed.secondary,
                   ),
                 ),
               ],
