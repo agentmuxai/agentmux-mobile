@@ -479,11 +479,11 @@ QTest (Part B and summary), Clare (Part A)
 |---|---|---|
 | 1. Safe areas and insets | I2 (lists keep clear of the notch and island), I1 (lists end above the home-indicator band), I4 (Connect manually scrolls above the keyboard), I5 (the DEMO banner reaches both edges and wraps at large text), A1 (bottom inset on lists), A2 (the sign-in bar is compact on short screens) | merged (#103) |
 | 2. Bottom status band (design A, fallback B) | I1 (the empty band itself) | merged (#104) |
-| 3. OS color mode and the snackbar | I6, A3, I3 | merged (#105) for the app's own screens and the Android launch window; the iOS launch screen merged (#107); the feed's light set: this change |
-| 4a. Wide-screen basics | A4 and I8 (a centred 640 dp column on tablets and unfolded foldables), I9 (the iPadOS window controls), A5 (nothing across a hinge) | this change |
+| 3. OS color mode and the snackbar | I6, A3, I3 | merged (#105) for the app's own screens and the Android launch window; the iOS launch screen merged (#107); the feed's light set merged (#110) |
+| 4a. Wide-screen basics | A4 and I8 (a centred 640 dp column on tablets and unfolded foldables), I9 (the iPadOS window controls), A5 (nothing across a hinge) | merged (#106) |
 | 4b. List-detail and a rail | I8, the rest | open, waits for the operator's choice between list-detail and wider columns only |
-| 5. Large text | I7, A6 | this change |
-| 6. UIScene migration | P1 | open |
+| 5. Large text | I7, A6 | merged (#108) |
+| 6. UIScene migration | P1 | merged (#111) |
 
 ![The status band on a Pixel 9 with gesture navigation: the line sits in the band beside the gesture pill](form-factors/android/band_p9_gesture.png)
 
