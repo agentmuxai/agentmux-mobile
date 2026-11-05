@@ -1,26 +1,35 @@
+import 'package:agentmux_mobile/core/auth/auth_provider.dart';
 import 'package:agentmux_mobile/features/demo/demo_agent_detail_screen.dart';
 import 'package:agentmux_mobile/features/demo/demo_fleet_screen.dart';
 import 'package:agentmux_mobile/features/discovery/manual_add_sheet.dart';
+import 'package:agentmux_mobile/features/discovery/muxbus_account_bar.dart';
 import 'package:agentmux_mobile/shared/widgets/edge_insets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../core/auth/auth_fakes.dart';
+
 /// A landscape iPhone 17 Pro Max: 62 pt of Dynamic Island on each side and the
 /// 20 pt home-indicator band, no status bar.
 const _landscapeInsets = EdgeInsets.only(left: 62, right: 62, bottom: 20);
 
-Widget _app(Widget home, {Size size = const Size(956, 440), EdgeInsets? insets}) {
+Widget _app(
+  Widget home, {
+  Size size = const Size(956, 440),
+  EdgeInsets? insets,
+}) {
   return ProviderScope(
     child: MaterialApp(
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(
-          size: size,
-          padding: insets ?? _landscapeInsets,
-          viewPadding: insets ?? _landscapeInsets,
-        ),
-        child: child!,
-      ),
+      builder:
+          (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              size: size,
+              padding: insets ?? _landscapeInsets,
+              viewPadding: insets ?? _landscapeInsets,
+            ),
+            child: child!,
+          ),
       home: home,
     ),
   );
@@ -55,10 +64,7 @@ void main() {
     final banner = find.text('DEMO DATA — not a live connection');
     expect(banner, findsOneWidget);
     // The yellow is the banner's Container: full width, edge to edge.
-    final colour = find.ancestor(
-      of: banner,
-      matching: find.byType(Container),
-    );
+    final colour = find.ancestor(of: banner, matching: find.byType(Container));
     final box = tester.getRect(colour.first);
     expect(box.left, 0);
     expect(box.right, 956);
@@ -80,7 +86,11 @@ void main() {
     addTearDown(tester.view.reset);
     const portrait = EdgeInsets.only(top: 62, bottom: 34);
     await tester.pumpWidget(
-      _app(const DemoFleetScreen(), size: const Size(402, 874), insets: portrait),
+      _app(
+        const DemoFleetScreen(),
+        size: const Size(402, 874),
+        insets: portrait,
+      ),
     );
     await tester.drag(find.byType(ListView), const Offset(0, -20000));
     await tester.pumpAndSettle();
@@ -119,10 +129,11 @@ void main() {
       _app(
         Scaffold(
           body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => showManualAddSheet(context),
-              child: const Text('open'),
-            ),
+            builder:
+                (context) => TextButton(
+                  onPressed: () => showManualAddSheet(context),
+                  child: const Text('open'),
+                ),
           ),
         ),
       ),
@@ -136,5 +147,39 @@ void main() {
     await tester.ensureVisible(find.text('Connect'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+  });
+
+  Future<double> barHeight(WidgetTester tester, Size size) async {
+    tester.view
+      ..physicalSize = size
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(
+            FakeAuthRepository(),
+          ),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(bottomNavigationBar: MuxbusAccountBar()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    return tester
+        .getSize(find.byKey(const ValueKey('muxbus-account-bar')))
+        .height;
+  }
+
+  testWidgets('sign-in bar: compact on a short landscape phone only', (
+    tester,
+  ) async {
+    final phone = await barHeight(tester, const Size(956, 440));
+    final portrait = await barHeight(tester, const Size(402, 874));
+    final ipad = await barHeight(tester, const Size(1376, 774));
+    expect(phone, lessThan(portrait));
+    // A wide, tall landscape iPad keeps the full bar.
+    expect(ipad, portrait);
   });
 }

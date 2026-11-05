@@ -24,9 +24,11 @@ class MuxbusAccountBar extends ConsumerWidget {
         ref.watch(authProvider).valueOrNull == AuthStatus.authenticated;
     final email = signedIn ? ref.watch(accountEmailProvider).valueOrNull : null;
 
-    // On a landscape phone the screen is short: the bar keeps its job but
-    // gives the list the room (it took about a fifth of the height).
-    final compact = MediaQuery.orientationOf(context) == Orientation.landscape;
+    // On a short screen (a landscape phone; Material's compact height class is
+    // under 480) the bar keeps its job but gives the list the room: it took
+    // about a fifth of the height. An iPad or an unfolded foldable in landscape
+    // is not short and keeps the full bar.
+    final compact = MediaQuery.sizeOf(context).height < 480;
 
     return Material(
       color: Theme.of(context).colorScheme.surface,
