@@ -3,23 +3,28 @@ import Security
 import UIKit
 
 @main
-@objc class AppDelegate: FlutterAppDelegate {
+@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private let deviceKeys = DeviceKeys()
 
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    GeneratedPluginRegistrant.register(with: self)
-    if let controller = window?.rootViewController as? FlutterViewController {
-      let channel = FlutterMethodChannel(
-        name: "com.agentmux.agentmux_mobile/device_key",
-        binaryMessenger: controller.binaryMessenger)
-      channel.setMethodCallHandler { [weak self] call, result in
-        self?.deviceKeys.handle(call, result)
-      }
-    }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  // With the UIScene life cycle (TN3187) there is no window yet at launch: the scene
+  // creates it later, and Flutter calls this once its engine exists. Plugins and the
+  // app's own channels register here, and only here: registering them in
+  // didFinishLaunching as well registers each plugin twice, which asserts at launch.
+  func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
+    GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    let channel = FlutterMethodChannel(
+      name: "com.agentmux.agentmux_mobile/device_key",
+      binaryMessenger: engineBridge.applicationRegistrar.messenger())
+    channel.setMethodCallHandler { [weak self] call, result in
+      self?.deviceKeys.handle(call, result)
+    }
   }
 }
 
