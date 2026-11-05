@@ -4,8 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// Widest a list or settings page gets before it stops growing and centres:
-/// on an iPad, an unfolded foldable or a landscape phone a full-width row has
-/// its name at one edge and its badges a screen away (A4 and I8 in
+/// on an iPad, a tablet or an unfolded foldable a full-width row has its name
+/// at one edge and its badges a screen away (A4 and I8 in
 /// `docs/specs/SPEC_FORM_FACTORS_AND_EDGES_2026_11_04.md`).
 const listMaxWidth = 640.0;
 
