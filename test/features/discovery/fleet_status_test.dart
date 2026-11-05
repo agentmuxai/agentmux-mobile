@@ -14,6 +14,7 @@ import '../../core/auth/auth_fakes.dart';
 FleetEntry _entry(
   String host, {
   ChannelRoute route = ChannelRoute.lan,
+  Presence presence = Presence.live,
   List<LanAgent> agents = const [],
 }) => FleetEntry(
   instance: LanInstance(
@@ -27,6 +28,7 @@ FleetEntry _entry(
     agents: agents,
   ),
   route: route,
+  presence: presence,
 );
 
 class _FixedDiscovery extends DiscoveryNotifier {
@@ -105,6 +107,36 @@ void main() {
         summarizeFleet(DiscoveryResults(mixed)).connection,
         'Direct + Cloud',
       );
+    });
+
+    test('a computer that stopped answering is not counted', () {
+      final hosts = buildHostTrees([
+        _entry(
+          'studio-mac',
+          agents: const [LanAgent(name: 'Nova', state: AgentState.working)],
+        ),
+        _entry(
+          'old-box',
+          route: ChannelRoute.cloud,
+          presence: Presence.stale,
+          agents: const [
+            LanAgent(name: 'Atlas', state: AgentState.working),
+            LanAgent(name: 'Lyra', state: AgentState.waiting),
+          ],
+        ),
+      ]);
+      final s = summarizeFleet(DiscoveryResults(hosts));
+      expect(s.computers, 1);
+      expect(s.working, 1);
+      expect(s.waiting, 0);
+      // The stale one's cloud route does not make it "LAN + Cloud".
+      expect(s.connection, 'LAN');
+      final allStale = buildHostTrees([
+        _entry('old-box', presence: Presence.stale),
+      ]);
+      final off = summarizeFleet(DiscoveryResults(allStale));
+      expect(off.left(), 'Offline');
+      expect(off.live, isFalse);
     });
 
     test('scanning and empty', () {

@@ -78,26 +78,31 @@ FleetStatus summarizeFleet(DiscoveryState state) {
         waiting: 0,
       );
     case DiscoveryResults(:final hosts):
+      // Only what answers now counts: a stale or gone channel keeps its last
+      // agents, and a computer that stopped answering is not "working".
       final routes = <ChannelRoute>{};
-      var live = false;
+      var computers = 0;
       var working = 0;
       var waiting = 0;
       for (final host in hosts) {
+        var answering = false;
         for (final channel in host.channels) {
+          if (channel.presence != Presence.live) continue;
+          answering = true;
           routes.add(channel.route);
-          if (channel.presence == Presence.live) live = true;
           for (final agent in channel.agents) {
             if (agent.state == AgentState.working) working++;
             if (agent.state == AgentState.waiting) waiting++;
           }
         }
+        if (answering) computers++;
       }
       return FleetStatus(
-        connection: _connection(routes),
-        computers: hosts.length,
+        connection: computers == 0 ? 'Offline' : _connection(routes),
+        computers: computers,
         working: working,
         waiting: waiting,
-        live: live,
+        live: computers > 0,
       );
   }
 }
