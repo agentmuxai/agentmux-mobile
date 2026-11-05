@@ -25,6 +25,15 @@ class DiscoveryScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(discoveryProvider);
+    final compactBar =
+        MediaQuery.sizeOf(context).width < 360 || isLargeText(context);
+    void refresh() {
+      ref.invalidate(channelPanesProvider);
+      ref.invalidate(channelSysinfoProvider);
+      ref.invalidate(channelTowerProvider);
+      ref.read(discoveryProvider.notifier).refresh();
+    }
+
     // Signing in or out changes what the cloud list may show; ask again now
     // rather than at its next 30 s tick.
     ref.listen(authProvider, (prev, next) {
@@ -35,17 +44,21 @@ class DiscoveryScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBarInset(child: AppBar(
-        title: const Text('AgentMux'),
+        // The title is chrome: at a large text size it took what the icons
+        // need, and read "Agen…" (A6).
+        title: MediaQuery.withClampedTextScaling(
+          maxScaleFactor: 1.3,
+          child: const Text('AgentMux'),
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              ref.invalidate(channelPanesProvider);
-              ref.invalidate(channelSysinfoProvider);
-              ref.invalidate(channelTowerProvider);
-              ref.read(discoveryProvider.notifier).refresh();
-            },
-          ),
+          // Refresh moves into the menu where the four buttons would leave the
+          // title no room: a window under 360 dp wide, or large text.
+          if (!compactBar)
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Refresh',
+              onPressed: refresh,
+            ),
           IconButton(
             icon: const Icon(Icons.qr_code_scanner),
             tooltip: 'Scan QR code',
@@ -65,26 +78,35 @@ class DiscoveryScreen extends ConsumerWidget {
             icon: const Icon(Icons.more_vert),
             tooltip: 'More',
             onSelected: (action) => switch (action) {
+              _MoreAction.refresh => refresh(),
               _MoreAction.demo => context.push('/demo'),
               _MoreAction.settings => context.push('/settings'),
               _MoreAction.debugLog => context.push('/debug-log'),
             },
-            itemBuilder: (context) => const [
-              PopupMenuItem(
+            itemBuilder: (context) => [
+              if (compactBar)
+                const PopupMenuItem(
+                  value: _MoreAction.refresh,
+                  child: ListTile(
+                    leading: Icon(Icons.refresh),
+                    title: Text('Refresh'),
+                  ),
+                ),
+              const PopupMenuItem(
                 value: _MoreAction.demo,
                 child: ListTile(
                   leading: Icon(Icons.visibility_outlined),
                   title: Text('View a demo fleet'),
                 ),
               ),
-              PopupMenuItem(
+              const PopupMenuItem(
                 value: _MoreAction.settings,
                 child: ListTile(
                   leading: Icon(Icons.settings_outlined),
                   title: Text('Settings'),
                 ),
               ),
-              PopupMenuItem(
+              const PopupMenuItem(
                 value: _MoreAction.debugLog,
                 child: ListTile(
                   leading: Icon(Icons.bug_report_outlined),
@@ -107,7 +129,7 @@ class DiscoveryScreen extends ConsumerWidget {
   }
 }
 
-enum _MoreAction { demo, settings, debugLog }
+enum _MoreAction { refresh, demo, settings, debugLog }
 
 class _ScanningView extends StatelessWidget {
   const _ScanningView();

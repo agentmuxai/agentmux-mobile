@@ -34,9 +34,12 @@ class FleetStatus {
 
   /// The left half: "LAN · 3 computers". [short] drops the noun for a narrow
   /// screen.
-  String left({bool short = false}) {
+  String left({bool short = false, bool tiny = false}) {
     if (connection == null) return 'Searching…';
-    if (computers == 0) return connection!;
+    // "No computers" has no noun to drop; on the narrowest screens it is "None".
+    if (computers == 0) {
+      return tiny && connection == 'No computers' ? 'None' : connection!;
+    }
     final noun = short ? '' : (computers == 1 ? ' computer' : ' computers');
     return '$connection · $computers$noun';
   }

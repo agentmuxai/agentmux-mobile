@@ -4,6 +4,7 @@ import '../../core/discovery/host_tree.dart';
 import '../../core/discovery/models/lan_instance.dart';
 import '../../core/fleet/fleet_store.dart';
 import '../theme/app_theme.dart';
+import 'adaptive.dart';
 
 /// A small label next to a host, channel or agent name: platform, route, or
 /// where an agent runs (`SPEC_FLEET_HOST_TAGS_AND_CLOUD_HOSTS_2026_10_06.md`
@@ -78,7 +79,12 @@ class TagChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
         border: filled ? null : Border.all(color: color.withValues(alpha: 0.5)),
       ),
-      child: _content(color),
+      // Fixed-size chrome: its text grows with the person's setting but not
+      // past the point where the badge outgrows the row it sits in.
+      child: MediaQuery.withClampedTextScaling(
+        maxScaleFactor: largeTextScale,
+        child: _content(color),
+      ),
     );
     final tip = tooltip;
     return tip == null ? chip : Tooltip(message: tip, child: chip);
