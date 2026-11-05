@@ -69,7 +69,8 @@ void main() {
       expect(s.live, isTrue);
       expect(s.left(), 'LAN · 3 computers');
       expect(s.left(short: true), 'LAN · 3');
-      expect(s.right, '2 working · 1 needs you');
+      expect(s.right(), '2 working · 1 needs you');
+      expect(s.right(short: true), '1 needs you');
       expect(s.spoken, 'LAN, 3 computers, 2 working · 1 needs you');
     });
 
@@ -89,11 +90,28 @@ void main() {
       expect(summarizeFleet(DiscoveryResults(both)).connection, 'LAN + Cloud');
     });
 
+    test('a channel seen both ways counts as both; a direct one is Direct', () {
+      final both = buildHostTrees([
+        _entry('a', route: ChannelRoute.lanAndCloud),
+      ]);
+      expect(summarizeFleet(DiscoveryResults(both)).connection, 'LAN + Cloud');
+      final direct = buildHostTrees([_entry('a', route: ChannelRoute.direct)]);
+      expect(summarizeFleet(DiscoveryResults(direct)).connection, 'Direct');
+      final mixed = buildHostTrees([
+        _entry('a', route: ChannelRoute.direct),
+        _entry('b', route: ChannelRoute.cloud),
+      ]);
+      expect(
+        summarizeFleet(DiscoveryResults(mixed)).connection,
+        'Direct + Cloud',
+      );
+    });
+
     test('scanning and empty', () {
       expect(summarizeFleet(const DiscoveryScanning()).left(), 'Searching…');
       final none = summarizeFleet(const DiscoveryEmpty());
       expect(none.left(), 'No computers');
-      expect(none.right, '');
+      expect(none.right(), '');
     });
   });
 
@@ -179,6 +197,44 @@ void main() {
       expect(tester.takeException(), isNull);
       // 11 pt text, not 34: the band is 34 pt tall.
       expect(tester.getSize(status).height, lessThan(20));
+    });
+
+    testWidgets('a three-button navigation bar is not a band: row above', (
+      tester,
+    ) async {
+      await pump(tester, bottom: 48);
+      expect(status, findsOneWidget);
+      expect(
+        tester.getRect(status).bottom,
+        lessThanOrEqualTo(tester.getRect(button).top),
+      );
+    });
+
+    final busy = DiscoveryResults(
+      buildHostTrees([
+        _entry(
+          'studio-mac',
+          agents: const [
+            LanAgent(name: 'Nova', state: AgentState.working),
+            LanAgent(name: 'Orion', state: AgentState.waiting),
+          ],
+        ),
+      ]),
+    );
+
+    testWidgets('on a 393 pt phone the right half keeps one whole count', (
+      tester,
+    ) async {
+      await pump(tester, bottom: 34, size: const Size(393, 852), state: busy);
+      // The count that asks something of the person, not an ellipsis.
+      expect(find.text('1 needs you'), findsOneWidget);
+      expect(find.text('LAN · 1'), findsOneWidget);
+    });
+
+    testWidgets('a wide window shows both counts in full', (tester) async {
+      await pump(tester, bottom: 34, size: const Size(520, 900), state: busy);
+      expect(find.text('1 working · 1 needs you'), findsOneWidget);
+      expect(find.text('LAN · 1 computer'), findsOneWidget);
     });
 
     testWidgets('shows the fleet it is given', (tester) async {

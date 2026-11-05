@@ -33,6 +33,11 @@ class MuxbusAccountBar extends ConsumerWidget {
   /// 34 pt in portrait on a Face ID iPhone, 20 in landscape, 25 on an iPad.
   static const minBand = 16.0;
 
+  /// Above this the bottom inset is not a home-indicator band but a
+  /// navigation bar (Android's three buttons report about 48 dp): the line
+  /// goes above the button there, as with no band at all.
+  static const maxBand = 40.0;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final signedIn =
@@ -47,8 +52,9 @@ class MuxbusAccountBar extends ConsumerWidget {
     final compact = MediaQuery.sizeOf(context).height < 480;
     final band = MediaQuery.viewPaddingOf(context).bottom;
     final keyboard = MediaQuery.viewInsetsOf(context).bottom > 0;
-    final inBand = band >= minBand && !keyboard;
-    final aboveButton = band < minBand && !keyboard;
+    final hasBand = band >= minBand && band < maxBand;
+    final inBand = hasBand && !keyboard;
+    final aboveButton = !hasBand && !keyboard;
 
     final button = FilledButton.icon(
       key: const ValueKey('muxbus-account-bar'),
@@ -142,7 +148,10 @@ class FleetStatusLine extends StatelessWidget {
 
   Widget _line(BuildContext context, BoxConstraints c) {
     final half = (c.maxWidth - (indicatorGap ? _indicator : 0)) / 2;
+    // Both halves are narrow beside the indicator (about 100 pt each on a
+    // 393 pt phone): each has a short form instead of an ellipsis.
     final short = indicatorGap && half < 118;
+    final shortRight = indicatorGap && half < 135;
     final left = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -166,7 +175,7 @@ class FleetStatusLine extends StatelessWidget {
       ],
     );
     final right = Text(
-      status.right,
+      status.right(short: shortRight),
       style: _style,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,

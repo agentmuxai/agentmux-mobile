@@ -42,10 +42,13 @@ class FleetStatus {
   }
 
   /// The right half: "2 working · 1 needs you"; empty when no agent is.
-  String get right {
+  /// [short] keeps one count for a narrow screen, the one that asks something
+  /// of the person ("1 needs you") before the one that does not.
+  String right({bool short = false}) {
+    if (short && waiting > 0) return '$waiting needs you';
     final parts = [
       if (working > 0) '$working working',
-      if (waiting > 0) '$waiting needs you',
+      if (waiting > 0 && !short) '$waiting needs you',
     ];
     return parts.join(' · ');
   }
@@ -58,7 +61,8 @@ class FleetStatus {
       (final c?, 0) => c,
       (final c?, _) => '$c, $noun',
     };
-    return right.isEmpty ? l : '$l, $right';
+    final r = right();
+    return r.isEmpty ? l : '$l, $r';
   }
 }
 
@@ -74,18 +78,13 @@ FleetStatus summarizeFleet(DiscoveryState state) {
         waiting: 0,
       );
     case DiscoveryResults(:final hosts):
-      var lan = false;
-      var cloud = false;
+      final routes = <ChannelRoute>{};
       var live = false;
       var working = 0;
       var waiting = 0;
       for (final host in hosts) {
         for (final channel in host.channels) {
-          if (channel.route == ChannelRoute.cloud) {
-            cloud = true;
-          } else {
-            lan = true;
-          }
+          routes.add(channel.route);
           if (channel.presence == Presence.live) live = true;
           for (final agent in channel.agents) {
             if (agent.state == AgentState.working) working++;
@@ -94,13 +93,27 @@ FleetStatus summarizeFleet(DiscoveryState state) {
         }
       }
       return FleetStatus(
-        connection: lan && cloud ? 'LAN + Cloud' : (cloud ? 'Cloud' : 'LAN'),
+        connection: _connection(routes),
         computers: hosts.length,
         working: working,
         waiting: waiting,
         live: live,
       );
   }
+}
+
+/// How the computers are reached, worded like the cards' route badges: "LAN",
+/// "Direct", "Cloud", or those joined ("LAN + Cloud"). A channel seen both
+/// ways counts for both.
+String _connection(Set<ChannelRoute> routes) {
+  final lan =
+      routes.contains(ChannelRoute.lan) ||
+      routes.contains(ChannelRoute.lanAndCloud);
+  final cloud =
+      routes.contains(ChannelRoute.cloud) ||
+      routes.contains(ChannelRoute.lanAndCloud);
+  final direct = routes.contains(ChannelRoute.direct);
+  return [if (lan) 'LAN', if (direct) 'Direct', if (cloud) 'Cloud'].join(' + ');
 }
 
 /// The status line's data, kept current with discovery.
