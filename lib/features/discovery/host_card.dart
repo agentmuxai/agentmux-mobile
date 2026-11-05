@@ -101,6 +101,9 @@ class HostCard extends StatelessWidget {
                     children: [
                       Text(
                         host.name,
+                        // At a large size the name wraps (at a hyphen where
+                        // it has one) instead of being cut to "studio-...".
+                        maxLines: large ? 2 : 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),

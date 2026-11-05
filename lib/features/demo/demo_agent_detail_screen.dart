@@ -32,17 +32,20 @@ class DemoAgentDetailScreen extends StatelessWidget {
         ),
         icon: const Icon(Icons.send),
         label: const Text('Inject'),
-        backgroundColor: context.palette.textMuted,
+        // A quiet button in both modes; its text keeps full contrast.
+        backgroundColor: context.palette.surface,
+        foregroundColor: context.palette.textPrimary,
       ),
       body: Column(
         children: [
           const DemoBanner(),
           Expanded(
             child: ContentWidth(child: ListView.builder(
+              // The top inset is covered by the app bar and the banner.
               padding: insetListPadding(
                 context,
                 const EdgeInsets.fromLTRB(12, 12, 12, 80),
-              ),
+              ).copyWith(top: 12),
               itemCount: messages.length,
               itemBuilder: (ctx, i) => _DemoMessageTile(message: messages[i]),
             )),

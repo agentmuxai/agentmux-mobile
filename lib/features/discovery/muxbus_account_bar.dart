@@ -156,11 +156,15 @@ class FleetStatusLine extends StatelessWidget {
         child: MediaQuery.withNoTextScaling(
           child: SizedBox(
             height: height,
-            // Clear of the curved corners and the notch or island side.
+            // Clear of the curved corners and the notch or island side. A
+            // phone's bottom corners are about 55 pt: 22 pt cut the last
+            // letter of the trailing text.
             child: SafeArea(
               top: false,
               bottom: false,
-              minimum: const EdgeInsets.symmetric(horizontal: 22),
+              minimum: EdgeInsets.symmetric(
+                horizontal: MediaQuery.sizeOf(context).shortestSide >= 360 ? 30 : 22,
+              ),
               child: LayoutBuilder(builder: _line),
             ),
           ),
@@ -171,12 +175,13 @@ class FleetStatusLine extends StatelessWidget {
 
   Widget _line(BuildContext context, BoxConstraints c) {
     final half = (c.maxWidth - (indicatorGap ? _indicator : 0)) / 2;
-    // Both halves are narrow beside the indicator (about 100 pt each on a
-    // 393 pt phone): each has a short form instead of an ellipsis.
-    final short = indicatorGap && half < 118;
-    // "● No computers" needs about 90 dp: a 320 dp phone's half is 63.
-    final tiny = indicatorGap && half < 90;
-    final shortRight = indicatorGap && half < 135;
+    // Both halves are narrow beside the indicator (about 90 pt each on a
+    // 393 pt phone): each has a short form instead of an ellipsis. (The
+    // limits include the 30 pt kept clear of each rounded corner.)
+    final short = indicatorGap && half < 110;
+    // "● No computers" needs about 82 dp: a 320 dp phone's half is 55.
+    final tiny = indicatorGap && half < 82;
+    final shortRight = indicatorGap && half < 127;
     final left = Row(
       mainAxisSize: MainAxisSize.min,
       children: [

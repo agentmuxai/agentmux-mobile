@@ -484,6 +484,9 @@ QTest (Part B and summary), Clare (Part A)
 | 4b. List-detail and a rail | I8, the rest | open, waits for the operator's choice between list-detail and wider columns only |
 | 5. Large text | I7, A6 | merged (#108) |
 | 6. UIScene migration | P1 | merged (#111) |
+| 7. Simulator pass follow-ups | The status band's trailing text kept 30 pt clear of the rounded corner; Settings headers level with their rows in landscape; the Settings version value under its label, the sign-in title, the host name and the composer at the largest text size; no status-bar gap under the DEMO banner; the dark muted text and the stale state chip more legible | this change |
+
+An iOS 26.5 Simulator pass of main after fixes 1 to 6 (iPhone 17 Pro Max, iPhone SE 3 at the largest text size, an iPad Pro 11 window) passed the status band, light and dark on every screen, the dark snackbar, Connect manually, the DEMO banner, the iPad window controls and landscape lists. Fix 7 covers what it found. Still to see on a device: the light snackbar and the landscape Connect sheet's scroll to its button.
 
 ![The status band on a Pixel 9 with gesture navigation: the line sits in the band beside the gesture pill](form-factors/android/band_p9_gesture.png)
 

@@ -56,7 +56,7 @@ void main() {
 
     test('dark primary and secondary text keep their contrast', () {
       const p = AppPalette.dark;
-      for (final c in [p.textPrimary, p.textSecondary, p.textSoft]) {
+      for (final c in [p.textPrimary, p.textSecondary, p.textMuted, p.textSoft]) {
         for (final bg in [p.background, p.surface]) {
           expect(_contrast(c, bg), greaterThanOrEqualTo(4.5));
         }
