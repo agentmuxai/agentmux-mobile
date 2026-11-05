@@ -479,7 +479,7 @@ QTest (Part B and summary), Clare (Part A)
 |---|---|---|
 | 1. Safe areas and insets | I2 (lists keep clear of the notch and island), I1 (lists end above the home-indicator band), I4 (Connect manually scrolls above the keyboard), I5 (the DEMO banner reaches both edges and wraps at large text), A1 (bottom inset on lists), A2 (the sign-in bar is compact on short screens) | merged (#103) |
 | 2. Bottom status band (design A, fallback B) | I1 (the empty band itself) | merged (#104) |
-| 3. OS color mode and the snackbar | I6, A3, I3 | this change, for the app's own screens and the Android launch window; the feed (its own palette) and the iOS launch screen follow |
+| 3. OS color mode and the snackbar | I6, A3, I3 | this change, for the app's own screens and the Android launch window; the feed (its own palette; it stays dark in either mode until it has a light set) and the iOS launch screen follow |
 | 4. Adaptive layout | I8, A4, A5, I9 | open |
 | 5. Large text | I7, A6 | open |
 | 6. UIScene migration | P1 | open |

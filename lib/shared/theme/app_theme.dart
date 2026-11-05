@@ -220,6 +220,20 @@ Widget appThemeBuilder(BuildContext context, Widget? child) {
   );
 }
 
+/// [child] in the dark theme whatever the OS mode is, for a surface whose
+/// content has fixed dark colours (the feed). Keeps the snack bar width cap.
+Widget alwaysDark(BuildContext context, Widget child) {
+  final dark = AppTheme.dark;
+  return Theme(
+    data: dark.copyWith(
+      snackBarTheme: dark.snackBarTheme.copyWith(
+        width: Theme.of(context).snackBarTheme.width,
+      ),
+    ),
+    child: child,
+  );
+}
+
 abstract final class AppTheme {
   static ThemeData get dark => _build(
     AppPalette.dark,

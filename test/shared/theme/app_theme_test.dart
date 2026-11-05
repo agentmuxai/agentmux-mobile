@@ -153,6 +153,38 @@ void main() {
     expect(find.text('kept'), findsOneWidget);
   });
 
+  testWidgets('alwaysDark keeps a surface dark when the OS is light', (
+    tester,
+  ) async {
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+    addTearDown(tester.platformDispatcher.clearAllTestValues);
+    late BuildContext inner;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        darkTheme: AppTheme.dark,
+        builder: appThemeBuilder,
+        home: Builder(
+          builder:
+              (context) => alwaysDark(
+                context,
+                Scaffold(
+                  body: Builder(
+                    builder: (c) {
+                      inner = c;
+                      return const SizedBox();
+                    },
+                  ),
+                ),
+              ),
+        ),
+      ),
+    );
+    expect(Theme.of(inner).brightness, Brightness.dark);
+    expect(inner.palette.background, AppPalette.dark.background);
+    expect(inner.palette.textDim, Colors.white54);
+  });
+
   group('snack bar', () {
     Future<void> show(WidgetTester tester, Size size) async {
       tester.view

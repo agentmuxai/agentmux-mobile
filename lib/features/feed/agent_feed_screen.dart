@@ -339,7 +339,7 @@ class _AgentFeedScreenState extends ConsumerState<AgentFeedScreen> {
             Text(
               where,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, color: Colors.white54),
+              style: TextStyle(fontSize: 12, color: context.palette.textDim),
             ),
           ],
         ),
@@ -601,7 +601,7 @@ class _Message extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null) ...[
-              Icon(icon, size: 48, color: Colors.white38),
+              Icon(icon, size: 48, color: context.palette.textFaint),
               const SizedBox(height: 16),
             ],
             Text(
@@ -614,7 +614,7 @@ class _Message extends StatelessWidget {
               Text(
                 detail!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white54, fontSize: 13),
+                style: TextStyle(color: context.palette.textDim, fontSize: 13),
               ),
             ],
             if (action != null) ...[

@@ -5,6 +5,7 @@ import '../../core/discovery/host_tree.dart';
 import '../../core/discovery/models/lan_instance.dart';
 import '../../core/fleet/fleet_store.dart';
 import '../../core/viewer/paired_match.dart';
+import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/tag_chip.dart';
 import '../discovery/host_card.dart';
 import '../discovery/qr_scan_screen.dart';
@@ -72,7 +73,7 @@ class UnpairedAgentScreen extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.link, size: 48, color: Colors.white38),
+              Icon(Icons.link, size: 48, color: context.palette.textFaint),
               const SizedBox(height: 16),
               Text(
                 '$hostname isn\'t paired with this device',
@@ -80,11 +81,11 @@ class UnpairedAgentScreen extends StatelessWidget {
                 style: const TextStyle(fontSize: 16),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'To watch and send to this agent, choose "Pair a device" in '
                 'AgentMux on the computer and scan the code it shows.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white54, fontSize: 13),
+                style: TextStyle(color: context.palette.textDim, fontSize: 13),
               ),
               const SizedBox(height: 24),
               FilledButton.icon(
