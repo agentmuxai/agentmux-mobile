@@ -336,6 +336,8 @@ class _HighlightedCodeState extends State<HighlightedCode> {
     unawaited(CodeHighlighter.highlightAsync(code, language, style, mode).then((span) {
       if (!mounted || span == null) return;
       if (widget.code != code || widget.language != language) return;
+      // The mode flipped while this was highlighting: its colours are stale.
+      if (context.feed.brightness != mode) return;
       setState(() => _span = span);
     }));
   }

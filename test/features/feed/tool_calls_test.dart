@@ -4,8 +4,10 @@ import 'package:agentmux_mobile/features/feed/tool_block.dart';
 import 'package:agentmux_mobile/features/feed/feed_disclosure.dart';
 import 'package:agentmux_mobile/features/feed/tool_meta.dart';
 import 'package:agentmux_mobile/features/feed/transcript.dart';
+import 'package:agentmux_mobile/shared/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 
 import 'claude_fixtures.dart';
 
@@ -329,6 +331,33 @@ void main() {
   });
 
   group('previews', () {
+    testWidgets('a finished preview takes the new colours when the OS mode flips', (
+      tester,
+    ) async {
+      final t = _item('Bash', {'command': 'make'}, state: ToolState.done, result: 'x')
+        ..facts = const ToolFacts(stdout: '<exited 2 in 1s>\nbuilding', stderr: 'error: no rule');
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      addTearDown(tester.platformDispatcher.clearAllTestValues);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
+          home: Scaffold(body: SingleChildScrollView(child: ToolPreview(tool: t))),
+        ),
+      );
+      Color? stderrColour() => tester
+          .widget<SelectableText>(find.ancestor(
+            of: find.text('error: no rule'),
+            matching: find.byType(SelectableText),
+          ))
+          .style
+          ?.color;
+      expect(stderrColour(), FeedPalette.dark.errorText);
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+      await tester.pumpAndSettle();
+      expect(stderrColour(), FeedPalette.light.errorText);
+    });
+
     testWidgets('Bash: output, stderr in red, the exit code', (tester) async {
       final t = _item('Bash', {'command': 'make'}, state: ToolState.done, result: 'x')
         ..facts = const ToolFacts(stdout: '<exited 2 in 1s>\nbuilding', stderr: 'error: no rule');

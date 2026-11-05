@@ -309,8 +309,10 @@ class _ToolPreviewState extends State<ToolPreview> {
 
   /// What a preview is built from. The call is mutated in place, so its
   /// parts are compared, by identity where they are large.
-  static List<Object?> _inputsOf(ToolCallItem t) => [
+  static List<Object?> _inputsOf(ToolCallItem t, FeedPalette p) => [
         t,
+        // The preview bakes in the palette: a change of mode rebuilds it.
+        p,
         t.state,
         t.result,
         t.input,
@@ -327,7 +329,7 @@ class _ToolPreviewState extends State<ToolPreview> {
   }
 
   Preview _current() {
-    final inputs = _inputsOf(widget.tool);
+    final inputs = _inputsOf(widget.tool, context.feed);
     final built = _builtFrom;
     if (_preview == null || built == null || !_same(built, inputs)) {
       _preview = buildPreview(context, widget.tool);
