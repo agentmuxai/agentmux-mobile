@@ -72,6 +72,10 @@ void main() {
         ('accent', f.accent),
         ('successText', f.successText),
         ('warningText', f.warningText),
+        // Tool bars, and also the colour of a tool's name and glyph.
+        ('success', f.success),
+        ('warning', f.warning),
+        ('error', f.error),
         ('errorText', f.errorText),
         ('info', f.info),
         ('link', f.link),

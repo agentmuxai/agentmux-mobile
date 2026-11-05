@@ -121,7 +121,8 @@ class FeedPalette extends ThemeExtension<FeedPalette> {
     warningText: Color(0xFF8F5B00),
     errorText: Color(0xFFB42318),
     success: Color.fromRGBO(56, 124, 4, 1),
-    warning: Color.fromRGBO(191, 142, 20, 1),
+    // Also text (a tool's name and glyph), so as dark as warningText.
+    warning: Color.fromRGBO(143, 91, 0, 1),
     error: Color.fromRGBO(207, 58, 28, 1),
     info: Color(0xFF7C3AED),
     border: Color.fromRGBO(0, 0, 0, 0.14),
