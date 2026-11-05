@@ -9,6 +9,7 @@ import '../../core/viewer/pairing_service.dart';
 import '../../core/viewer/tower_snapshot.dart';
 import '../../core/viewer/viewer_client.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/adaptive.dart';
 import '../discovery/channel_terminals.dart' show PanesKey;
 
 /// What the channel list says on a paired computer's Tower row.
@@ -182,7 +183,7 @@ class _TowerScreenState extends ConsumerState<TowerScreen> {
   Widget build(BuildContext context) {
     final state = _state;
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBarInset(child: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -194,8 +195,8 @@ class _TowerScreenState extends ConsumerState<TowerScreen> {
             ),
           ],
         ),
-      ),
-      body: switch (state) {
+      )),
+      body: ContentWidth(child: switch (state) {
         null => const Center(child: CircularProgressIndicator()),
         TowerNotShared() => const _Message(
             "This computer doesn't share its processes.\n\n"
@@ -211,7 +212,7 @@ class _TowerScreenState extends ConsumerState<TowerScreen> {
             filterBox: _filterBox,
             onFilter: () => unawaited(_load()),
           ),
-      },
+      }),
     );
   }
 }

@@ -11,6 +11,7 @@ import '../../core/viewer/pairing_service.dart';
 import '../../core/viewer/sysinfo_events.dart';
 import '../../core/viewer/viewer_client.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/adaptive.dart';
 
 /// A paired computer's CPU and memory, live
 /// (`PLAN_CHANNEL_AS_ONE_LIST_2026_10_13.md` step 3b): the last few minutes
@@ -141,7 +142,7 @@ class _SysinfoScreenState extends ConsumerState<SysinfoScreen> {
   Widget build(BuildContext context) {
     final latest = _samples.lastOrNull;
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBarInset(child: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -154,8 +155,8 @@ class _SysinfoScreenState extends ConsumerState<SysinfoScreen> {
           ],
         ),
         actions: [_ConnectionChip(_connection)],
-      ),
-      body: switch (_connection) {
+      )),
+      body: ContentWidth(child: switch (_connection) {
         SysinfoConnection.tooOld => const _Message('Update AgentMux on the computer to see its Sysinfo here.'),
         SysinfoConnection.unpaired => const _Message('This device was unpaired on the computer.'),
         _ when latest == null => const Center(child: CircularProgressIndicator()),
@@ -183,7 +184,7 @@ class _SysinfoScreenState extends ConsumerState<SysinfoScreen> {
               if (latest.cores.isNotEmpty) _Cores(latest.cores),
             ],
           ),
-      },
+      }),
     );
   }
 }

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth/auth_provider.dart';
 import '../../core/auth/auth_repository.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/adaptive.dart';
 
 const muxbusSignInReason =
     'Sign in to see your computers and agents from anywhere, '
@@ -113,14 +114,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final enabled = !_busy && !_unavailable;
     return Scaffold(
       backgroundColor: context.palette.background,
-      appBar: AppBar(
+      appBar: AppBarInset(child: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back',
           onPressed: _close,
         ),
-      ),
-      body: SafeArea(
+      )),
+      body: ContentWidth(child: SafeArea(
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -263,7 +264,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
           ),
         ),
-      ),
+      )),
     );
   }
 }

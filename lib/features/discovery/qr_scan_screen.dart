@@ -8,6 +8,7 @@ import '../../core/viewer/pairing_service.dart';
 import '../../core/viewer/scanned_code.dart';
 import '../../core/viewer/viewer_client.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/adaptive.dart';
 
 /// Scans an AgentMux QR code and acts on it:
 ///
@@ -93,7 +94,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBarInset(child: AppBar(
         title: const Text('Scan QR code'),
         actions: [
           IconButton(
@@ -111,7 +112,7 @@ class _QrScanScreenState extends ConsumerState<QrScanScreen> {
             onPressed: () => _controller.toggleTorch(),
           ),
         ],
-      ),
+      )),
       body: Stack(
         children: [
           MobileScanner(

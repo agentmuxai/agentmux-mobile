@@ -6,6 +6,7 @@ import '../../core/discovery/discovery_provider.dart';
 import '../../core/discovery/host_tree.dart';
 import '../../core/discovery/models/lan_instance.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/adaptive.dart';
 import '../discovery/host_card.dart';
 
 /// A channel's Swarm (`PLAN_CHANNEL_AS_ONE_LIST_2026_10_13.md` step 2): every
@@ -37,7 +38,7 @@ class SwarmScreen extends ConsumerWidget {
         initial;
     final agents = channel == null ? const <LanAgent>[] : swarmOrder(channel.agents);
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBarInset(child: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -50,8 +51,8 @@ class SwarmScreen extends ConsumerWidget {
               ),
           ],
         ),
-      ),
-      body: channel == null || agents.isEmpty
+      )),
+      body: ContentWidth(child: channel == null || agents.isEmpty
           ? Center(
               child: Text('No agents on this channel now.', style: TextStyle(color: context.palette.textDim)),
             )
@@ -73,7 +74,7 @@ class SwarmScreen extends ConsumerWidget {
                     indent: 16,
                   ),
               ],
-            ),
+            )),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/message.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/adaptive.dart';
 import '../injection/injection_sheet.dart';
 import 'agent_detail_provider.dart';
 
@@ -16,7 +17,7 @@ class AgentDetailScreen extends ConsumerWidget {
     final messagesAsync = ref.watch(agentDetailProvider(agentId));
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBarInset(child: AppBar(
         title: Text(agentId),
         actions: [
           IconButton(
@@ -25,13 +26,13 @@ class AgentDetailScreen extends ConsumerWidget {
                 ref.read(agentDetailProvider(agentId).notifier).refresh(agentId),
           ),
         ],
-      ),
+      )),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showInjectionSheet(context, ref),
         icon: const Icon(Icons.send),
         label: const Text('Inject'),
       ),
-      body: messagesAsync.when(
+      body: ContentWidth(child: messagesAsync.when(
         loading: () => Center(
           child: CircularProgressIndicator(color: context.palette.primary),
         ),
@@ -46,7 +47,7 @@ class AgentDetailScreen extends ConsumerWidget {
                 itemCount: messages.length,
                 itemBuilder: (ctx, i) => _MessageTile(message: messages[i]),
               ),
-      ),
+      )),
     );
   }
 

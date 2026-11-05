@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_provider.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/adaptive.dart';
 import 'fleet_status.dart';
 
 const muxbusSignInLabel = 'MuxBus Sign in';
@@ -84,18 +85,34 @@ class MuxbusAccountBar extends ConsumerWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // On a tablet or an unfolded foldable the bar's content stays a
+          // phone-wide column in the middle; only its colour runs edge to edge.
           if (aboveButton)
-            FleetStatusLine(status: status, indicatorGap: false, height: 28),
-          SafeArea(
-            top: false,
-            // The band below the button holds the status line and takes the
-            // bottom inset itself.
-            bottom: !inBand,
-            minimum: EdgeInsets.fromLTRB(12, top, 12, bottom),
-            child: button,
+            ContentWidth(
+              child: FleetStatusLine(
+                status: status,
+                indicatorGap: false,
+                height: 28,
+              ),
+            ),
+          ContentWidth(
+            child: SafeArea(
+              top: false,
+              // The band below the button holds the status line and takes the
+              // bottom inset itself.
+              bottom: !inBand,
+              minimum: EdgeInsets.fromLTRB(12, top, 12, bottom),
+              child: button,
+            ),
           ),
           if (inBand)
-            FleetStatusLine(status: status, indicatorGap: true, height: band),
+            ContentWidth(
+              child: FleetStatusLine(
+                status: status,
+                indicatorGap: true,
+                height: band,
+              ),
+            ),
         ],
       ),
     );

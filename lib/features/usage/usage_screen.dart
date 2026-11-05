@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/adaptive.dart';
 import '../../shared/widgets/quota_bar.dart';
 import 'usage_provider.dart';
 
@@ -13,7 +14,7 @@ class UsageScreen extends ConsumerWidget {
     final usageAsync = ref.watch(usageProvider);
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBarInset(child: AppBar(
         title: const Text('Usage & Billing'),
         actions: [
           IconButton(
@@ -21,8 +22,8 @@ class UsageScreen extends ConsumerWidget {
             onPressed: () => ref.read(usageProvider.notifier).refresh(),
           ),
         ],
-      ),
-      body: usageAsync.when(
+      )),
+      body: ContentWidth(child: usageAsync.when(
         loading: () => Center(
           child: CircularProgressIndicator(color: context.palette.primary),
         ),
@@ -61,7 +62,7 @@ class UsageScreen extends ConsumerWidget {
             ],
           ),
         ),
-      ),
+      )),
     );
   }
 }

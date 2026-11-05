@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../core/discovery/discovery_telemetry.dart';
 import '../../core/logging/app_logger.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/adaptive.dart';
 
 class DebugLogScreen extends StatefulWidget {
   const DebugLogScreen({super.key});
@@ -30,7 +31,7 @@ class _DebugLogScreenState extends State<DebugLogScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBarInset(child: AppBar(
         title: const Text('Debug log'),
         actions: [
           IconButton(
@@ -44,8 +45,8 @@ class _DebugLogScreenState extends State<DebugLogScreen> {
             onPressed: _entries.isEmpty ? null : _copyAll,
           ),
         ],
-      ),
-      body: Column(
+      )),
+      body: ContentWidth(child: Column(
         children: [
           // Deliberately NOT const: DiscoveryTelemetry's fields are mutable
           // statics read outside Flutter's reactive system, so a canonicalized
@@ -77,7 +78,7 @@ class _DebugLogScreenState extends State<DebugLogScreen> {
                   ),
           ),
         ],
-      ),
+      )),
     );
   }
 }

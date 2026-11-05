@@ -480,7 +480,8 @@ QTest (Part B and summary), Clare (Part A)
 | 1. Safe areas and insets | I2 (lists keep clear of the notch and island), I1 (lists end above the home-indicator band), I4 (Connect manually scrolls above the keyboard), I5 (the DEMO banner reaches both edges and wraps at large text), A1 (bottom inset on lists), A2 (the sign-in bar is compact on short screens) | merged (#103) |
 | 2. Bottom status band (design A, fallback B) | I1 (the empty band itself) | merged (#104) |
 | 3. OS color mode and the snackbar | I6, A3, I3 | this change, for the app's own screens and the Android launch window; the feed (its own palette; it stays dark in either mode until it has a light set) and the iOS launch screen follow |
-| 4. Adaptive layout | I8, A4, A5, I9 | open |
+| 4a. Wide-screen basics | A4 and I8 (a centred 640 dp column on tablets and unfolded foldables), I9 (the iPadOS window controls), A5 (nothing across a hinge) | this change |
+| 4b. List-detail and a rail | I8, the rest | open, waits for the operator's choice between list-detail and wider columns only |
 | 5. Large text | I7, A6 | open |
 | 6. UIScene migration | P1 | open |
 
@@ -497,3 +498,9 @@ The app follows the OS setting (`ThemeMode.system`) with a light and a dark them
 ![The demo fleet with the OS in light mode: dark status-bar icons, readable tags and banner](form-factors/android/os_light_demo_fleet.png)
 
 ![The launch screen with the OS in dark mode, unchanged](form-factors/android/os_dark_launch.png)
+
+### Wide screens as built (4a)
+
+On a window whose shortest side is 600 dp or more (a tablet, an iPad window, an unfolded foldable) every page's content is a centred column at most 640 dp wide (760 for the feed), so a row can be read across; the bars and banners keep their colour edge to edge. Phones, in either orientation, are unchanged. The sign-in bar's button and status line use the same column. On an iPad running as a window, the top bar's leading edge moves in by 70 pt so the window controls no longer cover the back arrow (the check is that the window is smaller than the display; it needs a look in Windowed Apps mode on a real iPad). In a half-open posture the app uses the sub-screen at the leading edge, so nothing is drawn across the hinge; a flat fold is one screen.
+
+![The demo fleet in a 841 dp wide window: a centred column, the banner full width](form-factors/android/tablet_demo_fleet_capped.png)

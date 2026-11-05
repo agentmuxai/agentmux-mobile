@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/models/agent.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/adaptive.dart';
 import '../../shared/widgets/status_badge.dart';
 import 'agent_list_provider.dart';
 
@@ -15,7 +16,7 @@ class AgentListScreen extends ConsumerWidget {
     final agentsAsync = ref.watch(agentListProvider);
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBarInset(child: AppBar(
         title: const Text('Agents'),
         actions: [
           IconButton(
@@ -23,8 +24,8 @@ class AgentListScreen extends ConsumerWidget {
             onPressed: () => ref.read(agentListProvider.notifier).refresh(),
           ),
         ],
-      ),
-      body: agentsAsync.when(
+      )),
+      body: ContentWidth(child: agentsAsync.when(
         loading: () => Center(
           child: CircularProgressIndicator(color: context.palette.primary),
         ),
@@ -45,7 +46,7 @@ class AgentListScreen extends ConsumerWidget {
                   itemBuilder: (ctx, i) => _AgentCard(agent: agents[i]),
                 ),
               ),
-      ),
+      )),
     );
   }
 }

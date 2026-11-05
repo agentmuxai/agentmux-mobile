@@ -6,6 +6,7 @@ import '../../core/discovery/models/lan_instance.dart';
 import '../../core/fleet/fleet_store.dart';
 import '../../core/viewer/paired_match.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/adaptive.dart';
 import '../../shared/widgets/tag_chip.dart';
 import '../discovery/host_card.dart';
 import '../discovery/qr_scan_screen.dart';
@@ -56,7 +57,7 @@ class UnpairedAgentScreen extends StatelessWidget {
     final hostname =
         instance.hostname.isNotEmpty ? instance.hostname : instance.address;
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBarInset(child: AppBar(
         title: Row(
           children: [
             Flexible(child: Text(agent.name, overflow: TextOverflow.ellipsis)),
@@ -66,8 +67,8 @@ class UnpairedAgentScreen extends StatelessWidget {
             ],
           ],
         ),
-      ),
-      body: Center(
+      )),
+      body: ContentWidth(child: Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(
@@ -96,7 +97,7 @@ class UnpairedAgentScreen extends StatelessWidget {
             ],
           ),
         ),
-      ),
+      )),
     );
   }
 }
