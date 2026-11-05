@@ -61,7 +61,7 @@ class TranscriptItemView extends StatelessWidget {
           final ToolCallItem tool =>
             ToolBlock(tool: tool, open: expanded, onToggle: onToggle),
           TruncatedItem() => const _Note(text: truncatedText),
-          PlainTextItem(:final text) => SelectableText(text, style: feedCode),
+          PlainTextItem(:final text) => SelectableText(text, style: context.feedCode),
         },
       );
 }
@@ -152,13 +152,11 @@ class PromptBlock extends StatefulWidget {
 
   /// The muted note's colour: mixed toward this block's own background, as
   /// the desktop mixes it, so it reads on the inverted surface.
-  static final noteColor = Color.lerp(FeedColors.text, FeedColors.blockSolid, 0.55)!;
+  static Color noteColor(FeedPalette f) =>
+      Color.lerp(f.text, f.blockSolid, 0.55)!;
 
-  static const style = TextStyle(
-    fontSize: 14,
-    height: 1.45,
-    color: FeedColors.blockSolid,
-  );
+  static TextStyle style(FeedPalette f) =>
+      TextStyle(fontSize: 14, height: 1.45, color: f.blockSolid);
 
   @override
   State<PromptBlock> createState() => _PromptBlockState();
@@ -212,9 +210,9 @@ class _PromptBlockState extends State<PromptBlock> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: FeedSpace.s1, vertical: 3),
-      decoration: const BoxDecoration(
-        color: FeedColors.text,
-        border: Border(left: BorderSide(color: FeedColors.userInput, width: 3)),
+      decoration: BoxDecoration(
+        color: context.feed.text,
+        border: Border(left: BorderSide(color: context.feed.userInput, width: 3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -222,22 +220,22 @@ class _PromptBlockState extends State<PromptBlock> {
           if (widget.fromDevice != null)
             Text(
               '📱 ${fromDeviceNote(widget.fromDevice!)}',
-              style: PromptBlock.style.copyWith(fontSize: 12, color: PromptBlock.noteColor),
+              style: PromptBlock.style(context.feed).copyWith(fontSize: 12, color: PromptBlock.noteColor(context.feed)),
             ),
           if (widget.broadcast)
             Text(
               '📣 ${broadcastNote(widget.recipients)}',
-              style: PromptBlock.style.copyWith(fontSize: 12, color: PromptBlock.noteColor),
+              style: PromptBlock.style(context.feed).copyWith(fontSize: 12, color: PromptBlock.noteColor(context.feed)),
             ),
           if (widget.attachments.isNotEmpty)
             Text(
               '📎 ${widget.attachments.join(', ')}',
-              style: PromptBlock.style.copyWith(fontSize: 12, color: PromptBlock.noteColor),
+              style: PromptBlock.style(context.feed).copyWith(fontSize: 12, color: PromptBlock.noteColor(context.feed)),
             ),
           if (widget.text.trim().isNotEmpty)
             SelectableText.rich(
               TextSpan(children: _spans(widget.text.trimRight())),
-              style: PromptBlock.style,
+              style: PromptBlock.style(context.feed),
             ),
         ],
       ),
@@ -252,9 +250,9 @@ class ThinkingBlock extends StatelessWidget {
   final String text;
   final bool streaming;
 
-  static final style = feedProse.copyWith(
+  static TextStyle style(FeedPalette f) => feedProseStyle(f).copyWith(
     fontStyle: FontStyle.italic,
-    color: FeedColors.secondary,
+    color: f.secondary,
   );
 
   @override
@@ -266,19 +264,19 @@ class ThinkingBlock extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: FeedSpace.s1),
         padding: const EdgeInsets.only(left: FeedSpace.s2),
         decoration: BoxDecoration(
-          color: FeedColors.tint(FeedColors.text, 0.02),
-          border: const Border(
-            left: BorderSide(color: FeedColors.secondary, width: 2),
+          color: feedTint(context.feed.text, 0.02),
+          border: Border(
+            left: BorderSide(color: context.feed.secondary, width: 2),
           ),
         ),
         child: text.trim().isEmpty
-            ? Text(thinkingText, style: style)
+            ? Text(thinkingText, style: style(context.feed))
             : streaming
                 ? Throttled(
                     value: text,
-                    builder: (t) => FeedMarkdown(t, streaming: true, style: style),
+                    builder: (t) => FeedMarkdown(t, streaming: true, style: style(context.feed)),
                   )
-                : FeedMarkdown(text, style: style),
+                : FeedMarkdown(text, style: style(context.feed)),
       ),
     );
   }
@@ -311,10 +309,10 @@ class _Note extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 12,
           fontStyle: FontStyle.italic,
-          color: FeedColors.secondary,
+          color: context.feed.secondary,
         ),
       ),
     );

@@ -97,7 +97,8 @@ void main() {
       final span = CodeHighlighter.highlightSync(
         'fn main() { let x = "hi"; }',
         'rust',
-        feedCode,
+        feedCodeStyle(FeedPalette.dark),
+        Brightness.dark,
       )!;
       final colors = <Color>{};
       void walk(InlineSpan s) {
@@ -113,9 +114,9 @@ void main() {
     });
 
     test('unknown or too large stays plain', () {
-      expect(CodeHighlighter.highlightSync('x', null, feedCode), isNull);
+      expect(CodeHighlighter.highlightSync('x', null, feedCodeStyle(FeedPalette.dark), Brightness.dark), isNull);
       final big = 'a' * (CodeHighlighter.syncChars + 1);
-      expect(CodeHighlighter.highlightSync(big, 'rust', feedCode), isNull);
+      expect(CodeHighlighter.highlightSync(big, 'rust', feedCodeStyle(FeedPalette.dark), Brightness.dark), isNull);
     });
   });
 
@@ -167,7 +168,7 @@ void main() {
       expect(styleOf('flutter test').fontFamily, feedMono);
       expect(styleOf('flutter test').backgroundColor, isNotNull);
       expect(styleOf('now').fontWeight, FontWeight.w700);
-      expect(styleOf('docs').color, FeedColors.link);
+      expect(styleOf('docs').color, FeedPalette.dark.link);
       expect(find.byType(Table), findsOneWidget);
     });
 
@@ -176,8 +177,8 @@ void main() {
         '<span class="am-ok">All tests pass</span> and '
         '<span class="am-badge am-error">P1</span> but <b>bold?</b>',
       )));
-      expect(_colorOf(tester, 'All tests pass'), FeedColors.successText);
-      expect(_colorOf(tester, 'P1'), FeedColors.errorText);
+      expect(_colorOf(tester, 'All tests pass'), FeedPalette.dark.successText);
+      expect(_colorOf(tester, 'P1'), FeedPalette.dark.errorText);
       final all = _text(tester);
       expect(all, contains('<b>bold?</b>'));
       expect(all, isNot(contains('am-ok')));
@@ -188,7 +189,7 @@ void main() {
         '> [!CAUTION]\n> This deletes the branch.',
       )));
       expect(find.text('Caution'), findsOneWidget);
-      expect(_colorOf(tester, 'Caution'), FeedColors.errorText);
+      expect(_colorOf(tester, 'Caution'), FeedPalette.dark.errorText);
       expect(_text(tester), contains('This deletes the branch.'));
     });
 
@@ -214,7 +215,7 @@ void main() {
       expect(styleOf('foo').fontFamily, feedMono);
       expect(styleOf('foo').backgroundColor, isNotNull);
       expect(styleOf('on').fontWeight, FontWeight.w700);
-      expect(styleOf('docs').color, FeedColors.link);
+      expect(styleOf('docs').color, FeedPalette.dark.link);
       expect(styleOf('The ').fontSize, 21);
     });
   });
@@ -227,14 +228,14 @@ void main() {
         matching: find.byType(Container),
       ));
       final d = box.decoration! as BoxDecoration;
-      expect(d.color, FeedColors.text);
+      expect(d.color, FeedPalette.dark.text);
       expect(d.borderRadius, isNull);
-      expect((d.border! as Border).left.color, FeedColors.userInput);
+      expect((d.border! as Border).left.color, FeedPalette.dark.userInput);
       expect(find.byType(Align), findsNothing);
       final width = tester.getSize(find.byType(PromptBlock)).width;
       final screen = tester.getSize(find.byType(Scaffold)).width;
       expect(width, screen - 2 * FeedSpace.s3);
-      expect(_colorOf(tester, 'Fix the test'), FeedColors.blockSolid);
+      expect(_colorOf(tester, 'Fix the test'), FeedPalette.dark.blockSolid);
     });
 
     testWidgets('a prompt is shown as typed, not as Markdown', (tester) async {

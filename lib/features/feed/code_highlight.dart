@@ -1,15 +1,17 @@
 import 'dart:isolate';
+import 'dart:ui' show Brightness;
 
 import 'package:flutter/painting.dart';
 import 'package:re_highlight/re_highlight.dart';
 import 'package:re_highlight/styles/github-dark-dimmed.dart';
+import 'package:re_highlight/styles/github.dart';
 
 import 're_highlight_languages.dart';
 
 /// Syntax highlighting for code in the feed
 /// (`SPEC_FEED_RENDERS_LIKE_THE_DESKTOP_PANE_2026_10_13.md` §4.1): the
 /// highlight.js grammars and the `github-dark-dimmed` theme the desktop's
-/// Markdown uses. Unknown languages, and text over [maxChars], stay plain.
+/// Markdown uses (`github` in light mode). Unknown languages, and text over [maxChars], stay plain.
 abstract final class CodeHighlighter {
   /// Larger blocks are shown plain, as on the desktop.
   static const maxChars = 200 * 1024;
@@ -18,7 +20,7 @@ abstract final class CodeHighlighter {
   static const syncChars = 4 * 1024;
 
   static const _cacheSize = 64;
-  static final _cache = <(String, String), TextSpan>{};
+  static final _cache = <(Brightness, String, String), TextSpan>{};
 
   static Highlight? _highlight;
   static Highlight get _engine =>
@@ -45,9 +47,15 @@ abstract final class CodeHighlighter {
 
   /// [code] highlighted at once, or null when it isn't (unknown language,
   /// too large, or large enough for [highlightAsync]).
-  static TextSpan? highlightSync(String code, String? language, TextStyle base) {
+  static TextSpan? highlightSync(
+    String code,
+    String? language,
+    TextStyle base,
+    Brightness mode,
+  ) {
     if (language == null || code.length > syncChars) return null;
-    return _cached(code, language) ?? _remember(code, language, _span(code, language, base));
+    return _cached(code, language, mode) ??
+        _remember(code, language, mode, _span(code, language, base, mode));
   }
 
   /// [code] highlighted off the UI thread, or null when it can't be.
@@ -55,37 +63,51 @@ abstract final class CodeHighlighter {
     String code,
     String? language,
     TextStyle base,
+    Brightness mode,
   ) async {
     if (language == null || code.length > maxChars) return null;
-    final hit = _cached(code, language);
+    final hit = _cached(code, language, mode);
     if (hit != null) return hit;
-    final span = await Isolate.run(() => _span(code, language, base));
-    return _remember(code, language, span);
+    final span = await Isolate.run(() => _span(code, language, base, mode));
+    return _remember(code, language, mode, span);
   }
 
-  static TextSpan? cached(String code, String? language) =>
-      language == null ? null : _cached(code, language);
+  static TextSpan? cached(String code, String? language, Brightness mode) =>
+      language == null ? null : _cached(code, language, mode);
 
-  static TextSpan? _cached(String code, String language) {
-    final key = (language, code);
+  static TextSpan? _cached(String code, String language, Brightness mode) {
+    final key = (mode, language, code);
     final hit = _cache.remove(key);
     if (hit != null) _cache[key] = hit;
     return hit;
   }
 
-  static TextSpan? _remember(String code, String language, TextSpan? span) {
+  static TextSpan? _remember(
+    String code,
+    String language,
+    Brightness mode,
+    TextSpan? span,
+  ) {
     if (span == null) return null;
-    _cache[(language, code)] = span;
+    _cache[(mode, language, code)] = span;
     while (_cache.length > _cacheSize) {
       _cache.remove(_cache.keys.first);
     }
     return span;
   }
 
-  static TextSpan? _span(String code, String language, TextStyle base) {
+  static TextSpan? _span(
+    String code,
+    String language,
+    TextStyle base,
+    Brightness mode,
+  ) {
     try {
       final result = _engine.highlight(code: code, language: language);
-      final renderer = TextSpanRenderer(base, githubDarkDimmedTheme);
+      final renderer = TextSpanRenderer(
+        base,
+        mode == Brightness.dark ? githubDarkDimmedTheme : githubTheme,
+      );
       result.render(renderer);
       return renderer.span;
     } catch (_) {

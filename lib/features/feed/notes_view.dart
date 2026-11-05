@@ -8,8 +8,13 @@ import 'transcript.dart';
 /// The rows for what isn't the user's own words
 /// (`SPEC_FEED_RENDERS_LIKE_THE_DESKTOP_PANE_2026_10_13.md` §7).
 
-final _small = feedProse.copyWith(fontSize: 12, color: FeedColors.secondary, height: 1.4);
-final _mono = feedCode.copyWith(fontSize: 11.5, color: FeedColors.secondary);
+TextStyle _small(BuildContext context) => context.feedProse.copyWith(
+  fontSize: 12,
+  color: context.feed.secondary,
+  height: 1.4,
+);
+TextStyle _mono(BuildContext context) =>
+    context.feedCode.copyWith(fontSize: 11.5, color: context.feed.secondary);
 
 /// A line that opens to more: "▸ summary", "▾ summary" and the body under
 /// it (the desktop's `CollapsibleMessage`). [bar] draws a 2 px bar on the
@@ -51,7 +56,7 @@ class CollapsibleLine extends StatelessWidget {
                     height: 18,
                     child: Text(
                       open ? '▾' : '▸',
-                      style: const TextStyle(fontSize: 10, color: FeedColors.secondary),
+                      style: TextStyle(fontSize: 10, color: context.feed.secondary),
                     ),
                   ),
                   Expanded(child: summary),
@@ -75,7 +80,7 @@ class CollapsibleLine extends StatelessWidget {
 Widget _capped(BuildContext context, Widget child) => Container(
       constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height / 4),
       padding: const EdgeInsets.symmetric(horizontal: FeedSpace.s2, vertical: 6),
-      color: FeedColors.panel,
+      color: context.feed.panel,
       child: SingleChildScrollView(child: child),
     );
 
@@ -105,12 +110,12 @@ class ContextLine extends StatelessWidget {
           Center(
             child: InkWell(
               onTap: onToggle,
-              child: _Pill(contextSummary(item), color: FeedColors.secondary),
+              child: _Pill(contextSummary(item), color: context.feed.secondary),
             ),
           ),
           if (open) ...[
             const SizedBox(height: FeedSpace.s1),
-            _capped(context, SelectableText(item.text, style: _mono)),
+            _capped(context, SelectableText(item.text, style: _mono(context))),
           ],
         ],
       );
@@ -126,13 +131,13 @@ class ContextLine extends StatelessWidget {
         ]),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: _small,
+        style: _small(context),
       ),
       body: () => _capped(
         context,
         item.kind == ContextKind.compactSummary || item.kind == ContextKind.continuation
-            ? FeedMarkdown(item.text, style: feedProse.copyWith(fontSize: 13))
-            : SelectableText(item.text, style: _mono),
+            ? FeedMarkdown(item.text, style: context.feedProse.copyWith(fontSize: 13))
+            : SelectableText(item.text, style: _mono(context)),
       ),
     );
   }
@@ -157,14 +162,14 @@ class _JektViewState extends State<JektView> {
   Widget build(BuildContext context) {
     final j = widget.jekt;
     final tierColor = switch (j.tier) {
-      'sensitive' => FeedColors.error,
-      'info' => FeedColors.secondary,
-      _ => FeedColors.accent,
+      'sensitive' => context.feed.error,
+      'info' => context.feed.secondary,
+      _ => context.feed.accent,
     };
     return CollapsibleLine(
       open: widget.open,
       onToggle: widget.onToggle,
-      bar: j.sensitive ? FeedColors.error : FeedColors.accent,
+      bar: j.sensitive ? context.feed.error : context.feed.accent,
       summary: Wrap(
         spacing: FeedSpace.s1,
         runSpacing: 2,
@@ -175,16 +180,16 @@ class _JektViewState extends State<JektView> {
               const TextSpan(text: '📥 '),
               TextSpan(text: 'From ${j.from}', style: const TextStyle(fontWeight: FontWeight.w600)),
             ]),
-            style: feedProse.copyWith(fontSize: 13),
+            style: context.feedProse.copyWith(fontSize: 13),
           ),
           _Pill('${jektTierIcons[j.tier] ?? ''} ${j.tier}', color: tierColor),
-          _Pill('${jektDeliveryIcons[j.delivery] ?? ''} ${j.delivery}', color: FeedColors.secondary),
+          _Pill('${jektDeliveryIcons[j.delivery] ?? ''} ${j.delivery}', color: context.feed.secondary),
         ],
       ),
       body: () => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _capped(context, SelectableText(j.body, style: feedProse.copyWith(fontSize: 13))),
+          _capped(context, SelectableText(j.body, style: context.feedProse.copyWith(fontSize: 13))),
           const SizedBox(height: FeedSpace.s1),
           Text(
             [
@@ -196,16 +201,16 @@ class _JektViewState extends State<JektView> {
               'Priority: ${j.priority}',
               if (j.sentAt != null) _when(j.sentAt!),
             ].join('  ·  '),
-            style: _small.copyWith(fontSize: 11),
+            style: _small(context).copyWith(fontSize: 11),
           ),
           InkWell(
             onTap: () => setState(() => _raw = !_raw),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 3),
-              child: Text('${_raw ? '▾' : '▸'} Raw payload', style: _small.copyWith(fontSize: 11)),
+              child: Text('${_raw ? '▾' : '▸'} Raw payload', style: _small(context).copyWith(fontSize: 11)),
             ),
           ),
-          if (_raw) _capped(context, SelectableText(j.raw, style: _mono)),
+          if (_raw) _capped(context, SelectableText(j.raw, style: _mono(context))),
         ],
       ),
     );
@@ -229,8 +234,8 @@ class OriginView extends StatelessWidget {
     final trust = o?.trust;
     final sig = o?.sig;
     final bar = switch (item.look.kind) {
-      ContainerKind.agent || ContainerKind.service => FeedColors.accent,
-      _ => FeedColors.border,
+      ContainerKind.agent || ContainerKind.service => context.feed.accent,
+      _ => context.feed.border,
     };
     final excerpt = item.text.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).firstOrNull ?? '';
     return CollapsibleLine(
@@ -250,17 +255,17 @@ class OriginView extends StatelessWidget {
                   TextSpan(text: '${item.look.icon} '),
                   TextSpan(text: item.look.label, style: const TextStyle(fontWeight: FontWeight.w600)),
                 ]),
-                style: feedProse.copyWith(fontSize: 13),
+                style: context.feedProse.copyWith(fontSize: 13),
               ),
               if (trust != null)
-                _Pill(trust, color: trust.endsWith('-verified') ? FeedColors.secondary : FeedColors.warningText),
+                _Pill(trust, color: trust.endsWith('-verified') ? context.feed.secondary : context.feed.warningText),
               if (sig != null)
                 _Pill(
                   sig == 'verified' ? 'signed' : 'signature invalid',
-                  color: sig == 'verified' ? FeedColors.secondary : FeedColors.warningText,
+                  color: sig == 'verified' ? context.feed.secondary : context.feed.warningText,
                 ),
-              if (item.detail != null) Text(item.detail!, style: _small.copyWith(fontSize: 11)),
-              if (item.late != null) Text(item.late!, style: _small.copyWith(fontSize: 11)),
+              if (item.detail != null) Text(item.detail!, style: _small(context).copyWith(fontSize: 11)),
+              if (item.late != null) Text(item.late!, style: _small(context).copyWith(fontSize: 11)),
             ],
           ),
           if (!open && excerpt.isNotEmpty)
@@ -268,7 +273,7 @@ class OriginView extends StatelessWidget {
               excerpt,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: _small.copyWith(fontStyle: FontStyle.italic),
+              style: _small(context).copyWith(fontStyle: FontStyle.italic),
             ),
         ],
       ),
@@ -276,11 +281,11 @@ class OriginView extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Text only: a message is never read as markup.
-          _capped(context, SelectableText(item.text, style: feedProse.copyWith(fontSize: 13))),
+          _capped(context, SelectableText(item.text, style: context.feedProse.copyWith(fontSize: 13))),
           if (item.attachments.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: FeedSpace.s1),
-              child: Text('📎 ${item.attachments.join(', ')}', style: _small.copyWith(fontSize: 11)),
+              child: Text('📎 ${item.attachments.join(', ')}', style: _small(context).copyWith(fontSize: 11)),
             ),
         ],
       ),
@@ -303,17 +308,17 @@ class _Pill extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
         decoration: BoxDecoration(
-          color: FeedColors.tint(color, 0.16),
+          color: feedTint(color, 0.16),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Text(label, style: _small.copyWith(fontSize: 11, color: color)),
+        child: Text(label, style: _small(context).copyWith(fontSize: 11, color: color)),
       );
 }
 
-Color noticeColor(NoticeTone tone) => switch (tone) {
-      NoticeTone.info => FeedColors.secondary,
-      NoticeTone.warn => FeedColors.warningText,
-      NoticeTone.error => FeedColors.errorText,
+Color noticeColor(NoticeTone tone, FeedPalette f) => switch (tone) {
+      NoticeTone.info => f.secondary,
+      NoticeTone.warn => f.warningText,
+      NoticeTone.error => f.errorText,
     };
 
 /// An AgentMux note: a centred divider with its label, and a detail line.
@@ -323,7 +328,7 @@ class NoticeDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = noticeColor(item.tone);
+    final color = noticeColor(item.tone, context.feed);
     final detail = item.detail;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: FeedSpace.s1),
@@ -331,18 +336,18 @@ class NoticeDivider extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Expanded(child: Divider(color: FeedColors.border)),
+              Expanded(child: Divider(color: context.feed.border)),
               const SizedBox(width: FeedSpace.s2),
               Flexible(
                 flex: 4,
                 child: Text(
                   item.label,
                   textAlign: TextAlign.center,
-                  style: _small.copyWith(fontSize: 11, color: color),
+                  style: _small(context).copyWith(fontSize: 11, color: color),
                 ),
               ),
               const SizedBox(width: FeedSpace.s2),
-              const Expanded(child: Divider(color: FeedColors.border)),
+              Expanded(child: Divider(color: context.feed.border)),
             ],
           ),
           if (detail != null && detail.isNotEmpty)
@@ -351,7 +356,7 @@ class NoticeDivider extends StatelessWidget {
               child: Text(
                 detail,
                 textAlign: TextAlign.center,
-                style: _small.copyWith(fontSize: 11),
+                style: _small(context).copyWith(fontSize: 11),
               ),
             ),
         ],
@@ -372,17 +377,17 @@ class ErrorBlock extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: FeedSpace.s2, vertical: 6),
       decoration: BoxDecoration(
-        color: FeedColors.tint(FeedColors.error, 0.08),
-        border: const Border(left: BorderSide(color: FeedColors.error, width: 2)),
+        color: feedTint(context.feed.error, 0.08),
+        border: Border(left: BorderSide(color: context.feed.error, width: 2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             code == null ? 'Error' : 'HTTP $code',
-            style: feedCode.copyWith(color: FeedColors.errorText, fontWeight: FontWeight.w700),
+            style: context.feedCode.copyWith(color: context.feed.errorText, fontWeight: FontWeight.w700),
           ),
-          SelectableText(item.message, style: _small.copyWith(fontSize: 13)),
+          SelectableText(item.message, style: _small(context).copyWith(fontSize: 13)),
         ],
       ),
     );
@@ -407,7 +412,7 @@ class DeliveryCard extends StatelessWidget {
         '📥 ${item.title}${tokens > 0 ? '  ~${formatTokens(tokens)} tok (est.)' : ''}',
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
-        style: _small,
+        style: _small(context),
       ),
       body: () => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -417,15 +422,15 @@ class DeliveryCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 1),
               child: Row(
                 children: [
-                  Text('${e.icon} ', style: _small),
+                  Text('${e.icon} ', style: _small(context)),
                   Expanded(
-                    child: Text(e.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: _small.copyWith(color: FeedColors.text)),
+                    child: Text(e.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: _small(context).copyWith(color: context.feed.text)),
                   ),
                   const SizedBox(width: FeedSpace.s1),
-                  _Pill(e.chip, color: FeedColors.secondary),
+                  _Pill(e.chip, color: context.feed.secondary),
                   if (e.cut) ...[
                     const SizedBox(width: FeedSpace.s1),
-                    const _Pill('cut', color: FeedColors.warningText),
+                    _Pill('cut', color: context.feed.warningText),
                   ],
                 ],
               ),

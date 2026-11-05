@@ -35,7 +35,7 @@ class _ToolBlockState extends State<ToolBlock> {
     final tool = widget.tool;
     return Container(
       decoration: BoxDecoration(
-        border: Border(left: BorderSide(color: toolBarColor(tool.state), width: 2)),
+        border: Border(left: BorderSide(color: toolBarColor(tool.state, context.feed), width: 2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -94,7 +94,7 @@ class _SubagentStepsState extends State<SubagentSteps> {
                 '${_open ? '▾' : '▸'} ${steps.length} ${steps.length == 1 ? 'step' : 'steps'}$nowText',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: _mutedStyle,
+                style: _mutedStyle(context),
               ),
             ),
           ),
@@ -115,7 +115,8 @@ class _SubagentStepsState extends State<SubagentSteps> {
   }
 }
 
-final _headerStyle = feedCode.copyWith(fontSize: 12.5, height: 1.4);
+TextStyle _headerStyle(BuildContext context) =>
+    context.feedCode.copyWith(fontSize: 12.5, height: 1.4);
 
 /// The header line.
 class ToolHeader extends StatelessWidget {
@@ -131,11 +132,11 @@ class ToolHeader extends StatelessWidget {
     final kind = toolKind(tool.name);
     final detail = toolDetail(tool);
     final label = toolLabel(tool, detail);
-    final color = toolNameColor(kind);
+    final color = toolNameColor(kind, context.feed);
     final range = readRange(tool);
     final ms = tool.durationMs;
-    final pill = toolPill(tool);
-    final muted = _headerStyle.copyWith(color: FeedColors.secondary);
+    final pill = toolPill(tool, context.feed);
+    final muted = _headerStyle(context).copyWith(color: context.feed.secondary);
     return LayoutBuilder(builder: (context, c) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: FeedSpace.s1, vertical: 3),
@@ -146,12 +147,12 @@ class ToolHeader extends StatelessWidget {
               child: Text(
                 toolGlyph(tool),
                 textAlign: TextAlign.center,
-                style: muted.copyWith(fontSize: 11, color: toolBarColor(tool.state)),
+                style: muted.copyWith(fontSize: 11, color: toolBarColor(tool.state, context.feed)),
                 semanticsLabel: tool.state.name,
               ),
             ),
             const SizedBox(width: FeedSpace.s1),
-            Text(toolIcon(kind), style: _headerStyle.copyWith(fontSize: 11)),
+            Text(toolIcon(kind), style: _headerStyle(context).copyWith(fontSize: 11)),
             const SizedBox(width: FeedSpace.s1),
             if (label != null) ...[
               // At most 40 % of the row, so a long MCP or custom name
@@ -162,12 +163,12 @@ class ToolHeader extends StatelessWidget {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: _headerStyle.copyWith(color: color, fontWeight: FontWeight.w600),
+                  style: _headerStyle(context).copyWith(color: color, fontWeight: FontWeight.w600),
                 ),
               ),
               const SizedBox(width: FeedSpace.s1_5),
             ],
-            Expanded(child: _detail(kind, detail, color)),
+            Expanded(child: _detail(context, kind, detail, color)),
             if (range != null) ...[
               const SizedBox(width: FeedSpace.s1),
               Text(range, style: muted),
@@ -186,14 +187,19 @@ class ToolHeader extends StatelessWidget {
     });
   }
 
-  Widget _detail(ToolKind kind, String detail, Color color) {
+  Widget _detail(BuildContext context, ToolKind kind, String detail, Color color) {
     if (detail.isEmpty) return const SizedBox.shrink();
-    final style = _headerStyle.copyWith(color: color);
+    final style = _headerStyle(context).copyWith(color: color);
     if (toolDetailIsPath(tool)) return LeftEllipsisText(detail, style: style);
     if (kind == ToolKind.bash) {
-      final span = CodeHighlighter.highlightSync(detail, 'bash', _headerStyle);
+      final span = CodeHighlighter.highlightSync(
+        detail,
+        'bash',
+        _headerStyle(context),
+        context.feed.brightness,
+      );
       if (span != null) {
-        return Text.rich(span, maxLines: 1, overflow: TextOverflow.ellipsis, style: _headerStyle);
+        return Text.rich(span, maxLines: 1, overflow: TextOverflow.ellipsis, style: _headerStyle(context));
       }
     }
     return Text(detail, maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
@@ -208,12 +214,12 @@ class _Pill extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 6),
         decoration: BoxDecoration(
-          color: FeedColors.tint(pill.color, 0.16),
+          color: feedTint(pill.color, 0.16),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
           pill.label,
-          style: feedProse.copyWith(fontSize: 11, color: pill.color, height: 1.5),
+          style: context.feedProse.copyWith(fontSize: 11, color: pill.color, height: 1.5),
         ),
       );
 }
@@ -280,8 +286,9 @@ const runningText = '⏳ Thinking…';
 /// of half a window.
 const previewLines = 13;
 
-const _previewStyle = feedCode;
-final _mutedStyle = feedCode.copyWith(color: FeedColors.secondary);
+TextStyle _previewStyle(BuildContext context) => context.feedCode;
+TextStyle _mutedStyle(BuildContext context) =>
+    context.feedCode.copyWith(color: context.feed.secondary);
 
 /// A tool call's preview, by tool.
 class ToolPreview extends StatefulWidget {
@@ -302,8 +309,10 @@ class _ToolPreviewState extends State<ToolPreview> {
 
   /// What a preview is built from. The call is mutated in place, so its
   /// parts are compared, by identity where they are large.
-  static List<Object?> _inputsOf(ToolCallItem t) => [
+  static List<Object?> _inputsOf(ToolCallItem t, FeedPalette p) => [
         t,
+        // The preview bakes in the palette: a change of mode rebuilds it.
+        p,
         t.state,
         t.result,
         t.input,
@@ -320,10 +329,10 @@ class _ToolPreviewState extends State<ToolPreview> {
   }
 
   Preview _current() {
-    final inputs = _inputsOf(widget.tool);
+    final inputs = _inputsOf(widget.tool, context.feed);
     final built = _builtFrom;
     if (_preview == null || built == null || !_same(built, inputs)) {
-      _preview = buildPreview(widget.tool);
+      _preview = buildPreview(context, widget.tool);
       _builtFrom = inputs;
     }
     return _preview!;
@@ -334,7 +343,7 @@ class _ToolPreviewState extends State<ToolPreview> {
     final p = _current();
     final tall = widget.tall;
     final onTall = widget.onTall;
-    final lineHeight = (_previewStyle.fontSize ?? 12) * (_previewStyle.height ?? 1.45);
+    final lineHeight = (_previewStyle(context).fontSize ?? 12) * (_previewStyle(context).height ?? 1.45);
     final maxHeight = lineHeight * previewLines * (tall ? 3 : 1) + 12;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -343,7 +352,7 @@ class _ToolPreviewState extends State<ToolPreview> {
           margin: const EdgeInsets.fromLTRB(FeedSpace.s3, 0, 0, FeedSpace.s1),
           padding: const EdgeInsets.symmetric(horizontal: FeedSpace.s2, vertical: 6),
           constraints: BoxConstraints(maxHeight: maxHeight),
-          color: FeedColors.panel,
+          color: context.feed.panel,
           child: SingleChildScrollView(
             // A log follows its latest output; a document opens at its top.
             reverse: p.follow,
@@ -378,39 +387,45 @@ class Preview {
   final bool follow;
 }
 
-Preview _note(String text, {Color color = FeedColors.secondary}) =>
-    Preview(SelectableText(text, style: _previewStyle.copyWith(color: color)));
+Preview _note(BuildContext context, String text, {Color? color}) => Preview(
+  SelectableText(
+    text,
+    style: _previewStyle(context).copyWith(
+      color: color ?? context.feed.secondary,
+    ),
+  ),
+);
 
-Preview buildPreview(ToolCallItem tool) {
+Preview buildPreview(BuildContext context, ToolCallItem tool) {
   final kind = toolKind(tool.name);
   // Edit and Write show their input, which is there from the start.
   if (kind == ToolKind.edit || kind == ToolKind.write) {
-    if (tool.inputTruncatedBytes != null) return _note(truncatedInputText);
-    return kind == ToolKind.edit ? _editPreview(tool) : _writePreview(tool);
+    if (tool.inputTruncatedBytes != null) return _note(context, truncatedInputText);
+    return kind == ToolKind.edit ? _editPreview(context, tool) : _writePreview(context, tool);
   }
-  if (tool.truncatedBytes != null) return _note(truncatedResultText);
+  if (tool.truncatedBytes != null) return _note(context, truncatedResultText);
   final result = tool.result;
   if (result == null) {
     return switch (tool.state) {
-      ToolState.running => _note(
+      ToolState.running => _note(context, 
           tool.name == 'AskUserQuestion' ? '❓ Waiting for an answer on the computer' : runningText,
         ),
-      ToolState.cancelled => _note('Cancelled'),
-      _ => _note('No output'),
+      ToolState.cancelled => _note(context, 'Cancelled'),
+      _ => _note(context, 'No output'),
     };
   }
-  if (tool.state == ToolState.denied) return _note('Denied: $result');
+  if (tool.state == ToolState.denied) return _note(context, 'Denied: $result');
   if (tool.state == ToolState.failed && kind != ToolKind.bash) {
-    return _textPreview(result, color: FeedColors.errorText, follow: false);
+    return _textPreview(context, result, color: context.feed.errorText, follow: false);
   }
   return switch (kind) {
-    ToolKind.bash => _bashPreview(tool, result),
-    ToolKind.read => _readPreview(tool, result),
-    ToolKind.glob => _textPreview(globFiles(result).join('\n'), follow: false),
-    ToolKind.grep => _textPreview(result, follow: false),
-    ToolKind.agent || ToolKind.webFetch => _markdownPreview(result),
-    ToolKind.webSearch => _webSearchPreview(result),
-    _ => _genericPreview(result),
+    ToolKind.bash => _bashPreview(context, tool, result),
+    ToolKind.read => _readPreview(context, tool, result),
+    ToolKind.glob => _textPreview(context, globFiles(result).join('\n'), follow: false),
+    ToolKind.grep => _textPreview(context, result, follow: false),
+    ToolKind.agent || ToolKind.webFetch => _markdownPreview(context, result),
+    ToolKind.webSearch => _webSearchPreview(context, result),
+    _ => _genericPreview(context, result),
   };
 }
 
@@ -425,26 +440,26 @@ Preview buildPreview(ToolCallItem tool) {
   );
 }
 
-Widget _hiddenMarker(int n, {required bool earlier}) => Padding(
+Widget _hiddenMarker(BuildContext context, int n, {required bool earlier}) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 1),
       child: Text(
         '… $n ${earlier ? 'earlier' : 'more'} ${n == 1 ? 'line' : 'lines'} hidden',
-        style: _mutedStyle.copyWith(fontStyle: FontStyle.italic, fontSize: 11),
+        style: _mutedStyle(context).copyWith(fontStyle: FontStyle.italic, fontSize: 11),
       ),
     );
 
-Preview _textPreview(String text, {Color? color, bool follow = true}) {
+Preview _textPreview(BuildContext context, String text, {Color? color, bool follow = true}) {
   final (lines, hidden) = capLines(text.trimRight().split('\n'), fromEnd: follow);
   return Preview(
     Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (hidden > 0 && follow) _hiddenMarker(hidden, earlier: true),
+        if (hidden > 0 && follow) _hiddenMarker(context, hidden, earlier: true),
         SelectableText(
           lines.join('\n'),
-          style: _previewStyle.copyWith(color: color),
+          style: _previewStyle(context).copyWith(color: color),
         ),
-        if (hidden > 0 && !follow) _hiddenMarker(hidden, earlier: false),
+        if (hidden > 0 && !follow) _hiddenMarker(context, hidden, earlier: false),
       ],
     ),
     lines: lines.length,
@@ -452,7 +467,7 @@ Preview _textPreview(String text, {Color? color, bool follow = true}) {
   );
 }
 
-Preview _bashPreview(ToolCallItem tool, String result) {
+Preview _bashPreview(BuildContext context, ToolCallItem tool, String result) {
   final f = tool.facts;
   final exit = bashExit(f.stdout ?? result);
   final out = (exit?.body ?? f.stdout ?? result).trimRight();
@@ -464,25 +479,25 @@ Preview _bashPreview(ToolCallItem tool, String result) {
     Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (hidden > 0) _hiddenMarker(hidden, earlier: true),
+        if (hidden > 0) _hiddenMarker(context, hidden, earlier: true),
         if (outLines.isNotEmpty)
           SelectableText(
             outLines.join('\n'),
-            style: _previewStyle.copyWith(
-              color: tool.state == ToolState.failed && exit == null ? FeedColors.errorText : null,
+            style: _previewStyle(context).copyWith(
+              color: tool.state == ToolState.failed && exit == null ? context.feed.errorText : null,
             ),
           ),
         if (errLines.isNotEmpty)
           SelectableText(
             errLines.join('\n'),
-            style: _previewStyle.copyWith(color: FeedColors.errorText),
+            style: _previewStyle(context).copyWith(color: context.feed.errorText),
           ),
-        if (outLines.isEmpty && errLines.isEmpty) Text('No output', style: _mutedStyle),
-        if (f.interrupted) Text('Interrupted', style: _mutedStyle),
+        if (outLines.isEmpty && errLines.isEmpty) Text('No output', style: _mutedStyle(context)),
+        if (f.interrupted) Text('Interrupted', style: _mutedStyle(context)),
         if (failed && exit != null)
           Text(
             'Exit code: ${exit.code}',
-            style: _previewStyle.copyWith(color: FeedColors.errorText),
+            style: _previewStyle(context).copyWith(color: context.feed.errorText),
           ),
       ],
     ),
@@ -492,11 +507,11 @@ Preview _bashPreview(ToolCallItem tool, String result) {
 }
 
 /// The file line over a file preview: the path, and what is known about it.
-Widget _fileLine(String path, [String? extra]) => Padding(
+Widget _fileLine(BuildContext context, String path, [String? extra]) => Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Text(
         extra == null ? path : '$path · $extra',
-        style: _mutedStyle.copyWith(fontSize: 11),
+        style: _mutedStyle(context).copyWith(fontSize: 11),
       ),
     );
 
@@ -519,7 +534,7 @@ Widget _sideways(Widget child) => SingleChildScrollView(
       child: child,
     );
 
-Preview _editPreview(ToolCallItem tool) {
+Preview _editPreview(BuildContext context, ToolCallItem tool) {
   final path = _path(tool);
   final input = tool.input;
   final hunks = <(String, String)>[];
@@ -538,7 +553,7 @@ Preview _editPreview(ToolCallItem tool) {
   var count = 0;
   var hidden = 0;
   for (var h = 0; h < hunks.length; h++) {
-    if (h > 0) rows.add(Text('⋯', style: _mutedStyle));
+    if (h > 0) rows.add(Text('⋯', style: _mutedStyle(context)));
     for (final line in lineDiff(hunks[h].$1, hunks[h].$2)) {
       if (count >= maxPreviewLines) {
         hidden++;
@@ -553,11 +568,11 @@ Preview _editPreview(ToolCallItem tool) {
     Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _fileLine(path),
+        _fileLine(context, path),
         if (failed)
           SelectableText(
             tool.result!,
-            style: _previewStyle.copyWith(color: FeedColors.errorText),
+            style: _previewStyle(context).copyWith(color: context.feed.errorText),
           ),
         _sideways(IntrinsicWidth(
           child: Column(
@@ -565,7 +580,7 @@ Preview _editPreview(ToolCallItem tool) {
             children: rows,
           ),
         )),
-        if (hidden > 0) _hiddenMarker(hidden, earlier: false),
+        if (hidden > 0) _hiddenMarker(context, hidden, earlier: false),
       ],
     ),
     lines: count + 1,
@@ -584,13 +599,18 @@ class DiffRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (marker, color) = switch (line.op) {
-      DiffOp.added => ('+', FeedColors.successText),
-      DiffOp.removed => ('−', FeedColors.errorText),
+      DiffOp.added => ('+', context.feed.successText),
+      DiffOp.removed => ('−', context.feed.errorText),
       DiffOp.same => (' ', null),
     };
-    final span = CodeHighlighter.highlightSync(line.text, language, _previewStyle);
+    final span = CodeHighlighter.highlightSync(
+      line.text,
+      language,
+      _previewStyle(context),
+      context.feed.brightness,
+    );
     return Container(
-      color: color == null ? null : FeedColors.tint(color, 0.15),
+      color: color == null ? null : feedTint(color, 0.15),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -599,12 +619,12 @@ class DiffRow extends StatelessWidget {
             child: Text(
               marker,
               textAlign: TextAlign.center,
-              style: _previewStyle.copyWith(color: color ?? FeedColors.secondary),
+              style: _previewStyle(context).copyWith(color: color ?? context.feed.secondary),
             ),
           ),
           Text.rich(
             span ?? TextSpan(text: line.text),
-            style: _previewStyle,
+            style: _previewStyle(context),
             softWrap: false,
           ),
         ],
@@ -613,7 +633,7 @@ class DiffRow extends StatelessWidget {
   }
 }
 
-Preview _writePreview(ToolCallItem tool) {
+Preview _writePreview(BuildContext context, ToolCallItem tool) {
   final path = _path(tool);
   final content = _s(tool.input['content']);
   final size = formatBytes(utf8.encode(content).length);
@@ -624,20 +644,20 @@ Preview _writePreview(ToolCallItem tool) {
     Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _fileLine(path, size),
+        _fileLine(context, path, size),
         if (failed)
           SelectableText(
             tool.result!,
-            style: _previewStyle.copyWith(color: FeedColors.errorText),
+            style: _previewStyle(context).copyWith(color: context.feed.errorText),
           ),
         if (_isMarkdown(path))
-          FeedMarkdown(shown, style: feedProse.copyWith(fontSize: 13))
+          FeedMarkdown(shown, style: context.feedProse.copyWith(fontSize: 13))
         else
           _sideways(HighlightedCode(
             code: shown,
             language: CodeHighlighter.languageForPath(path),
           )),
-        if (hidden > 0) _hiddenMarker(hidden, earlier: false),
+        if (hidden > 0) _hiddenMarker(context, hidden, earlier: false),
       ],
     ),
     lines: lines.length + 1,
@@ -653,10 +673,10 @@ final _gutter = RegExp(r'^\s*(\d+)(?:\t|→|$)(.*)$');
 String stripReminders(String text) =>
     text.replaceAll(_reminder, '\n').replaceFirst(RegExp(r'\n+$'), '');
 
-Preview _readPreview(ToolCallItem tool, String result) {
+Preview _readPreview(BuildContext context, ToolCallItem tool, String result) {
   final path = _path(tool);
   final range = readRange(tool);
-  if (tool.facts.unchanged) return _note(stripReminders(result));
+  if (tool.facts.unchanged) return _note(context, stripReminders(result));
   final raw = stripReminders(result).split('\n');
   final numbers = <String>[];
   final code = <String>[];
@@ -675,7 +695,7 @@ Preview _readPreview(ToolCallItem tool, String result) {
   final shown = lines.join('\n');
   final Widget body;
   if (_isMarkdown(path)) {
-    body = FeedMarkdown(shown, style: feedProse.copyWith(fontSize: 13));
+    body = FeedMarkdown(shown, style: context.feedProse.copyWith(fontSize: 13));
   } else {
     final highlighted = HighlightedCode(
       code: shown,
@@ -688,7 +708,7 @@ Preview _readPreview(ToolCallItem tool, String result) {
               Text(
                 numbers.take(lines.length).join('\n'),
                 textAlign: TextAlign.right,
-                style: _mutedStyle.copyWith(color: FeedColors.grey),
+                style: _mutedStyle(context).copyWith(color: context.feed.grey),
               ),
               const SizedBox(width: FeedSpace.s2),
               highlighted,
@@ -700,24 +720,24 @@ Preview _readPreview(ToolCallItem tool, String result) {
     Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _fileLine(path, range),
+        _fileLine(context, path, range),
         body,
-        if (hidden > 0) _hiddenMarker(hidden, earlier: false),
+        if (hidden > 0) _hiddenMarker(context, hidden, earlier: false),
       ],
     ),
     lines: lines.length + 1,
   );
 }
 
-Preview _markdownPreview(String result) {
+Preview _markdownPreview(BuildContext context, String result) {
   final text = stripReminders(result);
   return Preview(
-    FeedMarkdown(text, style: feedProse.copyWith(fontSize: 13)),
+    FeedMarkdown(text, style: context.feedProse.copyWith(fontSize: 13)),
     lines: '\n'.allMatches(text).length + 1,
   );
 }
 
-Preview _webSearchPreview(String result) {
+Preview _webSearchPreview(BuildContext context, String result) {
   final links = webSearchLinks(result);
   final text = result
       .replaceAll(RegExp(r'^Links: \[.*\]\s*$', multiLine: true), '')
@@ -741,13 +761,13 @@ Preview _webSearchPreview(String result) {
                 '↗ ${l.title}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: feedProse.copyWith(fontSize: 13, color: FeedColors.link),
+                style: context.feedProse.copyWith(fontSize: 13, color: context.feed.link),
               ),
             ),
           ),
         if (text.isNotEmpty) ...[
           const SizedBox(height: FeedSpace.s1),
-          FeedMarkdown(text, style: feedProse.copyWith(fontSize: 13)),
+          FeedMarkdown(text, style: context.feedProse.copyWith(fontSize: 13)),
         ],
       ],
     ),
@@ -757,7 +777,7 @@ Preview _webSearchPreview(String result) {
 
 /// Anything else: one line as text, several in a monospace box, JSON as a
 /// one-line summary that opens.
-Preview _genericPreview(String result) {
+Preview _genericPreview(BuildContext context, String result) {
   final text = stripReminders(result);
   final trimmed = text.trim();
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
@@ -769,9 +789,9 @@ Preview _genericPreview(String result) {
     }
   }
   if (!trimmed.contains('\n')) {
-    return Preview(SelectableText(trimmed, style: feedProse.copyWith(fontSize: 13)));
+    return Preview(SelectableText(trimmed, style: context.feedProse.copyWith(fontSize: 13)));
   }
-  return _textPreview(text);
+  return _textPreview(context, text);
 }
 
 /// JSON as "{3 keys}" or "[12 items]", tapped open to the whole of it.
@@ -797,7 +817,7 @@ class _JsonSummaryState extends State<JsonSummary> {
       children: [
         InkWell(
           onTap: () => setState(() => _open = !_open),
-          child: Text('${_open ? '▾' : '▸'} $summary', style: _mutedStyle),
+          child: Text('${_open ? '▾' : '▸'} $summary', style: _mutedStyle(context)),
         ),
         if (_open)
           HighlightedCode(
