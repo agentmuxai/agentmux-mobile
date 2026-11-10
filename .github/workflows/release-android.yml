@@ -2,19 +2,22 @@ name: release-android
 
 # Builds a signed Android App Bundle and uploads it to Google Play.
 #
-# Required repo secrets (Settings → Secrets → Actions) — NONE of these exist
-# yet as of writing; they need to be created (keystore + Play Console service
-# account) and added here, following the same pattern as build-macos.yml's
-# Apple secrets:
-#   ANDROID_KEYSTORE                 Base64-encoded release .jks/.keystore
+# Required repo secrets (Settings > Secrets > Actions):
+#   ANDROID_KEYSTORE                 Base64-encoded upload keystore (.jks)
 #   ANDROID_KEYSTORE_PASSWORD        Keystore password
 #   ANDROID_KEY_ALIAS                Key alias within the keystore
-#   ANDROID_KEY_PASSWORD             Key password (often same as keystore password)
-#   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON Play Console API service-account JSON (raw, not base64)
+#   ANDROID_KEY_PASSWORD             Key password
+#   GCP_WORKLOAD_IDENTITY_PROVIDER   Full resource name of the Workload Identity
+#                                    Federation provider that trusts this repo
+#   GCP_SERVICE_ACCOUNT              Email of the service account the upload acts as
 #
-# See docs/specs/RELEASE_SIGNING_SETUP.md for how to generate the keystore
-# and create the Play Console service account.
-
+# There is no service-account key file: the job trades GitHub's OIDC token for
+# short-lived Google credentials (google-github-actions/auth). The provider only
+# accepts this repository's main branch and this workflow, so run it from main.
+#
+# Play App Signing holds the app signing key; this keystore is only the upload key.
+#
+# See docs/specs/RELEASE_SIGNING_SETUP.md.
 on:
   workflow_dispatch:
     inputs:
@@ -32,11 +35,22 @@ on:
           - alpha
           - beta
           - production
+      status:
+        description: "Release status (a first upload to a new app must be draft)"
+        required: true
+        default: completed
+        type: choice
+        options:
+          - completed
+          - draft
 
 jobs:
   build-and-upload:
     name: Build signed AAB & upload to Play
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -64,20 +78,27 @@ jobs:
           storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
           keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
-          storeFile=app/release.keystore
+          storeFile=release.keystore
           EOF
 
       - name: Build release AAB
         run: flutter build appbundle --release
 
+      - name: Authenticate to Google (no key file)
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
       - name: Upload to Google Play
         uses: r0adkll/upload-google-play@v1
         with:
-          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          serviceAccountJson: ${{ steps.auth.outputs.credentials_file_path }}
           packageName: ai.agentmux.mobile
           releaseFiles: build/app/outputs/bundle/release/app-release.aab
           track: ${{ inputs.track }}
-          status: completed
+          status: ${{ inputs.status }}
 
       - name: Clean up signing material
         if: always()

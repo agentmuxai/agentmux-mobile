@@ -8,28 +8,28 @@ works today — they reference GitHub repo secrets that don't exist yet.
 Nothing here has been executed; no real key material has been generated or
 stored as part of writing this doc.
 
-## Android — Play Console
+## Android: Google Play
 
-1. **Generate a release keystore** (once, keep forever — losing it means you
-   can never update the app under the same listing again):
-   ```bash
-   keytool -genkey -v -keystore agentmux-mobile-release.keystore \
-     -alias agentmux-mobile -keyalg RSA -keysize 2048 -validity 10000
-   ```
-2. **Create a Play Console service account** for CI uploads: Play Console →
-   Setup → API access → create a service account in the linked Google Cloud
-   project, grant it "Release manager" access to this app, download its JSON
-   key.
-3. **Add GitHub repo secrets** (Settings → Secrets → Actions):
-   - `ANDROID_KEYSTORE` — `base64 -w0 agentmux-mobile-release.keystore`
-   - `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_PASSWORD` — from step 1
-   - `ANDROID_KEY_ALIAS` — `agentmux-mobile` (or whatever alias you chose)
-   - `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` — the raw JSON content from step 2
-     (not base64 — `r0adkll/upload-google-play` expects plain text)
-4. Store the keystore itself (the actual file, not just the CI secret)
-   somewhere durable outside this repo: store the keystore in the team's
-   private secret store; ask the maintainer. It is your only copy; GitHub
-   secrets are write-only and can't be read back if lost.
+1. **Upload key.** Generate an RSA 4096 upload keystore once and keep it in the
+   team's private secret store, never in a repo. Play App Signing holds the real
+   app signing key; this is only the key that proves an upload is ours, and Play
+   can reset it if it is lost.
+2. **Keyless publishing.** The workflow does not use a service-account key file.
+   A Google service account is allowed to publish this app in Play Console
+   (Users and permissions, release rights for this one app), and a Workload
+   Identity Federation provider lets only this repository's `main` branch, running
+   `release-android.yml`, act as it. The job trades GitHub's OIDC token for
+   short-lived credentials with `google-github-actions/auth`.
+3. **Repo secrets** (Settings > Secrets > Actions):
+   - `ANDROID_KEYSTORE`: the keystore, base64 (`base64 -w0 upload.jks`)
+   - `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_PASSWORD`, `ANDROID_KEY_ALIAS`
+   - `GCP_WORKLOAD_IDENTITY_PROVIDER`: the provider's full resource name
+   - `GCP_SERVICE_ACCOUNT`: the service account's email
+4. **First upload.** Run the workflow from `main` with status `draft`: a Play
+   release for an app that has not finished its setup can only be a draft. Later
+   uploads use `completed`.
+5. **Keep the keystore file** somewhere durable outside this repo; GitHub secrets
+   are write-only and can't be read back.
 
 ## iOS — App Store Connect / TestFlight
 
