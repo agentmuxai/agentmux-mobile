@@ -72,6 +72,8 @@ void main() {
     await tester.tap(_delete);
     await tester.pumpAndSettle();
     expect(find.text(deleteAccountTitle), findsOneWidget);
+    // Apple keeps its own link to the app; the person is told how to drop it.
+    expect(find.textContaining('Sign in with Apple'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('delete-account-cancel')));
     await tester.pumpAndSettle();
     expect(auth.sessionsCleared, 0);
