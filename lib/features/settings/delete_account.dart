@@ -11,6 +11,9 @@ const deleteAccountBody =
     'This deletes your AgentMux Cloud account and everything stored in it: '
     'your cloud agents, keys and message history. Your computers keep working '
     'on their own, and signing in again later starts a new, empty account.\n\n'
+    'If you signed in with Apple, also remove AgentMux in your iPhone Settings: '
+    'your name, Sign-In & Security, Sign in with Apple. Apple keeps that '
+    'connection until you do.\n\n'
     "This can't be undone.";
 const accountDeletedText = 'Your account was deleted.';
 const signedOutText = 'You are signed out.';
@@ -30,6 +33,7 @@ Future<void> confirmAndDeleteAccount(
     context: context,
     builder:
         (ctx) => AlertDialog(
+          scrollable: true,
           backgroundColor: context.palette.surface,
           title: Text(
             deleteAccountTitle,
