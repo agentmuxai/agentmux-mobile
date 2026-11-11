@@ -178,9 +178,10 @@ account or network.
       independently re-verified with the `pbxproj` library, not just
       asserted; see "None of this has ever been built by Xcode" above for
       what that verification does and doesn't cover). Declares
-      `NSPrivacyTracking = false`, no tracking domains, and three
+      `NSPrivacyTracking = false`, no tracking domains, and four
       `NSPrivacyCollectedDataType` entries, all for App Functionality only:
-      email address (account identity), User ID (the Cognito subject sent
+      email address (account identity), name (given by Google or Apple at
+      sign-in; added 2026-11-11 to match the App Store privacy label), User ID (the Cognito subject sent
       as `mobile:$sub` in the `x-agent-id` header on every cloud
       injection), and Other User Content (the injected message text itself,
       sent in the request body). The latter two were added after the
