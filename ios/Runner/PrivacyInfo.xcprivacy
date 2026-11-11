@@ -35,6 +35,24 @@
 			</array>
 		</dict>
 		<!--
+		  Signing in with Google or Apple gives the account the person's
+		  name (the `profile` scope; Apple only if they share it). The App
+		  Store privacy label and the mobile privacy policy list it, so the
+		  manifest does too.
+		-->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeName</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!--
 		  For a signed-in cloud injection, injection_provider.dart sends the
 		  Cognito subject as `mobile:$sub` in the `x-agent-id` header
 		  (muxbus_client.dart's postInjection), and the message text itself in
