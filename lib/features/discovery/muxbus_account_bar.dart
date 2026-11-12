@@ -137,8 +137,9 @@ class FleetStatusLine extends StatelessWidget {
   final bool indicatorGap;
   final double height;
 
-  /// The home indicator is about 134 pt wide; leave a little more.
-  static const _indicator = 150.0;
+  /// The home indicator is 134 pt wide on a 6.1" phone and 157 pt on a 6.9"
+  /// one (iPhone 16 Pro Max); leave a little more than that.
+  static const _indicator = 165.0;
 
   static TextStyle _style(BuildContext context) =>
       TextStyle(color: context.palette.textSecondary, fontSize: 11);
