@@ -13,14 +13,37 @@ import '../../shared/widgets/adaptive.dart';
 import '../../shared/widgets/edge_insets.dart';
 import '../sysinfo/sysinfo_summary.dart';
 import '../tower/tower_screen.dart';
+import '../welcome/welcome.dart';
 import 'channel_terminals.dart';
 import 'host_card.dart';
 import 'manual_add_sheet.dart';
 import 'muxbus_account_bar.dart';
 import 'qr_scan_screen.dart';
 
+/// For a phone on the same network as the computer that still finds nothing.
+const lanDiscoveryHint =
+    'On the same Wi-Fi? Make sure LAN discovery is on in AgentMux on your '
+    'computer.';
+
+/// The app's first screen. On the first launch it is the welcome page, and
+/// the search of the network starts only once the person has moved on from
+/// it; from then on it is the list of computers.
 class DiscoveryScreen extends ConsumerWidget {
   const DiscoveryScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return switch (ref.watch(welcomeSeenProvider)) {
+      AsyncData(value: false) => const WelcomeScreen(),
+      AsyncData() || AsyncError() => const _Computers(),
+      // Reading whether the welcome was shown: a moment, with nothing drawn.
+      _ => Scaffold(backgroundColor: context.palette.background),
+    };
+  }
+}
+
+class _Computers extends ConsumerWidget {
+  const _Computers();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -178,18 +201,86 @@ class _EmptyView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.wifi_off, size: 64, color: context.palette.textFaint),
-            const SizedBox(height: 24),
+            Icon(Icons.wifi_off, size: 48, color: context.palette.textFaint),
+            const SizedBox(height: 16),
             const Text(
               'No AgentMux instances found on this network',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 8),
-            Text(
-              'Make sure LAN discovery is enabled\non your desktop instance.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: context.palette.textDim, fontSize: 13),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                whatAgentMuxIs,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: context.palette.textDim, fontSize: 13),
+              ),
+            ),
+            const SizedBox(height: 20),
+            // The offer: with nothing connected, the QR code is the way in
+            // that always works (another network, discovery off, a firewall).
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      key: const ValueKey('scan-offer'),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: context.palette.surface,
+                        border: Border.all(color: context.palette.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Connect a computer',
+                            style: TextStyle(
+                              color: context.palette.textPrimary,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            whereTheQrCodeIs,
+                            style: TextStyle(
+                              color: context.palette.textSecondary,
+                              fontSize: 13,
+                              height: 1.35,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          FilledButton.icon(
+                            icon: const Icon(Icons.qr_code_scanner, size: 20),
+                            label: const Text('Scan QR code'),
+                            onPressed: () => showQrScanScreen(context),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.add, size: 20),
+                      label: const Text('Connect manually'),
+                      onPressed: () => showManualAddSheet(context),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      lanDiscoveryHint,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: context.palette.textDim,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
             if (hint != null) ...[
               const SizedBox(height: 16),
@@ -210,21 +301,9 @@ class _EmptyView extends StatelessWidget {
               ),
             ],
             if (note != null) CloudNote(text: note),
-            const SizedBox(height: 32),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.qr_code_scanner),
-              label: const Text('Scan QR code'),
-              onPressed: () => showQrScanScreen(context),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.add),
-              label: const Text('Connect manually'),
-              onPressed: () => showManualAddSheet(context),
-            ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
             TextButton.icon(
-              icon: const Icon(Icons.visibility_outlined),
+              icon: const Icon(Icons.visibility_outlined, size: 20),
               label: const Text('View a demo fleet'),
               onPressed: () => context.push('/demo'),
             ),

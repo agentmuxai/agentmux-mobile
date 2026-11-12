@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_fakes.dart';
+import '../welcome/welcome_fakes.dart';
 
 class _Empty extends DiscoveryNotifier {
   @override
@@ -43,7 +44,7 @@ Future<void> _pump(
     ProviderScope(
       overrides: [
         authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
-        discoveryProvider.overrideWith(_Empty.new),
+        discoveryProvider.overrideWith(_Empty.new), welcomeAlreadySeen,
       ],
       child: routed
           ? MaterialApp.router(
@@ -130,7 +131,7 @@ void main() {
       ProviderScope(
         overrides: [
           authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
-          discoveryProvider.overrideWith(_Empty.new),
+          discoveryProvider.overrideWith(_Empty.new), welcomeAlreadySeen,
         ],
         child: const MaterialApp(home: DiscoveryScreen()),
       ),

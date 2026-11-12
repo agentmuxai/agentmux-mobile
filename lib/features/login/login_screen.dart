@@ -36,7 +36,8 @@ String? signInErrorText(Object error) {
   return signInFailedText;
 }
 
-/// The MuxBus sign-in page: "Connect with Google" first, "Continue with
+/// The MuxBus sign-in page (its buttons take the app's one button style,
+/// `AppTheme.buttonHeight`): "Connect with Google" first, "Continue with
 /// Apple" where the sign-in service offers it, then email, and "Not now".
 /// Reached from the discovery screen's "MuxBus Sign in" button and from
 /// Settings.
@@ -198,24 +199,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       foregroundColor: const Color(0xFF1F1F1F),
                       // White on a white page needs its outline.
                       side: light ? BorderSide(color: context.palette.border) : null,
-                      minimumSize: const Size.fromHeight(52),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      textStyle: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
                     ),
                     icon: const _GoogleMark(),
                     label: const Text('Connect with Google'),
                   ),
                   if (_apple) ...[
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     // Apple's guidelines: the white style on a dark background,
                     // the black style on a light one; no less prominent than
                     // Google's.
@@ -226,39 +215,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       style: FilledButton.styleFrom(
                         backgroundColor: light ? Colors.black : Colors.white,
                         foregroundColor: light ? Colors.white : Colors.black,
-                        minimumSize: const Size.fromHeight(52),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        textStyle: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
                       ),
-                      icon: const Icon(Icons.apple, size: 22),
+                      icon: const Icon(Icons.apple, size: 20),
                       label: const Text('Continue with Apple'),
                     ),
                   ],
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   OutlinedButton.icon(
                     key: const ValueKey('use-email'),
                     onPressed:
                         enabled ? () => _signIn(SignInMethod.email) : null,
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(52),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      textStyle: const TextStyle(fontSize: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
                     icon: const Icon(Icons.mail_outline),
                     label: const Text('Use email'),
                   ),
@@ -301,7 +267,7 @@ class _GoogleMark extends StatelessWidget {
       'G',
       style: TextStyle(
         color: Color(0xFF4285F4),
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: FontWeight.w800,
       ),
     ),

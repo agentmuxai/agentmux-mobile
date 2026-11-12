@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_fakes.dart';
+import '../welcome/welcome_fakes.dart';
 
 /// Discovery with a fixed state: no scanning, no timers.
 class _FixedDiscovery extends DiscoveryNotifier {
@@ -52,6 +53,7 @@ Widget _app(
     overrides: [
       authRepositoryProvider.overrideWithValue(auth),
       discoveryProvider.overrideWith(() => _FixedDiscovery(state)),
+      welcomeAlreadySeen,
     ],
     child: MaterialApp.router(
       routerConfig: router,
