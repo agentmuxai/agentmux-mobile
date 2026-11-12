@@ -274,6 +274,17 @@ abstract final class AppTheme {
   /// full-width one would run across the whole screen.
   static const snackBarMaxWidth = 480.0;
 
+  /// Every button's height, corners and label: the Cloud Console's sign-in
+  /// buttons (44 high, square corners, 15 pt semi-bold), so the app and the
+  /// console read as one product. 44 is also the smallest target Apple asks
+  /// for.
+  static const buttonHeight = 44.0;
+  static const buttonShape = RoundedRectangleBorder();
+  static const buttonTextStyle =
+      TextStyle(fontSize: 15, fontWeight: FontWeight.w600);
+  static const _buttonPadding =
+      EdgeInsets.symmetric(horizontal: 16, vertical: 10);
+
   static ThemeData _build(AppPalette p, FeedPalette feed, ColorScheme scheme) {
     return ThemeData(
       brightness: scheme.brightness,
@@ -315,6 +326,37 @@ abstract final class AppTheme {
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: p.primary,
         foregroundColor: Colors.white,
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(64, buttonHeight),
+          padding: _buttonPadding,
+          shape: buttonShape,
+          textStyle: buttonTextStyle,
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(64, buttonHeight),
+          padding: _buttonPadding,
+          shape: buttonShape,
+          textStyle: buttonTextStyle,
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          minimumSize: const Size(64, buttonHeight),
+          padding: _buttonPadding,
+          shape: buttonShape,
+          textStyle: buttonTextStyle,
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(64, buttonHeight),
+          shape: buttonShape,
+          textStyle: buttonTextStyle,
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,

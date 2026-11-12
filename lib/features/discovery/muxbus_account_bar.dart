@@ -15,7 +15,7 @@ String muxbusSignedInLabel(String? email) =>
         : 'MuxBus: signed in as $email';
 
 /// The discovery screen's footer, always on screen below the host list.
-/// Signed out it is one big "MuxBus Sign in" button that opens the MuxBus
+/// Signed out it is one full-width "MuxBus Sign in" button that opens the MuxBus
 /// sign-in page; signed in, the same button names the account and opens
 /// Settings.
 ///
@@ -60,14 +60,10 @@ class MuxbusAccountBar extends ConsumerWidget {
     final button = FilledButton.icon(
       key: const ValueKey('muxbus-account-bar'),
       onPressed: () => context.push(signedIn ? '/settings' : '/login'),
+      // The app's one button style: 44 high, square corners. Full width.
       style: FilledButton.styleFrom(
-        minimumSize: Size.fromHeight(compact ? 44 : 56),
-        padding: EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: compact ? 6 : 12,
-        ),
-        textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        minimumSize: const Size.fromHeight(AppTheme.buttonHeight),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       ),
       icon: Icon(signedIn ? Icons.cloud_done_outlined : Icons.cloud_outlined),
       label: Text(

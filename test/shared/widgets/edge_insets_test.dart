@@ -168,7 +168,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     return tester
-        .getSize(find.byKey(const ValueKey('muxbus-account-bar')))
+        .getSize(find.byType(MuxbusAccountBar))
         .height;
   }
 
