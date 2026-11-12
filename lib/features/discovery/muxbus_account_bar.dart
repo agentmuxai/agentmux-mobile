@@ -137,9 +137,15 @@ class FleetStatusLine extends StatelessWidget {
   final bool indicatorGap;
   final double height;
 
-  /// The home indicator is 134 pt wide on a 6.1" phone and 157 pt on a 6.9"
-  /// one (iPhone 16 Pro Max); leave a little more than that.
-  static const _indicator = 165.0;
+  /// The home indicator is about 134 pt wide; leave a little more.
+  static const _indicator = 150.0;
+
+  /// On the largest phones (430 pt wide and up) it is wider: 157 pt on a 6.9"
+  /// iPhone 16 Pro Max (440 pt).
+  static const _indicatorLarge = 165.0;
+
+  /// The gap left for it, on a screen `screenWidth` wide.
+  static double _gap(double screenWidth) => screenWidth >= 430 ? _indicatorLarge : _indicator;
 
   static TextStyle _style(BuildContext context) =>
       TextStyle(color: context.palette.textSecondary, fontSize: 11);
@@ -171,7 +177,8 @@ class FleetStatusLine extends StatelessWidget {
   }
 
   Widget _line(BuildContext context, BoxConstraints c) {
-    final half = (c.maxWidth - (indicatorGap ? _indicator : 0)) / 2;
+    final gap = _gap(MediaQuery.sizeOf(context).width);
+    final half = (c.maxWidth - (indicatorGap ? gap : 0)) / 2;
     // Both halves are narrow beside the indicator (about 90 pt each on a
     // 393 pt phone): each has a short form instead of an ellipsis. (The
     // limits include the 30 pt kept clear of each rounded corner.)
@@ -210,7 +217,7 @@ class FleetStatusLine extends StatelessWidget {
     return Row(
       children: [
         Expanded(child: Align(alignment: Alignment.centerLeft, child: left)),
-        if (indicatorGap) const SizedBox(width: _indicator),
+        if (indicatorGap) SizedBox(width: gap),
         Expanded(child: Align(alignment: Alignment.centerRight, child: right)),
       ],
     );
