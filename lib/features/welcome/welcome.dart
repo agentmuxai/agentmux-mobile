@@ -52,11 +52,19 @@ class WelcomeSeen extends AsyncNotifier<bool> {
   @override
   FutureOr<bool> build() async {
     try {
-      return await ref.read(secureStoreProvider).read(welcomeSeenKey) != null;
+      // A store that never answers must not leave the app on a blank screen.
+      final seen = await ref
+          .read(secureStoreProvider)
+          .read(welcomeSeenKey)
+          .timeout(readWithin);
+      return seen != null;
     } catch (_) {
       return true;
     }
   }
+
+  /// How long the store has to say whether the welcome was shown.
+  static const readWithin = Duration(seconds: 3);
 
   /// The person has moved on from the welcome page. Saved best-effort.
   Future<void> markSeen() async {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:agentmux_mobile/core/auth/auth_provider.dart';
 import 'package:agentmux_mobile/core/discovery/discovery_provider.dart';
 import 'package:agentmux_mobile/core/fleet/cloud_instance_source.dart';
@@ -154,6 +156,24 @@ void main() {
     expect(find.byKey(const ValueKey('scan-offer')), findsOneWidget);
   });
 
+  testWidgets('a store that never answers skips the welcome after 3 seconds', (
+    tester,
+  ) async {
+    _phone(tester);
+    await tester.pumpWidget(_app(_SilentStore()));
+    await tester.pump(WelcomeSeen.readWithin - const Duration(milliseconds: 100));
+    // Still waiting: nothing is drawn, and the network is not looked at.
+    expect(find.byKey(const ValueKey('scan-offer')), findsNothing);
+    expect(find.text('Continue'), findsNothing);
+    expect(_CountingDiscovery.built, 0);
+
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
+    expect(find.text('Continue'), findsNothing);
+    expect(find.byKey(const ValueKey('scan-offer')), findsOneWidget);
+    expect(_CountingDiscovery.built, 1);
+  });
+
   testWidgets('a store that cannot be written still lets the person on', (
     tester,
   ) async {
@@ -232,6 +252,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
+}
+
+/// A store whose read never completes (a keychain that hangs).
+class _SilentStore extends InMemorySecureStore {
+  @override
+  Future<String?> read(String key) => Completer<String?>().future;
 }
 
 class _WriteFails extends InMemorySecureStore {
