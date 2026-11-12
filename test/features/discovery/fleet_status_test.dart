@@ -276,14 +276,15 @@ void main() {
           agents: const [LanAgent(name: 'Nova', state: AgentState.working)],
         ),
       ]);
-      // Wide enough for the long wording beside the home indicator.
+      // A 6.9" phone's home indicator is 157 pt wide: the short wording
+      // keeps clear of it.
       await pump(
         tester,
         bottom: 34,
         size: const Size(440, 956),
         state: DiscoveryResults(hosts),
       );
-      expect(find.text('LAN · 1 computer'), findsOneWidget);
+      expect(find.text('LAN · 1'), findsOneWidget);
       expect(find.text('1 working'), findsOneWidget);
     });
   });
