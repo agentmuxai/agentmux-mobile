@@ -13,7 +13,7 @@ import 'package:agentmux_mobile/core/fleet/cloud_instances.dart';
 Map<String, Object?> _record([Map<String, Object?> extra = const {}]) => {
       'v': 1,
       'instance_id': 'testinstallidtestinstallid',
-      'hostname': 'narko',
+      'hostname': 'studio-pc',
       'channel': 'local-main-0a1b2c-5e6f7a8b',
       'os': 'windows',
       'version': '0.59.11',
@@ -61,7 +61,7 @@ void main() {
     test('reads a record', () {
       final c = CloudInstance.tryParse(_record())!;
       expect(c.instanceId, 'testinstallidtestinstallid');
-      expect(c.hostname, 'narko');
+      expect(c.hostname, 'studio-pc');
       expect(c.channel, 'local-main-0a1b2c-5e6f7a8b');
       expect(c.os, 'windows');
       expect(c.version, '0.59.11');
@@ -136,9 +136,9 @@ void main() {
         ],
       });
       expect(list, hasLength(2));
-      final narko = list.firstWhere(
+      final studioPc = list.firstWhere(
           (c) => c.instanceId == 'testinstallidtestinstallid');
-      expect(narko.version, '0.59.12');
+      expect(studioPc.version, '0.59.12');
     });
 
     test('relay times move onto the device clock by the relay Date header', () {
@@ -260,7 +260,7 @@ void main() {
           httpClientAdapter: adapter);
       final list = await client.getInstances();
       expect(adapter.paths, ['/wan-instances']);
-      expect(list.single.hostname, 'narko');
+      expect(list.single.hostname, 'studio-pc');
     });
 
     test('reads the relay clock from the Date header', () async {

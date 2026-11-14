@@ -13,7 +13,7 @@ const _gb = 1024 * 1024 * 1024;
 
 final _snapshot = {
   'ts_ms': 1,
-  'hostname': 'narko',
+  'hostname': 'studio-pc',
   'os': 'windows',
   'cpu_count': 8,
   'memory_metric': 'private working set',

@@ -18,7 +18,7 @@ void main() {
         () {
       final info = LocalApiClient.parseDiscovery({
         'host': {
-          'hostname': 'narko',
+          'hostname': 'studio-pc',
           'version': '0.59.7',
           'addressable': [
             {'agent_id': 'Clamk', 'last_seen': 5},
@@ -29,7 +29,7 @@ void main() {
           ],
         },
       });
-      expect(info.hostname, 'narko');
+      expect(info.hostname, 'studio-pc');
       expect(info.version, '0.59.7');
       expect(info.agents.map((a) => a.name), ['Clamk', 'Korp', 'AgentY']);
       expect(info.agents.map((a) => a.channel), [null, 'dev', 'stable']);

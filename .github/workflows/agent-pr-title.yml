@@ -3,7 +3,7 @@ name: PR title names the agent
 # A PR opened through the shared GitHub App (muxagent[bot], named
 # genericagentx-workflow[bot] until 2026-10-07) can't
 # say which agent opened it, so its title must start with "<Agent>@<host>: ",
-# e.g. "Korp@narko: fix the toolbar". PRs from any other author pass.
+# e.g. "Korp@studio-pc: fix the toolbar". PRs from any other author pass.
 # That agent must also be the one the notices about the PR go to: the body's
 # last agent_id tag, which gh-agent writes, and without which they are dropped,
 # so a body with no tag fails. The title's name matches the tag's id when they
@@ -49,7 +49,7 @@ jobs:
             exit 0
           fi
           if ! printf '%s' "$TITLE" | grep -Eq '^[A-Za-z0-9._-]+@[A-Za-z0-9._-]+: [^ ]'; then
-            echo "::error title=PR title must name the agent::PRs opened as $AUTHOR must start the title with '<Agent>@<host>: ', for example 'Korp@narko: fix the toolbar'. Edit the title; this check re-runs."
+            echo "::error title=PR title must name the agent::PRs opened as $AUTHOR must start the title with '<Agent>@<host>: ', for example 'Korp@studio-pc: fix the toolbar'. Edit the title; this check re-runs."
             exit 1
           fi
           # The last well-formed tag: the one that counts.

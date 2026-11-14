@@ -7,8 +7,8 @@ import 'package:agentmux_mobile/core/fleet/fleet_store.dart';
 final t0 = DateTime(2026, 10, 3, 12);
 
 Sighting _sight({
-  String hostname = 'narko',
-  String address = '192.168.1.230',
+  String hostname = 'studio-pc',
+  String address = '172.29.77.20',
   int port = 29704,
   String authKey = 'lan-k',
   String? channel = 'local-main',
@@ -64,21 +64,21 @@ void main() {
     });
 
     test('a different address alone keeps the working one', () {
-      // narko also has VM and VPN adapters; mDNS may name any of them.
-      var (s, id) = _add(const FleetStore(), _sight(address: '192.168.1.230'));
+      // studio-pc also has VM and VPN adapters; mDNS may name any of them.
+      var (s, id) = _add(const FleetStore(), _sight(address: '172.29.77.20'));
       final (s2, _, effect) =
           s.sight(_sight(address: '192.168.116.1'), t0, newId: () => 'x');
       expect(effect, SightingEffect.renewed);
-      expect(s2.records[id]!.address, '192.168.1.230');
+      expect(s2.records[id]!.address, '172.29.77.20');
     });
 
     test('a different address replaces one that is failing', () {
       var (s, id) = _add(const FleetStore(), _sight(address: '192.168.116.1'));
       s = s.apply(id, const SessionFailure(ChannelError.unreachable), t0);
       final (s2, _, effect) =
-          s.sight(_sight(address: '192.168.1.230'), t0, newId: () => 'x');
+          s.sight(_sight(address: '172.29.77.20'), t0, newId: () => 'x');
       expect(effect, SightingEffect.relocated);
-      expect(s2.records[id]!.address, '192.168.1.230');
+      expect(s2.records[id]!.address, '172.29.77.20');
       expect(s2.records[id]!.error, isNull);
     });
 
@@ -232,7 +232,7 @@ void main() {
       var (s, id) = _add(const FleetStore(), _sight());
       final (s2, _, _) = s.sight(
         const Sighting(
-          hostname: 'narko',
+          hostname: 'studio-pc',
           address: '198.51.100.30',
           port: 29704,
           authKey: 'lan-k',
@@ -364,7 +364,7 @@ void main() {
 
     test('a LAN sighting never lands on a cloud record of the same name', () {
       var s = const FleetStore()
-          .syncCloud([cloud('aaaa', hostname: 'narko', channel: 'local-main')]);
+          .syncCloud([cloud('aaaa', hostname: 'studio-pc', channel: 'local-main')]);
       final (s2, id, effect) = s.sight(_sight(), t0, newId: () => 'lan0');
       expect(effect, SightingEffect.added);
       expect(id, 'lan0');

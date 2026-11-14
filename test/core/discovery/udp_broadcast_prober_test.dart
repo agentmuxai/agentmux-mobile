@@ -5,7 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:agentmux_mobile/core/discovery/udp_broadcast_prober.dart';
 
-Datagram _datagram(String body, {String ip = '192.168.1.50'}) {
+Datagram _datagram(String body, {String ip = '192.0.2.50'}) {
   return Datagram(
     Uint8List.fromList(utf8.encode(body)),
     InternetAddress(ip),
@@ -122,11 +122,11 @@ void main() {
         Uint8List.fromList(utf8.encode(jsonEncode({
           'type': 'agentmux_discover_response',
           'v': 1,
-          'hostname': 'gamerlove',
+          'hostname': 'gaming-pc',
           'version': '0.55.37',
           'port': 60371,
           'auth_key': 'k',
-          'relay_source_address': '192.168.1.105',
+          'relay_source_address': '192.0.2.24',
         }))),
         InternetAddress('10.0.2.2'),
         47892,
@@ -135,7 +135,7 @@ void main() {
       expect(instance, isNotNull);
       // Without this, every relayed instance would collapse onto the
       // relay's own loopback address instead of the real responder's.
-      expect(instance!.address, '192.168.1.105');
+      expect(instance!.address, '192.0.2.24');
       expect(instance.port, 60371);
     });
 
@@ -151,7 +151,7 @@ void main() {
           'version': '1',
           'port': 1,
           'auth_key': 'k',
-          'relay_source_address': '192.168.1.105',
+          'relay_source_address': '192.0.2.24',
         }))),
         InternetAddress('10.0.2.2'),
         9999,
@@ -186,7 +186,7 @@ void main() {
     Map<String, Object?> reply([Map<String, Object?> extra = const {}]) => {
           'type': 'agentmux_discover_response',
           'v': 1,
-          'hostname': 'narko',
+          'hostname': 'studio-pc',
           'version': '0.59.11',
           'port': 29702,
           'auth_key': 'lan-a',
@@ -223,7 +223,7 @@ void main() {
       expect(i.os, isNull);
       expect(i.installId, isNull);
       expect(i.channelsRunning, isNull);
-      expect(i.hostname, 'narko');
+      expect(i.hostname, 'studio-pc');
     });
 
     test('viewer_port is read for the responder and its siblings', () {
@@ -281,7 +281,7 @@ void main() {
     Map<String, Object?> reply({Object? siblings}) => {
           'type': 'agentmux_discover_response',
           'v': 1,
-          'hostname': 'narko',
+          'hostname': 'studio-pc',
           'version': '0.59.7',
           'port': 29704,
           'auth_key': 'lan-a',
@@ -294,12 +294,12 @@ void main() {
         jsonEncode(reply(siblings: [
           {'channel': 'stable', 'port': 29700, 'auth_key': 'lan-b', 'version': '0.59.4'},
         ])),
-        ip: '192.168.1.230',
+        ip: '192.0.2.20',
       ));
       expect(all.map((i) => i.port), [29704, 29700]);
       final sib = all[1];
-      expect(sib.hostname, 'narko');
-      expect(sib.address, '192.168.1.230');
+      expect(sib.hostname, 'studio-pc');
+      expect(sib.address, '192.0.2.20');
       expect(sib.authKey, 'lan-b');
       expect(sib.channel, 'stable');
       expect(sib.version, '0.59.4');

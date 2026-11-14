@@ -68,13 +68,13 @@ void main() {
       final s = FleetSnapshot.tryParse({
         'epoch': '9f2c41d07a6b3e58',
         'rev': 12,
-        'hostname': 'narko',
+        'hostname': 'studio-pc',
         'channel': 'local-main-b28b7a-051fbf53',
         'version': '0.59.7',
         'agents': ['AgentY', 'Clamk'],
       })!;
       expect(s.eventId, '9f2c41d07a6b3e58:12');
-      expect(s.hostname, 'narko');
+      expect(s.hostname, 'studio-pc');
       expect(s.channel, 'local-main-b28b7a-051fbf53');
       expect(s.agents, ['AgentY', 'Clamk']);
     });

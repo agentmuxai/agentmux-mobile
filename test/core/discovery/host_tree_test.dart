@@ -6,8 +6,8 @@ import 'package:agentmux_mobile/core/fleet/channel_session.dart';
 import 'package:agentmux_mobile/core/fleet/fleet_store.dart';
 
 FleetEntry _instance({
-  String hostname = 'narko',
-  String address = '192.168.1.50',
+  String hostname = 'studio-pc',
+  String address = '192.0.2.50',
   required int port,
   String? channel,
   List<LanAgent> agents = const [],
@@ -35,7 +35,7 @@ void main() {
         _instance(port: 29700, agents: [_agent('Opaz')]),
       ]);
       expect(trees, hasLength(1));
-      expect(trees.single.name, 'narko');
+      expect(trees.single.name, 'studio-pc');
       expect(trees.single.showChannels, isFalse);
       expect(trees.single.channels.single.agents.map((a) => a.name), ['Opaz']);
     });
@@ -99,31 +99,31 @@ void main() {
 
     test('different hosts stay separate', () {
       final trees = buildHostTrees([
-        _instance(hostname: 'charlie', address: '192.168.1.225', port: 29700),
-        _instance(hostname: 'starpower', address: '192.168.1.195', port: 29700),
+        _instance(hostname: 'build-box', address: '192.0.2.21', port: 29700),
+        _instance(hostname: 'mac-mini', address: '192.0.2.22', port: 29700),
       ]);
-      expect(trees.map((t) => t.name), ['charlie', 'starpower']);
+      expect(trees.map((t) => t.name), ['build-box', 'mac-mini']);
       expect(trees.every((t) => !t.showChannels), isTrue);
     });
 
     test('a host that reports no hostname is grouped by address', () {
       final trees = buildHostTrees([
-        _instance(hostname: '', address: '192.168.1.9', port: 29700),
+        _instance(hostname: '', address: '192.0.2.9', port: 29700),
       ]);
-      expect(trees.single.name, '192.168.1.9');
+      expect(trees.single.name, '192.0.2.9');
     });
     test('hosts, channels and agents are sorted by name, case-insensitively',
         () {
       final trees = buildHostTrees([
-        _instance(hostname: 'starpower', address: '192.168.1.195', port: 1),
+        _instance(hostname: 'mac-mini', address: '192.0.2.22', port: 1),
         _instance(
-          hostname: 'Charlie',
-          address: '192.168.1.225',
+          hostname: 'Build-box',
+          address: '192.0.2.21',
           port: 1,
           agents: [_agent('opaz'), _agent('Agent3'), _agent('beta')],
         ),
       ]);
-      expect(trees.map((t) => t.name), ['Charlie', 'starpower']);
+      expect(trees.map((t) => t.name), ['Build-box', 'mac-mini']);
       expect(trees.first.channels.single.agents.map((a) => a.name),
           ['Agent3', 'beta', 'opaz']);
     });
@@ -133,9 +133,9 @@ void main() {
       final trees = buildHostTrees([
         const FleetEntry(
           instance: LanInstance(
-            hostname: 'narko',
+            hostname: 'studio-pc',
             version: '0.59.7',
-            address: '192.168.1.230',
+            address: '192.0.2.20',
             port: 29704,
             authKey: 'k',
             channel: 'stable',
@@ -159,9 +159,9 @@ void main() {
         _instance(port: 1, channel: 'a'),
         const FleetEntry(
           instance: LanInstance(
-            hostname: 'narko',
+            hostname: 'studio-pc',
             version: '0.59.7',
-            address: '192.168.1.50',
+            address: '192.0.2.50',
             port: 2,
             authKey: 'k',
             channel: 'b',
@@ -175,7 +175,7 @@ void main() {
 
   group('buildHostTrees: platform, channel count, route', () {
     FleetEntry entry({
-      String hostname = 'narko',
+      String hostname = 'studio-pc',
       int port = 29702,
       String? channel = 'local-main',
       String? os,
@@ -229,7 +229,7 @@ void main() {
         entry(port: 3, channel: 'old'),
       ]);
       expect(trees, hasLength(3));
-      expect(trees.every((t) => t.name == 'narko'), isTrue);
+      expect(trees.every((t) => t.name == 'studio-pc'), isTrue);
       expect(trees.map((t) => t.key).toSet(), hasLength(3));
       final win = trees.firstWhere((t) => t.platform == HostPlatform.windows);
       expect(win.channels.single.name, 'win');
@@ -246,7 +246,7 @@ void main() {
       ]);
       expect(trees.single.platform, HostPlatform.windows);
       expect(trees.single.channels, hasLength(2));
-      expect(trees.single.key, 'host:narko');
+      expect(trees.single.key, 'host:studio-pc');
     });
 
     test('showChannels follows channels_running: 1, 3 and absent', () {
@@ -316,7 +316,7 @@ void main() {
       String? installId = id,
       List<LanAgent> agents = const [LanAgent(name: 'Camper')],
       Presence presence = Presence.live,
-      String hostname = 'narko',
+      String hostname = 'studio-pc',
       String channel = 'local-main',
     }) =>
         FleetEntry(
@@ -336,7 +336,7 @@ void main() {
 
     FleetEntry cloud({
       String instanceId = id,
-      String hostname = 'narko',
+      String hostname = 'studio-pc',
       String channel = 'local-main',
       List<LanAgent> agents = const [
         LanAgent(name: 'Camper', kind: AgentKind.host),
@@ -397,7 +397,7 @@ void main() {
         lan(installId: 'aaaaaaaaaaaaaaaaaaaaaaaaaa'),
         cloud(),
       ]).single;
-      expect(host.name, 'narko');
+      expect(host.name, 'studio-pc');
       expect(host.channels, hasLength(2));
       expect(host.channels.map((c) => c.route).toSet(),
           {ChannelRoute.lan, ChannelRoute.cloud});
@@ -423,10 +423,10 @@ void main() {
 
     test('a cloud-only host groups by name like a LAN one', () {
       final trees = buildHostTrees([
-        lan(hostname: 'charlie', installId: null),
+        lan(hostname: 'build-box', installId: null),
         cloud(hostname: 'Atlas', os: 'macos', channelsRunning: 1),
       ]);
-      expect(trees.map((t) => t.name), ['Atlas', 'charlie']);
+      expect(trees.map((t) => t.name), ['Atlas', 'build-box']);
       final atlas = trees.first;
       expect(atlas.route, ChannelRoute.cloud);
       expect(atlas.platform, HostPlatform.macos);
@@ -520,7 +520,7 @@ void main() {
     FleetEntry lan(List<LanAgent> agents, {Presence presence = Presence.live}) =>
         FleetEntry(
           instance: LanInstance(
-            hostname: 'narko',
+            hostname: 'studio-pc',
             version: '0.59.11',
             address: '198.51.100.30',
             port: 29702,
@@ -535,7 +535,7 @@ void main() {
     FleetEntry cloud(List<LanAgent> agents, {Presence presence = Presence.live}) =>
         FleetEntry(
           instance: LanInstance(
-            hostname: 'narko',
+            hostname: 'studio-pc',
             version: '0.59.11',
             address: '',
             port: 0,

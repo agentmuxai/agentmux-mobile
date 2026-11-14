@@ -6,7 +6,7 @@ import 'package:agentmux_mobile/core/fleet/fleet_snapshot.dart';
 Map<String, Object?> _body([Map<String, Object?> extra = const {}]) => {
       'epoch': '9f2c41d07a6b3e58',
       'rev': 12,
-      'hostname': 'narko',
+      'hostname': 'studio-pc',
       'channel': 'local-main',
       'version': '0.59.11',
       'agents': ['AgentX', 'Camper'],

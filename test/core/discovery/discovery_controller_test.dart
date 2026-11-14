@@ -54,7 +54,7 @@ class _FakeUdp extends UdpBroadcastProber {
 /// One fake desktop channel per port: streams its agents while alive.
 class _FakeHost {
   /// The hostname every channel reports.
-  var hostname = 'narko';
+  var hostname = 'studio-pc';
   final agents = <int, List<String>>{};
   final connects = <int, int>{};
   final dead = <int>{};
@@ -107,11 +107,11 @@ class _HostTransport implements FleetTransport {
   Future<LegacyFleetInfo> legacy() => throw _down;
 }
 
-LanInstance _reply(int port, String channel, {String hostname = 'narko'}) =>
+LanInstance _reply(int port, String channel, {String hostname = 'studio-pc'}) =>
     LanInstance(
       hostname: hostname,
       version: '0.59.7',
-      address: '192.168.1.230',
+      address: '192.0.2.20',
       port: port,
       authKey: 'lan-$port',
       channel: channel,
@@ -210,7 +210,7 @@ void main() {
     udp = _FakeUdp();
     host = _FakeHost();
     cloud = _FakeCloud();
-    interfaces = ['wlan0=192.168.1.50'];
+    interfaces = ['wlan0=172.29.77.20'];
     container = ProviderContainer(overrides: [
       cloudSignedInProvider.overrideWithValue(cloud.isSignedIn),
       cloudInstancesFetchProvider.overrideWithValue(cloud.fetch),
@@ -244,8 +244,8 @@ void main() {
       expect(container.read(discoveryProvider), isA<DiscoveryScanning>());
       async.elapse(const Duration(seconds: 1));
       expect(channelsOf(container.read(discoveryProvider)), [
-        'narko/local-main:AgentY,Clamk',
-        'narko/stable:Agent3',
+        'studio-pc/local-main:AgentY,Clamk',
+        'studio-pc/stable:Agent3',
       ]);
     });
   });
@@ -289,8 +289,8 @@ void main() {
       // The next discovery round is at most 5 s away during the first minute.
       async.elapse(const Duration(seconds: 6));
       expect(channelsOf(container.read(discoveryProvider)), [
-        'narko/dev:Korp',
-        'narko/local-main:Clamk',
+        'studio-pc/dev:Korp',
+        'studio-pc/local-main:Clamk',
       ]);
     });
   });
@@ -328,14 +328,14 @@ void main() {
       expect(host.connects[29704], 1);
 
       interfaces = [
-        'wlan0=192.168.1.50',
+        'wlan0=172.29.77.20',
         'wlan0=fe80::1c2b:3aff:fe4d:5e6f',
         'rmnet_data0=10.71.4.2',
       ];
       async.elapse(const Duration(seconds: 6));
       interfaces = [];
       async.elapse(const Duration(seconds: 6));
-      interfaces = ['wlan0=192.168.1.50'];
+      interfaces = ['wlan0=172.29.77.20'];
       async.elapse(const Duration(seconds: 6));
       expect(host.connects[29704], 1, reason: 'the stream was never dropped');
     });
@@ -466,7 +466,7 @@ void main() {
         cloud.list = () => [
               _install(
                 'testinstallidtestinstallid',
-                hostname: 'narko',
+                hostname: 'studio-pc',
                 channel: 'local-main',
                 receivedAt: DateTime.now(),
               ),
@@ -510,7 +510,7 @@ void main() {
         cloud.list = () => [
               _install(
                 'testinstallidtestinstallid',
-                hostname: 'narko',
+                hostname: 'studio-pc',
                 channel: 'local-main',
                 receivedAt: DateTime.now(),
                 gone: true,
@@ -538,7 +538,7 @@ void main() {
         cloud.list = () => [
               _install(
                 'testinstallidtestinstallid',
-                hostname: 'narko',
+                hostname: 'studio-pc',
                 channel: 'local-main',
                 receivedAt: received,
               ),

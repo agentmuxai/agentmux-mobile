@@ -23,7 +23,7 @@ import 'package:agentmux_mobile/shared/widgets/tag_chip.dart';
 import '../../core/viewer/viewer_fakes.dart';
 
 FleetEntry _entry({
-  String hostname = 'narko',
+  String hostname = 'studio-pc',
   int port = 29702,
   String? channel = 'local-main',
   String? os = 'windows',
@@ -93,7 +93,7 @@ void main() {
     final host = buildHostTrees([_entry()]).single;
     await _pump(tester, _app(HostCard(host: host)));
 
-    expect(find.text('narko'), findsOneWidget);
+    expect(find.text('studio-pc'), findsOneWidget);
     expect(find.text('Windows'), findsOneWidget);
     expect(find.text('LAN'), findsOneWidget);
     expect(find.text('v0.59.11'), findsOneWidget);
@@ -206,7 +206,7 @@ void main() {
             _entry(channel: otherChannel, port: 29700),
           FleetEntry(
             instance: const LanInstance(
-              hostname: 'narko',
+              hostname: 'studio-pc',
               version: '0.59.11',
               address: '',
               port: 0,
