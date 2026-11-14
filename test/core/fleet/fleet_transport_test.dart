@@ -37,13 +37,13 @@ class _Adapter implements HttpClientAdapter {
 }
 
 HttpFleetTransport _transport(_Adapter adapter) {
-  final dio = Dio(BaseOptions(baseUrl: 'http://192.168.1.230:29704'))
+  final dio = Dio(BaseOptions(baseUrl: 'http://192.0.2.20:29704'))
     ..httpClientAdapter = adapter;
-  return HttpFleetTransport('192.168.1.230', 29704, 'k', dio: dio);
+  return HttpFleetTransport('192.0.2.20', 29704, 'k', dio: dio);
 }
 
 const _event =
-    'event: fleet\nid: e1:2\ndata: {"epoch":"e1","rev":2,"hostname":"narko",'
+    'event: fleet\nid: e1:2\ndata: {"epoch":"e1","rev":2,"hostname":"studio-pc",'
     '"channel":"local-main","version":"0.59.7","agents":["Clamk"]}\n\n';
 
 void main() {

@@ -34,7 +34,7 @@ No section headings: each row's icon and second line say what it is. The
 ┌────────────────────────────────────────────┐
 │ AgentMux                    ⟳   ⌗   +   ⋮  │
 ├────────────────────────────────────────────┤
-│ 💻 narko  [Windows] [LAN]      v0.59.21  ^ │
+│ 💻 studio-pc  [Windows] [LAN]      v0.59.21  ^ │
 │    3 channels                              │
 │ ┌────────────────────────────────────────┐ │
 │ │ ⑂ local-clamk-release-v0.59…  [LAN] [Paired] ^ │
@@ -49,7 +49,7 @@ No section headings: each row's icon and second line say what it is. The
 │ │  >_ cargo build            Tab 2      ›│ │
 │ │     running · watch live               │ │
 │ │  >_ pwsh — agentmux        Tab 1      ›│ │
-│ │  >_ ssh narko-build        Build      ›│ │
+│ │  >_ ssh studio-pc-build        Build      ›│ │
 │ │     exited 0                           │ │
 │ └────────────────────────────────────────┘ │
 │ ┌────────────────────────────────────────┐ │

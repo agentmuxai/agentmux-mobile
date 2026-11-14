@@ -20,7 +20,7 @@ repo. **[decision]** = adopted for this work.
 
 ## 1. Why this exists
 
-The fleet is not static. One machine (Narko) runs three AgentMux channels at once; channels start
+The fleet is not static. One machine (Studio-pc) runs three AgentMux channels at once; channels start
 and stop, agents come and go, hosts sleep, the phone changes networks. The app took one snapshot at
 start-up and another on manual refresh, so everything on screen was right only for that moment.
 
@@ -30,13 +30,13 @@ All **[verified]** on 2026-10-03.
 
 | # | Finding | Evidence |
 |---|---------|----------|
-| F1 | Charlie and Starpower showed no agents. | They hold only the broadcast `lan_key`; the desktop refuses it on `/agentmux/discovery` (404) and accepts it on `/agentmux/reactive/agent-names`, which the app never called. |
+| F1 | Build-box and Mac-mini showed no agents. | They hold only the broadcast `lan_key`; the desktop refuses it on `/agentmux/discovery` (404) and accepts it on `/agentmux/reactive/agent-names`, which the app never called. |
 | F2 | Two channels on one host collapsed into one card. | `isSameInstance` merged on hostname alone. |
-| F3 | Narko, as an external host, did not appear until LAN discovery was enabled on it. | With it off, its srv processes listen on `127.0.0.1` only. The owner then enabled LAN on two of its three channels (ports 29700 and 29704; the dev channel 29706 stays loopback-only). |
-| F4 | Only one channel per host answers the UDP probe. | After enabling, only the 29704 process holds UDP 47891; a probe returns Narko once (29704), never 29700. The desktop deliberately avoids `SO_REUSEADDR` (on Windows it lets another process steal the socket). If the holder's bind fails, the other instance logs and never retries. |
-| F5 | mDNS does see every LAN-enabled channel. | A browse returns `agentmux-narko-29700` and `agentmux-narko-29704` separately, each with its own port, and 0.59.7 adds a `channel` TXT field (desktop #4241). mDNS does not work on the Android emulator (issue #2), so the emulator sees only F4's single UDP answer. |
+| F3 | Studio-pc, as an external host, did not appear until LAN discovery was enabled on it. | With it off, its srv processes listen on `127.0.0.1` only. The owner then enabled LAN on two of its three channels (ports 29700 and 29704; the dev channel 29706 stays loopback-only). |
+| F4 | Only one channel per host answers the UDP probe. | After enabling, only the 29704 process holds UDP 47891; a probe returns Studio-pc once (29704), never 29700. The desktop deliberately avoids `SO_REUSEADDR` (on Windows it lets another process steal the socket). If the holder's bind fails, the other instance logs and never retries. |
+| F5 | mDNS does see every LAN-enabled channel. | A browse returns `agentmux-studio-pc-29700` and `agentmux-studio-pc-29704` separately, each with its own port, and 0.59.7 adds a `channel` TXT field (desktop #4241). mDNS does not work on the Android emulator (issue #2), so the emulator sees only F4's single UDP answer. |
 | F6 | A `lan_key` holder reads agent names only, per instance. | `handle_reactive_agent_names`, names-only by owner decision 2026-09-08. `host.cross_channel` and `host.agents` need the full key. |
-| F7 | The earlier four-channel Narko tree was an artefact of the dev connection. | It came from the dev auto-connect's full key over loopback, which a phone never has. |
+| F7 | The earlier four-channel Studio-pc tree was an artefact of the dev connection. | It came from the dev auto-connect's full key over loopback, which a phone never has. |
 | F8 | The app has no notion of change over time. | `DiscoveryNotifier.build()` ran mDNS 5 s, UDP 2 s, then stopped. |
 | F9 | mDNS "service removed" is not a reliable signal. | The desktop documents it firing on ordinary TTL churn; it expires peers by their advertised TTL instead (`peer_staleness_window_secs`, 300 s floor). |
 | F10 | The desktop's push channel (`/ws`) is full-key only. | `auth_middleware` accepts only `state.auth_key` (or a container grant). Unusable with a `lan_key`. |
@@ -125,7 +125,7 @@ port), all of which a LAN peer can already see in the mDNS record.
 {
   "epoch": "9f2c41d07a6b3e58",
   "rev": 12,
-  "hostname": "narko",
+  "hostname": "studio-pc",
   "channel": "local-main-b28b7a-051fbf53",
   "version": "0.59.7",
   "agents": ["AgentY", "Clamk"]
@@ -162,7 +162,7 @@ The one srv that holds UDP 47891 also lists the other channels on the same machi
 discovery on:
 
 ```json
-{ "type": "agentmux_discover_response", "v": 1, "hostname": "narko", "port": 29704,
+{ "type": "agentmux_discover_response", "v": 1, "hostname": "studio-pc", "port": 29704,
   "auth_key": "<this channel's lan_key>", "channel": "local-main-...", "...": "...",
   "siblings": [ { "channel": "stable", "port": 29700, "auth_key": "<that channel's lan_key>", "version": "0.59.4" } ] }
 ```
@@ -176,7 +176,7 @@ discovery on:
   is kept under 1400 bytes so it stays one datagram, which in practice fits 5 to 10 siblings
   depending on channel-name length; `siblings` is always present, empty when there are none.
 - Only LAN-enabled siblings are ever listed: each one already broadcasts its own `lan_key` to the
-  LAN over mDNS, so relaying it exposes nothing new. A channel with LAN off (Narko's dev channel)
+  LAN over mDNS, so relaying it exposes nothing new. A channel with LAN off (Studio-pc's dev channel)
   never writes a file and is never listed. The full `auth_key` is never written or sent.
 - **Responder failover:** an instance whose UDP bind fails retries every 15 s while LAN discovery
   stays on, so when the holder stops, another LAN-enabled channel takes over.
@@ -297,14 +297,14 @@ this machine exactly as a phone would (F7). `--dev-connect` opts back in.
 - Desktop: `/agentmux/fleet` shape, ETag and 304, `lan_key` accepted and nothing beyond names; SSE
   first event, `Last-Event-ID` resume, heartbeat, stream cap; sibling file lifecycle, stale/dead/self
   filtering, never listing a LAN-off channel; UDP bind retry.
-- Live: Narko (two LAN channels, one LAN-off), Charlie, Starpower, from the emulator through the
+- Live: Studio-pc (two LAN channels, one LAN-off), Build-box, Mac-mini, from the emulator through the
   relay. Start and stop a channel and watch the tree follow without a refresh.
 - **Done 2026-10-03, cross-implementation:** the desktop branch's srv, run isolated on loopback,
   driven by this app's `HttpFleetTransport`: poll 200 then 304 on the ETag; stream accepted, snapshot
   within 5 ms, heartbeat at 15.0 s; resume with the current id sends no snapshot; a wrong key is a
   401, not "unsupported"; registering an agent pushed `rev 2` with its name to an open stream within
-  about a second. On the emulator (released desktops, so the fallback path): Narko appears as an
-  external LAN host beside Charlie and Starpower, agents from `agent-names`. Not yet seen live:
+  about a second. On the emulator (released desktops, so the fallback path): Studio-pc appears as an
+  external LAN host beside Build-box and Mac-mini, agents from `agent-names`. Not yet seen live:
   `siblings` (needs two LAN-enabled channels on one host running the new desktop build).
 
 ---

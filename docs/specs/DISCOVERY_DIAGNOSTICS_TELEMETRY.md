@@ -89,7 +89,7 @@ response needs zero new parsing: it arrives as an ordinary `agentmux_discover_re
 through the *same* socket/listener `UdpBroadcastProber` already has open.
 
 **Verified live end-to-end on `AgentMux_Pixel9`** (2026-08-19): with the relay running, the
-Discovery screen found the real local AgentMux instance (`claudius v0.55.15`, address
+Discovery screen found the real local AgentMux instance (`laptop-pc v0.55.15`, address
 `10.0.2.2:<port>` — genuinely connectable from inside the emulator) with zero manual entry, zero
 dev-bootstrap dart-defines. Confirmed via `uiautomator dump`, and via the Debug Log summary header
 correctly showing `UDP broadcast: probe sent, 1 datagram(s) received (1 valid)`.

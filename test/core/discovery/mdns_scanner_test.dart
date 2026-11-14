@@ -7,13 +7,13 @@ void main() {
       final txt = MdnsScanner.parseTxt([
         'auth_key=lan-a',
         'version=0.59.11',
-        'hostname=narko',
+        'hostname=studio-pc',
         'channel=local-main',
         'os=windows',
         'install_id=testinstallidtestinstallid',
       ].join('\n'));
       expect(txt.authKey, 'lan-a');
-      expect(txt.hostname, 'narko');
+      expect(txt.hostname, 'studio-pc');
       expect(txt.channel, 'local-main');
       expect(txt.os, 'windows');
       expect(txt.installId, 'testinstallidtestinstallid');

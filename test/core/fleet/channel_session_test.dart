@@ -15,7 +15,7 @@ FleetSnapshot _snap(int rev, List<String> agents, {String epoch = 'e1'}) =>
     FleetSnapshot(
       epoch: epoch,
       rev: rev,
-      hostname: 'narko',
+      hostname: 'studio-pc',
       version: '0.59.7',
       channel: 'local-main',
       agents: agents,
@@ -60,7 +60,7 @@ class _FakeTransport implements FleetTransport {
   Future<LegacyFleetInfo> legacy() async {
     legacyCalls++;
     return (
-      hostname: 'charlie',
+      hostname: 'build-box',
       version: '0.59.5',
       channel: null,
       agents: const [LanAgent(name: 'Opaz')],
@@ -108,7 +108,7 @@ void main() {
         t.streams.single.add(const FleetSnapshot(
           epoch: 'e1',
           rev: 1,
-          hostname: 'narko',
+          hostname: 'studio-pc',
           version: '0.59.11',
           agents: ['AgentX', 'Camper', 'Lark'],
           os: 'windows',
@@ -138,7 +138,7 @@ void main() {
         t.streams.single.add(const FleetSnapshot(
           epoch: 'e1',
           rev: 1,
-          hostname: 'narko',
+          hostname: 'studio-pc',
           version: '0.59.11',
           agents: ['AgentX', 'Camper', 'Lark'],
           nowMs: desktopNow,
@@ -224,7 +224,7 @@ void main() {
         expect(t.legacyCalls, 1);
         final c = updates.whereType<SessionContact>().single;
         expect(c.agents!.single.name, 'Opaz');
-        expect(c.hostname, 'charlie');
+        expect(c.hostname, 'build-box');
         session.stop();
       });
     });

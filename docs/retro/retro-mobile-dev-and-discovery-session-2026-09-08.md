@@ -1,6 +1,6 @@
 # Retro: mobile dev loop, LAN discovery, and release pipeline — 2026-09-08
 
-Friction log from one long session (Loap #2, claudius/Windows) covering:
+Friction log from one long session (Loap #2, laptop-pc/Windows) covering:
 getting the Flutter app running on the emulator, fixing LAN discovery,
 making the repo public, and scaffolding the store-release workflows.
 
@@ -16,8 +16,8 @@ These are real, reproducible, and the highest-value items here.
 ### A1. LAN peers never report their agents — blocks cross-host coordination
 `GET /agentmux/discovery`'s `lan[]` entries and the `DiscoverAgents` MCP tool
 both return `agents: []` for every LAN peer, even when the peer is fully
-discovered with correct hostname/version (confirmed live for `starpower` and
-`gamerlove`). Consequence: there is no way to find out *which* agents exist on
+discovered with correct hostname/version (confirmed live for `mac-mini` and
+`gaming-pc`). Consequence: there is no way to find out *which* agents exist on
 another machine. When asked to message an agent on another host, the only
 option was to address it blind by name and hope delivery succeeded (it did —
 `SendMessage` resolves by name across tiers — but discovery gave zero
@@ -35,11 +35,11 @@ computed at boot (`bootstrap.rs`) and passed to `LanDiscoveryController`, but
 never lands on `AppState` or in this response.
 **Owner:** `agentmux-srv` (`server/mod.rs` `handle_discovery`, `AppState`).
 **Impact:** medium — small change (~15 lines), directly fixes the mobile app
-showing a raw `10.0.2.2` instead of `claudius`.
+showing a raw `10.0.2.2` instead of `laptop-pc`.
 
 ### A3. "Duplicate" LAN peer entries for the same host — INVESTIGATED, likely not a bug
 `DiscoverAgents` returned two entries for `192.168.x.x` — one with
-`hostname: "gamerlove"` (port 63324) and one with `hostname: ""` (port
+`hostname: "gaming-pc"` (port 63324) and one with `hostname: ""` (port
 60371). Originally logged here as a duplicate-entry bug; that diagnosis was
 too hasty and is corrected.
 
@@ -87,7 +87,7 @@ where someone actually hits it. **Owner:** resolved (mobile diagnostics).
 
 ### B1. Two cards for the same machine — RESOLVED
 The same physical host appeared twice on the Discovery screen — once as
-`10.0.2.2` (dev auto-connect, loopback) and once as `claudius` (real UDP
+`10.0.2.2` (dev auto-connect, loopback) and once as `laptop-pc` (real UDP
 broadcast, LAN address), because dedup was keyed on `address + port` and the
 two paths legitimately report different ports.
 
@@ -116,7 +116,7 @@ No CI job and (apparently) no local build has ever targeted iOS in this repo.
 That's how the invalid `--` inside an XML comment in `ios/Runner/Info.plist`
 survived (fixed this session, commit `30547bd`) — the exact same bug class
 already documented for `AndroidManifest.xml`. Strongly suggests more latent
-iOS-side breakage; delegated a real macOS build check to Clare@starpower.
+iOS-side breakage; delegated a real macOS build check to Clare@mac-mini.
 
 ### B4. No XML/plist well-formedness check in CI
 Both known instances of this bug class (`AndroidManifest.xml` previously,
@@ -134,7 +134,7 @@ undetected because nothing had tried to actually release.
 
 ---
 
-## C. Environment / harness friction (claudius, Windows + Git Bash)
+## C. Environment / harness friction (laptop-pc, Windows + Git Bash)
 
 ### C1. Backgrounding with `&` silently kills long-running processes — **done**
 Launching the Android emulator with `... &` inside a Bash tool call let the
@@ -206,7 +206,7 @@ Every actionable item above is resolved:
 
 - **B4** (XML/plist lint in CI), **B2** (relay readiness wait), **C1**
   (harness doc cross-ref) — `agentmux-mobile#18`.
-- **B3** (nothing had ever built for iOS) — Clare@starpower's
+- **B3** (nothing had ever built for iOS) — Clare@mac-mini's
   `agentmux-mobile#19` found the real latent deployment-target bug this
   predicted.
 - **A2** (expose hostname in `/agentmux/discovery`) — `agentmux#3094`.

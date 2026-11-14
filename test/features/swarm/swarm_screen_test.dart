@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _instance = LanInstance(
-  hostname: 'narko',
+  hostname: 'studio-pc',
   version: '0.60.0',
   address: '198.51.100.30',
   port: 29700,
@@ -39,21 +39,21 @@ void main() {
 
   test('a channel is found by host and channel key', () {
     final c = _channel(agents);
-    final host = HostNode(key: 'narko', name: 'narko', channels: [c]);
-    expect(findChannel([host], 'narko', 'stable'), same(c));
-    expect(findChannel([host], 'narko', 'other'), isNull);
+    final host = HostNode(key: 'studio-pc', name: 'studio-pc', channels: [c]);
+    expect(findChannel([host], 'studio-pc', 'stable'), same(c));
+    expect(findChannel([host], 'studio-pc', 'other'), isNull);
     expect(findChannel([host], 'other', 'stable'), isNull);
   });
 
   testWidgets('the screen lists every agent, most active first', (tester) async {
     await tester.pumpWidget(ProviderScope(
       child: MaterialApp(
-        home: SwarmScreen(hostKey: 'narko', channelKey: 'stable', initial: _channel(agents)),
+        home: SwarmScreen(hostKey: 'studio-pc', channelKey: 'stable', initial: _channel(agents)),
       ),
     ));
     await tester.pump();
     expect(find.text('Swarm'), findsOneWidget);
-    expect(find.text('narko  •  stable'), findsOneWidget);
+    expect(find.text('studio-pc  •  stable'), findsOneWidget);
     expect(find.text('6 agents · 2 working · 1 waiting'), findsOneWidget);
     final ys = [for (final n in ['QTest', 'Clamk', 'zed', 'Loap', 'Old', 'Mute']) tester.getCenter(find.text(n)).dy];
     expect(ys, orderedEquals([...ys]..sort()));

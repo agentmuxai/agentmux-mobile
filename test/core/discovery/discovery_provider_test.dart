@@ -86,7 +86,7 @@ void main() {
     // Retro B1, confirmed live: the same physical machine reached two
     // different ways — dev auto-connect over loopback, UDP-broadcast
     // discovery over the real LAN address — rendered as two duplicate
-    // cards ("10.0.2.2" and "claudius" side by side), because dedup
+    // cards ("10.0.2.2" and "laptop-pc" side by side), because dedup
     // everywhere only ever compared address:port.
     //
     // Hostname alone stopped being identity once several channels could run
@@ -95,13 +95,13 @@ void main() {
     test('same non-empty hostname and port merges even with different address',
         () {
       final devConnect = _instance(
-        hostname: 'claudius',
+        hostname: 'laptop-pc',
         address: '10.0.2.2',
         port: 59859,
       );
       final udpDiscovered = _instance(
-        hostname: 'claudius',
-        address: '192.168.1.230',
+        hostname: 'laptop-pc',
+        address: '192.0.2.20',
         port: 59859,
       );
       expect(DiscoveryNotifier.isSameInstance(devConnect, udpDiscovered), isTrue);
@@ -109,15 +109,15 @@ void main() {
 
     test('same hostname on different ports is a different channel, not a duplicate',
         () {
-      final stable = _instance(hostname: 'narko', address: '192.168.1.50', port: 29704);
-      final dev = _instance(hostname: 'narko', address: '192.168.1.50', port: 29706);
+      final stable = _instance(hostname: 'studio-pc', address: '192.0.2.50', port: 29704);
+      final dev = _instance(hostname: 'studio-pc', address: '192.0.2.50', port: 29706);
       expect(DiscoveryNotifier.isSameInstance(stable, dev), isFalse);
     });
 
     test('different non-empty hostnames never merge, even sharing a port',
         () {
-      final a = _instance(hostname: 'claudius', address: '192.168.1.230', port: 51894);
-      final b = _instance(hostname: 'gamerlove', address: '192.168.1.68', port: 51894);
+      final a = _instance(hostname: 'laptop-pc', address: '192.0.2.20', port: 51894);
+      final b = _instance(hostname: 'gaming-pc', address: '192.0.2.23', port: 51894);
       expect(DiscoveryNotifier.isSameInstance(a, b), isFalse);
     });
 
@@ -125,7 +125,7 @@ void main() {
     // unchanged for a server predating the hostname field (agentmux PR
     // #3094) or an entry whose fetchDiscoveryInfo() call hasn't resolved yet.
     test('falls back to address:port when either side has no hostname', () {
-      final withHostname = _instance(hostname: 'claudius', address: '10.0.2.2', port: 59859);
+      final withHostname = _instance(hostname: 'laptop-pc', address: '10.0.2.2', port: 59859);
       final withoutHostname = _instance(hostname: '', address: '10.0.2.2', port: 59859);
       expect(DiscoveryNotifier.isSameInstance(withHostname, withoutHostname), isTrue);
 
