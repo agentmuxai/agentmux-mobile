@@ -210,7 +210,7 @@ void main() {
     udp = _FakeUdp();
     host = _FakeHost();
     cloud = _FakeCloud();
-    interfaces = ['wlan0=192.0.2.50'];
+    interfaces = ['wlan0=172.29.77.20'];
     container = ProviderContainer(overrides: [
       cloudSignedInProvider.overrideWithValue(cloud.isSignedIn),
       cloudInstancesFetchProvider.overrideWithValue(cloud.fetch),
@@ -328,14 +328,14 @@ void main() {
       expect(host.connects[29704], 1);
 
       interfaces = [
-        'wlan0=192.0.2.50',
+        'wlan0=172.29.77.20',
         'wlan0=fe80::1c2b:3aff:fe4d:5e6f',
         'rmnet_data0=10.71.4.2',
       ];
       async.elapse(const Duration(seconds: 6));
       interfaces = [];
       async.elapse(const Duration(seconds: 6));
-      interfaces = ['wlan0=192.0.2.50'];
+      interfaces = ['wlan0=172.29.77.20'];
       async.elapse(const Duration(seconds: 6));
       expect(host.connects[29704], 1, reason: 'the stream was never dropped');
     });
