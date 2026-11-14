@@ -38,7 +38,7 @@ never lands on `AppState` or in this response.
 showing a raw `10.0.2.2` instead of `claudius`.
 
 ### A3. "Duplicate" LAN peer entries for the same host — INVESTIGATED, likely not a bug
-`DiscoverAgents` returned two entries for `192.168.1.68` — one with
+`DiscoverAgents` returned two entries for `192.168.x.x` — one with
 `hostname: "gamerlove"` (port 63324) and one with `hostname: ""` (port
 60371). Originally logged here as a duplicate-entry bug; that diagnosis was
 too hasty and is corrected.
